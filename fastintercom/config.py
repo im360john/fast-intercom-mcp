@@ -1,0 +1,108 @@
+"""Configuration management for FastIntercom MCP server."""
+
+import os
+import json
+from pathlib import Path
+from typing import Optional, Dict, Any
+from dataclasses import dataclass, asdict
+from dotenv import load_dotenv
+
+
+@dataclass
+class Config:
+    """FastIntercom configuration."""
+    intercom_token: str
+    database_path: Optional[str] = None
+    log_level: str = "INFO"
+    max_sync_age_minutes: int = 5
+    background_sync_interval_minutes: int = 10
+    initial_sync_days: int = 30
+    
+    @classmethod
+    def load(cls, config_path: Optional[str] = None) -> 'Config':
+        """Load configuration from file or environment variables."""
+        # Load .env file if it exists
+        load_dotenv()
+        
+        if config_path is None:
+            config_path = cls.get_default_config_path()
+        
+        config_data = {}
+        
+        # Load from file if it exists
+        if Path(config_path).exists():
+            with open(config_path, 'r') as f:
+                config_data = json.load(f)
+        
+        # Override with environment variables
+        env_overrides = {
+            'intercom_token': os.getenv('INTERCOM_ACCESS_TOKEN'),
+            'database_path': os.getenv('FASTINTERCOM_DB_PATH'),
+            'log_level': os.getenv('FASTINTERCOM_LOG_LEVEL'),
+            'max_sync_age_minutes': os.getenv('FASTINTERCOM_MAX_SYNC_AGE_MINUTES'),
+            'background_sync_interval_minutes': os.getenv('FASTINTERCOM_BACKGROUND_SYNC_INTERVAL'),
+            'initial_sync_days': os.getenv('FASTINTERCOM_INITIAL_SYNC_DAYS'),
+        }
+        
+        for key, value in env_overrides.items():
+            if value is not None:
+                if key in ['max_sync_age_minutes', 'background_sync_interval_minutes', 'initial_sync_days']:
+                    config_data[key] = int(value)
+                else:
+                    config_data[key] = value
+        
+        # Validate required fields
+        if not config_data.get('intercom_token'):
+            raise ValueError(
+                "Intercom access token is required. Set INTERCOM_ACCESS_TOKEN environment variable "
+                "or include 'intercom_token' in config file."
+            )
+        
+        return cls(**config_data)
+    
+    def save(self, config_path: Optional[str] = None):
+        """Save configuration to file."""
+        if config_path is None:
+            config_path = self.get_default_config_path()
+        
+        # Ensure config directory exists
+        Path(config_path).parent.mkdir(parents=True, exist_ok=True)
+        
+        # Don't save the token to file for security
+        config_data = asdict(self)
+        config_data.pop('intercom_token', None)
+        
+        with open(config_path, 'w') as f:
+            json.dump(config_data, f, indent=2)
+    
+    @staticmethod
+    def get_default_config_path() -> str:
+        """Get the default configuration file path."""
+        return str(Path.home() / ".fastintercom" / "config.json")
+    
+    @staticmethod
+    def get_default_data_dir() -> str:
+        """Get the default data directory."""
+        return str(Path.home() / ".fastintercom")
+
+
+def setup_logging(log_level: str = "INFO"):
+    """Setup logging configuration."""
+    import logging
+    
+    # Create logs directory
+    log_dir = Path.home() / ".fastintercom" / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Configure logging
+    logging.basicConfig(
+        level=getattr(logging, log_level.upper()),
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler(log_dir / "fastintercom.log"),
+            logging.StreamHandler()
+        ]
+    )
+    
+    # Reduce noise from httpx
+    logging.getLogger("httpx").setLevel(logging.WARNING)
