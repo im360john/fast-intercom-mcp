@@ -1,0 +1,173 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  fastintercom-db:
+    image: postgres:15-alpine
+    container_name: fastintercom-db
+    environment:
+      POSTGRES_DB: intercom
+      POSTGRES_USER: fastintercom
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-fastintercom_dev_password}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./src/database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./src/database/indexes.sql:/docker-entrypoint-initdb.d/02-indexes.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fastintercom -d intercom"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - fastintercom
+
+  # Redis Cache (Optional)
+  fastintercom-redis:
+    image: redis:7-alpine
+    container_name: fastintercom-redis
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - fastintercom
+
+  # FastIntercomMCP Server
+  fastintercom-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: fastintercom-mcp
+    environment:
+      # Required
+      INTERCOM_ACCESS_TOKEN: ${INTERCOM_ACCESS_TOKEN}
+      DATABASE_URL: postgresql://fastintercom:${DB_PASSWORD:-fastintercom_dev_password}@fastintercom-db:5432/intercom
+      
+      # Optional
+      REDIS_URL: redis://fastintercom-redis:6379/0
+      MCP_PORT: 8000
+      MCP_HOST: 0.0.0.0
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      SYNC_INTERVAL: ${SYNC_INTERVAL:-3600}
+      MAX_CONNECTIONS: ${MAX_CONNECTIONS:-50}
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      
+      # Security
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-*}
+      RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-true}
+      
+      # Performance
+      METRICS_ENABLED: ${METRICS_ENABLED:-true}
+      SLOW_QUERY_THRESHOLD: ${SLOW_QUERY_THRESHOLD:-100}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./logs:/app/logs
+      - ./.env:/app/.env:ro
+    depends_on:
+      fastintercom-db:
+        condition: service_healthy
+      fastintercom-redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    networks:
+      - fastintercom
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+  # Sync Worker (Background data synchronization)
+  fastintercom-sync:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: fastintercom-sync
+    command: ["python", "-m", "src.sync.worker"]
+    environment:
+      INTERCOM_ACCESS_TOKEN: ${INTERCOM_ACCESS_TOKEN}
+      DATABASE_URL: postgresql://fastintercom:${DB_PASSWORD:-fastintercom_dev_password}@fastintercom-db:5432/intercom
+      REDIS_URL: redis://fastintercom-redis:6379/0
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      SYNC_INTERVAL: ${SYNC_INTERVAL:-3600}
+      SYNC_BATCH_SIZE: ${SYNC_BATCH_SIZE:-1000}
+    volumes:
+      - ./logs:/app/logs
+      - ./.env:/app/.env:ro
+    depends_on:
+      fastintercom-db:
+        condition: service_healthy
+      fastintercom-redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - fastintercom
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+# Networks
+networks:
+  fastintercom:
+    driver: bridge
+    name: fastintercom
+
+# Volumes
+volumes:
+  postgres_data:
+    driver: local
+    name: fastintercom_postgres_data
+  redis_data:
+    driver: local
+    name: fastintercom_redis_data
+
+# Development override
+---
+# docker-compose.override.yml (automatically loaded in development)
+version: '3.8'
+services:
+  fastintercom-mcp:
+    build:
+      target: development
+    environment:
+      DEBUG: "true"
+      LOG_LEVEL: DEBUG
+    volumes:
+      - .:/app
+      - /app/.venv  # Exclude venv from bind mount
+    command: ["python", "-m", "src.mcp.server", "--reload"]
+    
+  fastintercom-sync:
+    build:
+      target: development
+    environment:
+      DEBUG: "true"
+      LOG_LEVEL: DEBUG
+    volumes:
+      - .:/app
+      - /app/.venv
