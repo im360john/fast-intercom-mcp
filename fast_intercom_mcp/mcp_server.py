@@ -132,24 +132,32 @@ class FastIntercomMCPServer:
         # Parse timeframe into dates
         start_date, end_date = self._parse_timeframe(timeframe)
         
-        # Calculate data freshness and trigger smart sync
+        # Use smart sync state logic
+        sync_info = None
+        try:
+            sync_info = await self.sync_service.sync_if_needed(start_date, end_date)
+        except Exception as e:
+            # If sync fails, still try to return what data we have
+            logger.error(f"Sync failed: {e}")
+            sync_info = {
+                "sync_state": "error",
+                "message": f"Sync failed: {str(e)}",
+                "data_complete": False
+            }
+        
+        # Record this request pattern for future optimization
         data_freshness_seconds = 0
-        sync_triggered = False
-        
         if start_date and end_date:
-            # Check how fresh our data is for this timeframe
             data_freshness_seconds = self.db.get_data_freshness_for_timeframe(start_date, end_date)
-            
-            # Trigger background sync for next request if data is stale (>5 minutes)
-            if data_freshness_seconds > 300:  # 5 minutes
-                # Start background sync task (non-blocking)
-                asyncio.create_task(self._smart_background_sync(start_date, end_date))
-                sync_triggered = True
-            
-            # Record this request pattern for future analysis
-            self.db.record_request_pattern(start_date, end_date, data_freshness_seconds, sync_triggered)
         
-        # Search in database (using current data, even if potentially stale)
+        self.db.record_request_pattern(
+            start_date or datetime.now() - timedelta(hours=1), 
+            end_date or datetime.now(), 
+            data_freshness_seconds, 
+            sync_info.get("sync_state") == "fresh" if sync_info else False
+        )
+        
+        # Search conversations
         conversations = self.db.search_conversations(
             query=query,
             start_date=start_date,
@@ -192,6 +200,27 @@ class FastIntercomMCPServer:
                 result_text += f"- [View in Intercom]({conv.get_url(app_id)})\n"
             
             result_text += "\n"
+        
+        # Add sync state information
+        if sync_info:
+            result_text += "\n---\n**Data Freshness Status:**\n"
+            sync_state = sync_info.get("sync_state", "unknown")
+            
+            if sync_state == "fresh":
+                result_text += "✅ Data is current and complete\n"
+            elif sync_state == "partial":
+                result_text += f"⚠️ {sync_info.get('message', 'Data may be incomplete')}\n"
+            elif sync_state == "stale":
+                result_text += f"🔄 {sync_info.get('message', 'Data was refreshed')}\n"
+            elif sync_state == "error":
+                result_text += f"❌ {sync_info.get('message', 'Sync error occurred')}\n"
+            
+            if sync_info.get("last_sync"):
+                last_sync = sync_info["last_sync"]
+                if isinstance(last_sync, str):
+                    result_text += f"Last sync: {last_sync}\n"
+                else:
+                    result_text += f"Last sync: {last_sync.strftime('%Y-%m-%d %H:%M:%S')}\n"
         
         return [TextContent(type="text", text=result_text)]
     

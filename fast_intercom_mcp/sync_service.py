@@ -9,7 +9,7 @@ import time
 
 from .database import DatabaseManager
 from .intercom_client import IntercomClient
-from .models import SyncStats, Conversation
+from .models import SyncStats, Conversation, SyncStateException
 
 
 logger = logging.getLogger(__name__)
@@ -116,18 +116,52 @@ class SyncService:
             await self.sync_period(recent_start, now, is_background=True)
     
     async def sync_if_needed(self, start_date: Optional[datetime], end_date: Optional[datetime]):
-        """Sync data if the requested time range is stale."""
-        if not start_date or not end_date:
-            # No specific range, sync recent data
-            await self.sync_recent()
-            return
+        """
+        Smart sync based on 3-state sync logic.
         
-        # Check if we have fresh data for this range
-        # For now, simplified: just sync if older than max_sync_age_minutes
-        now = datetime.now()
-        if (now - end_date).total_seconds() > self.max_sync_age_minutes * 60:
-            logger.info(f"Syncing stale data range: {start_date} to {end_date}")
-            await self.sync_period(start_date, end_date)
+        States:
+        - 'stale': Data is too old, trigger sync and wait
+        - 'partial': Data is incomplete but usable, proceed with warning  
+        - 'fresh': Data is current, proceed normally
+        """
+        # Check sync state using intelligent logic
+        sync_info = self.db.check_sync_state(start_date, end_date, self.max_sync_age_minutes)
+        sync_state = sync_info["sync_state"]
+        
+        logger.info(f"Sync state check: {sync_state}")
+        if sync_info.get("message"):
+            logger.info(f"Sync message: {sync_info['message']}")
+        
+        # Handle different sync states
+        if sync_state == "stale" and sync_info.get("should_sync"):
+            # State 1: Data is too stale - trigger sync and wait
+            logger.warning(f"Data is stale, triggering sync: {sync_info['message']}")
+            
+            if not start_date or not end_date:
+                # No specific range, sync recent data
+                await self.sync_recent()
+            else:
+                # Sync specific period
+                try:
+                    await self.sync_period(start_date, end_date)
+                    logger.info("Sync completed, data is now fresh")
+                except Exception as e:
+                    # If sync fails, raise exception to inform user
+                    raise SyncStateException(
+                        f"Data is stale and sync failed: {str(e)}",
+                        sync_state="stale",
+                        last_sync=sync_info.get("last_sync")
+                    )
+        
+        elif sync_state == "partial":
+            # State 2: Partial data - proceed but log warning
+            logger.warning(f"Proceeding with partial data: {sync_info['message']}")
+        
+        # State 3: Fresh data - proceed normally (no action needed)
+        elif sync_state == "fresh":
+            logger.debug("Using fresh cached data")
+        
+        return sync_info
     
     async def sync_recent(self) -> SyncStats:
         """Sync conversations from the last few hours."""

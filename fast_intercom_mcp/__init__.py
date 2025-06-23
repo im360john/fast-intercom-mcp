@@ -9,7 +9,7 @@ from .intercom_client import IntercomClient
 from .mcp_server import FastIntercomMCPServer
 from .sync_service import SyncService, SyncManager
 from .config import Config
-from .models import Conversation, Message, ConversationFilters
+from .models import Conversation, Message, ConversationFilters, SyncStateException
 
 __all__ = [
     "DatabaseManager",
@@ -21,4 +21,5 @@ __all__ = [
     "Conversation",
     "Message", 
     "ConversationFilters",
+    "SyncStateException",
 ]

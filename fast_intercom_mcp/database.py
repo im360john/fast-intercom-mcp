@@ -4,7 +4,7 @@ import sqlite3
 import json
 import os
 from datetime import datetime, timezone, timedelta
-from typing import List, Optional, Dict, Any, Tuple
+from typing import List, Optional, Dict, Any, Tuple, Literal
 from pathlib import Path
 
 from .models import Conversation, Message, SyncPeriod
@@ -485,6 +485,107 @@ class DatabaseManager:
                 return int(freshness)
             
             return 0  # No data means "fresh" (will trigger initial sync)
+
+    def check_sync_state(
+        self, 
+        start_date: Optional[datetime], 
+        end_date: Optional[datetime],
+        freshness_threshold_minutes: int = 5
+    ) -> Dict[str, Any]:
+        """
+        Check sync state relative to requested timeframe.
+        
+        Returns sync state ('stale', 'partial', 'fresh') with metadata.
+        
+        Args:
+            start_date: Start of requested timeframe  
+            end_date: End of requested timeframe
+            freshness_threshold_minutes: Minutes before data considered stale
+            
+        Returns:
+            Dict with sync_state, last_sync, message, and should_sync fields
+        """
+        sync_status = self.get_sync_status()
+        last_sync_str = sync_status.get("last_sync")
+        
+        if not last_sync_str:
+            return {
+                "sync_state": "stale",
+                "last_sync": None,
+                "message": "No sync data available - database needs initial sync",
+                "should_sync": True,
+                "data_complete": False
+            }
+        
+        try:
+            # Parse last sync time (handle various ISO formats)
+            last_sync = datetime.fromisoformat(last_sync_str.replace("Z", "+00:00"))
+            if last_sync.tzinfo:
+                last_sync = last_sync.replace(tzinfo=None)  # Make naive for comparison
+        except (ValueError, AttributeError):
+            return {
+                "sync_state": "stale", 
+                "last_sync": None,
+                "message": f"Invalid sync timestamp: {last_sync_str}",
+                "should_sync": True,
+                "data_complete": False
+            }
+        
+        # If no timeframe specified, check general freshness
+        if not start_date or not end_date:
+            recent_threshold = datetime.now() - timedelta(minutes=freshness_threshold_minutes)
+            if last_sync >= recent_threshold:
+                return {
+                    "sync_state": "fresh", 
+                    "last_sync": last_sync,
+                    "data_complete": True
+                }
+            else:
+                return {
+                    "sync_state": "partial",
+                    "last_sync": last_sync,
+                    "message": f"Data may be stale - last sync: {last_sync.strftime('%Y-%m-%d %H:%M:%S')}",
+                    "data_complete": False
+                }
+        
+        # State 1: Stale - last sync before requested period
+        if last_sync < start_date:
+            return {
+                "sync_state": "stale",
+                "last_sync": last_sync,
+                "message": f"Data is stale - last sync {last_sync.strftime('%Y-%m-%d %H:%M:%S')} is before requested period {start_date.strftime('%Y-%m-%d %H:%M:%S')}",
+                "should_sync": True,
+                "data_complete": False
+            }
+        
+        # State 2: Partial - last sync within requested period  
+        if start_date <= last_sync < end_date:
+            return {
+                "sync_state": "partial",
+                "last_sync": last_sync,
+                "message": f"Analysis includes conversations up to {last_sync.strftime('%Y-%m-%d %H:%M:%S')} - may be missing recent conversations",
+                "should_sync": False,
+                "data_complete": False
+            }
+        
+        # State 3: Fresh - last sync recent relative to end time
+        freshness_threshold_dt = end_date - timedelta(minutes=freshness_threshold_minutes)
+        if last_sync >= freshness_threshold_dt:
+            return {
+                "sync_state": "fresh",
+                "last_sync": last_sync,
+                "should_sync": False,
+                "data_complete": True
+            }
+        else:
+            # Slightly stale but within acceptable range
+            return {
+                "sync_state": "partial", 
+                "last_sync": last_sync,
+                "message": f"Analysis includes conversations up to {last_sync.strftime('%Y-%m-%d %H:%M:%S')} - may be missing very recent conversations",
+                "should_sync": False,
+                "data_complete": False
+            }
 
     def close(self):
         """Close database connections (for cleanup)."""
