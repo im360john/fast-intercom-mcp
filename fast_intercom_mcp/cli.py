@@ -202,25 +202,26 @@ def start(ctx, daemon, port, host, api_key):
     # Setup signal handlers for graceful shutdown
     def signal_handler(signum, frame):
         click.echo("\n🛑 Shutting down gracefully...")
-        sync_manager.stop()
+        if transport_mode == "http":
+            sync_manager.stop()
         sys.exit(0)
     
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
     
     async def run_server():
-        # Start background sync
-        sync_manager.start()
-        
         # Test connection
         if not await intercom_client.test_connection():
             click.echo("❌ Failed to connect to Intercom API. Check your token.")
             return False
         
         click.echo("✅ Connected to Intercom API")
-        click.echo("🔄 Background sync service started")
         
         if transport_mode == "http":
+            # HTTP mode: start external sync manager
+            sync_manager.start()
+            click.echo("🔄 Background sync service started")
+            
             # Show connection info for HTTP mode
             conn_info = server.get_connection_info()
             click.echo("📡 HTTP MCP server ready!")
@@ -237,7 +238,8 @@ def start(ctx, daemon, port, host, api_key):
                 await server.stop()
                 sync_manager.stop()
         else:
-            # Stdio mode
+            # Stdio mode: MCP server manages its own sync
+            click.echo("🔄 Background sync service started")
             click.echo("📡 MCP server listening for requests...")
             click.echo("   (Press Ctrl+C to stop)")
             
@@ -245,8 +247,6 @@ def start(ctx, daemon, port, host, api_key):
                 await server.run()
             except KeyboardInterrupt:
                 pass
-            finally:
-                sync_manager.stop()
         
         return True
     
@@ -350,13 +350,12 @@ def mcp(ctx):
     mcp_server = FastIntercomMCPServer(db, sync_manager.get_sync_service(), intercom_client)
     
     async def run_mcp_server():
-        # Start background sync
-        sync_manager.start()
-        
+        # Note: MCP server will start its own background sync
         try:
             await mcp_server.run()
         finally:
-            sync_manager.stop()
+            # Ensure cleanup
+            pass
     
     try:
         asyncio.run(run_mcp_server())

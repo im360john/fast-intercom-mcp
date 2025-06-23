@@ -4,10 +4,11 @@ set -e
 # Set default paths for Docker environment
 export FASTINTERCOM_DB_PATH="${FASTINTERCOM_DB_PATH:-/data/fastintercom.db}"
 export FASTINTERCOM_CONFIG_PATH="${FASTINTERCOM_CONFIG_PATH:-/config/config.json}"
+export FASTINTERCOM_DATA_DIR="${FASTINTERCOM_DATA_DIR:-/data}"
 
 # Override default directories to use mounted volumes
 export HOME=/data
-mkdir -p /data/.fastintercom/logs /config
+mkdir -p /data/logs /config
 
 # Create config from environment if not exists
 if [ ! -f "$FASTINTERCOM_CONFIG_PATH" ]; then

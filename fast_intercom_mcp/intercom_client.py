@@ -195,14 +195,15 @@ class IntercomClient:
         conversations = []
         
         async with httpx.AsyncClient(timeout=30.0) as client:
+            # Use updated_at to capture both new conversations AND existing conversations with new messages
             search_filters = [
                 {
-                    "field": "created_at",
+                    "field": "updated_at",
                     "operator": ">",
                     "value": int(start_date.timestamp())
                 },
                 {
-                    "field": "created_at",
+                    "field": "updated_at",
                     "operator": "<", 
                     "value": int(end_date.timestamp())
                 }

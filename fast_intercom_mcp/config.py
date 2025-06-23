@@ -16,7 +16,7 @@ class Config:
     log_level: str = "INFO"
     max_sync_age_minutes: int = 5
     background_sync_interval_minutes: int = 10
-    initial_sync_days: int = 30
+    initial_sync_days: int = 30  # 0 means ALL history
     
     @classmethod
     def load(cls, config_path: Optional[str] = None) -> 'Config':
@@ -90,18 +90,36 @@ def setup_logging(log_level: str = "INFO"):
     """Setup logging configuration."""
     import logging
     
-    # Create logs directory
-    log_dir = Path.home() / ".fastintercom" / "logs"
-    log_dir.mkdir(parents=True, exist_ok=True)
+    # Determine log directory - handle Docker environment
+    if os.getenv('FASTINTERCOM_DATA_DIR'):
+        # Docker environment
+        log_dir = Path(os.getenv('FASTINTERCOM_DATA_DIR')) / "logs"
+    else:
+        # Local environment
+        log_dir = Path.home() / ".fastintercom" / "logs"
+    
+    # Create logs directory with proper permissions
+    try:
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_file = log_dir / "fastintercom.log"
+    except (PermissionError, OSError):
+        # Fallback to stdout only if file logging fails
+        log_file = None
+    
+    # Configure logging handlers
+    handlers = [logging.StreamHandler()]
+    if log_file:
+        try:
+            handlers.append(logging.FileHandler(log_file))
+        except (PermissionError, OSError):
+            # Skip file logging if permissions issue
+            pass
     
     # Configure logging
     logging.basicConfig(
         level=getattr(logging, log_level.upper()),
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.FileHandler(log_dir / "fastintercom.log"),
-            logging.StreamHandler()
-        ]
+        handlers=handlers
     )
     
     # Reduce noise from httpx

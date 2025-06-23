@@ -701,15 +701,27 @@ class FastIntercomMCPServer:
         logger.info("Starting FastIntercom MCP server...")
         
         try:
-            # Start background sync before starting MCP server
-            await self.start_background_sync()
+            # Start background sync in a separate task (don't await - runs independently)
+            sync_task = None
+            if self.background_sync:
+                sync_task = asyncio.create_task(self.background_sync.start())
+                logger.info("Background sync service started")
             
+            # Run MCP server indefinitely - this is the main blocking operation
             async with stdio_server() as (read_stream, write_stream):
+                logger.info("MCP server listening for requests...")
                 await self.server.run(
                     read_stream,
                     write_stream,
                     self.server.create_initialization_options()
                 )
+        except KeyboardInterrupt:
+            logger.info("MCP server shutdown requested")
+        except Exception as e:
+            logger.error(f"MCP server error: {e}")
+            raise
         finally:
             # Stop background sync when server stops
+            if sync_task and not sync_task.done():
+                sync_task.cancel()
             await self.stop_background_sync()

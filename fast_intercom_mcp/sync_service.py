@@ -109,11 +109,29 @@ class SyncService:
             for start, end in stale_periods[:2]:  # Limit to 2 periods
                 await self.sync_period(start, end, is_background=True)
         
-        # Priority 3: Keep very recent data fresh (last hour) for immediate queries
+        # Priority 3: Enhanced background sync for better coverage
         if not stale_request_timeframes and not stale_periods:
             now = datetime.now()
-            recent_start = now - timedelta(hours=1)
-            await self.sync_period(recent_start, now, is_background=True)
+            
+            # Check if we have data from today by checking database directly
+            today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            import sqlite3
+            
+            with sqlite3.connect(self.db.db_path) as conn:
+                cursor = conn.execute(
+                    "SELECT COUNT(*) FROM conversations WHERE created_at >= ?",
+                    [today_start.isoformat()]
+                )
+                today_count = cursor.fetchone()[0]
+            
+            if today_count < 5:  # Less than 5 conversations today
+                # Sync the full day to get better coverage
+                logger.info(f"Only {today_count} conversations found for today, syncing full day")
+                await self.sync_period(today_start, now, is_background=True)
+            else:
+                # We have some data, just sync recent hour
+                recent_start = now - timedelta(hours=1)
+                await self.sync_period(recent_start, now, is_background=True)
     
     async def sync_if_needed(self, start_date: Optional[datetime], end_date: Optional[datetime]):
         """
@@ -302,19 +320,28 @@ class SyncManager:
         if not self._started or not self._loop:
             return
         
-        # Schedule stop on the event loop
-        asyncio.run_coroutine_threadsafe(
-            self.sync_service.stop_background_sync(), 
-            self._loop
-        )
+        try:
+            # Schedule stop on the event loop and wait for completion
+            future = asyncio.run_coroutine_threadsafe(
+                self.sync_service.stop_background_sync(), 
+                self._loop
+            )
+            future.result(timeout=5)  # Wait up to 5 seconds
+        except Exception as e:
+            logger.warning(f"Error stopping sync service: {e}")
         
         # Stop the event loop
-        self._loop.call_soon_threadsafe(self._loop.stop)
+        try:
+            self._loop.call_soon_threadsafe(self._loop.stop)
+        except Exception:
+            pass
         
-        if self._thread:
+        # Wait for thread to finish
+        if self._thread and self._thread.is_alive():
             self._thread.join(timeout=10)
         
         self._started = False
+        self._loop = None
         logger.info("Sync manager stopped")
     
     def get_sync_service(self) -> SyncService:
