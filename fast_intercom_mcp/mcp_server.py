@@ -672,6 +672,30 @@ class FastIntercomMCPServer:
             await self.background_sync.stop()
             logger.info("Background sync service stopped")
 
+    async def _list_tools(self):
+        """Internal method to get tools list."""
+        # Get the list_tools handler from the server
+        list_tools_handler = None
+        for handler in self.server._tool_list_handlers:
+            list_tools_handler = handler
+            break
+        
+        if list_tools_handler:
+            return await list_tools_handler()
+        return []
+    
+    async def _call_tool(self, name: str, arguments: Dict[str, Any]):
+        """Internal method to call a tool."""
+        # Get the call_tool handler from the server
+        call_tool_handler = None
+        for handler in self.server._tool_call_handlers:
+            call_tool_handler = handler
+            break
+        
+        if call_tool_handler:
+            return await call_tool_handler(name, arguments)
+        return []
+
     async def run(self):
         """Run the MCP server."""
         logger.info("Starting FastIntercom MCP server...")

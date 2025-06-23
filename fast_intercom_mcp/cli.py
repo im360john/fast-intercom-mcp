@@ -4,6 +4,7 @@ import asyncio
 import sys
 import signal
 import logging
+import os
 from pathlib import Path
 from typing import Optional
 import click
@@ -14,9 +15,52 @@ from .database import DatabaseManager
 from .intercom_client import IntercomClient
 from .sync_service import SyncManager
 from .mcp_server import FastIntercomMCPServer
+from .http_server import FastIntercomHTTPServer
 
 
 logger = logging.getLogger(__name__)
+
+
+def _daemonize():
+    """Daemonize the current process (Unix/Linux only)."""
+    if os.name != 'posix':
+        click.echo("⚠️  Daemon mode only supported on Unix/Linux systems")
+        return
+        
+    try:
+        # Fork first child
+        pid = os.fork()
+        if pid > 0:
+            sys.exit(0)  # Exit parent
+    except OSError as e:
+        sys.stderr.write(f"Fork #1 failed: {e}\n")
+        sys.exit(1)
+    
+    # Decouple from parent environment
+    os.chdir("/")
+    os.setsid()
+    os.umask(0)
+    
+    # Fork second child
+    try:
+        pid = os.fork()
+        if pid > 0:
+            sys.exit(0)  # Exit second parent
+    except OSError as e:
+        sys.stderr.write(f"Fork #2 failed: {e}\n")
+        sys.exit(1)
+    
+    # Redirect standard file descriptors to avoid blocking
+    sys.stdout.flush()
+    sys.stderr.flush()
+    devnull = '/dev/null'
+    if hasattr(os, "devnull"):
+        devnull = os.devnull
+    
+    with open(devnull, 'r') as si, open(devnull, 'a+') as so, open(devnull, 'a+') as se:
+        os.dup2(si.fileno(), sys.stdin.fileno())
+        os.dup2(so.fileno(), sys.stdout.fileno())
+        os.dup2(se.fileno(), sys.stderr.fileno())
 
 
 @click.group()
@@ -45,14 +89,15 @@ def cli(ctx, config, verbose):
 @click.option('--token', prompt='Intercom Access Token', hide_input=True, 
               help='Your Intercom access token')
 @click.option('--sync-days', default=7, type=int, 
-              help='Number of days of history to sync initially (max 30)')
+              help='Number of days of history to sync initially (0 for ALL history)')
 @click.pass_context
 def init(ctx, token, sync_days):
     """Initialize FastIntercom with your Intercom credentials."""
     click.echo("🚀 Initializing FastIntercom MCP Server...")
     
-    # Validate sync_days
-    sync_days = min(sync_days, 30)
+    # Validate sync_days (0 means ALL history, no upper limit)
+    if sync_days < 0:
+        sync_days = 7  # Default to 7 if negative
     
     # Save configuration
     config = Config(
@@ -116,21 +161,43 @@ def init(ctx, token, sync_days):
 
 @cli.command()
 @click.option('--daemon', '-d', is_flag=True, help='Run as daemon (background process)')
+@click.option('--port', default=None, type=int, help='Port for HTTP MCP server (default: stdio mode)')
+@click.option('--host', default="0.0.0.0", help='Host for HTTP server (default: 0.0.0.0)')
+@click.option('--api-key', help='API key for HTTP authentication (auto-generated if not provided)')
 @click.pass_context
-def start(ctx, daemon):
+def start(ctx, daemon, port, host, api_key):
     """Start the FastIntercom MCP server."""
     config = ctx.obj['config']
     
     if daemon:
-        click.echo("🔧 Daemon mode not yet implemented. Running in foreground...")
+        click.echo("🚀 Starting FastIntercom MCP Server in daemon mode...")
+        _daemonize()
     
-    click.echo("🚀 Starting FastIntercom MCP Server...")
+    # Determine transport mode
+    if port:
+        click.echo(f"🌐 Starting FastIntercom HTTP MCP Server on {host}:{port}...")
+        transport_mode = "http"
+    else:
+        click.echo("🚀 Starting FastIntercom MCP Server (stdio mode)...")
+        transport_mode = "stdio"
     
     # Initialize components
     db = DatabaseManager(config.database_path)
     intercom_client = IntercomClient(config.intercom_token)
     sync_manager = SyncManager(db, intercom_client)
-    mcp_server = FastIntercomMCPServer(db, sync_manager.get_sync_service(), intercom_client)
+    
+    # Create appropriate server based on transport mode
+    if transport_mode == "http":
+        server = FastIntercomHTTPServer(
+            db, 
+            sync_manager.get_sync_service(), 
+            intercom_client,
+            api_key=api_key,
+            host=host,
+            port=port
+        )
+    else:
+        server = FastIntercomMCPServer(db, sync_manager.get_sync_service(), intercom_client)
     
     # Setup signal handlers for graceful shutdown
     def signal_handler(signum, frame):
@@ -152,22 +219,150 @@ def start(ctx, daemon):
         
         click.echo("✅ Connected to Intercom API")
         click.echo("🔄 Background sync service started")
-        click.echo("📡 MCP server listening for requests...")
+        
+        if transport_mode == "http":
+            # Show connection info for HTTP mode
+            conn_info = server.get_connection_info()
+            click.echo("📡 HTTP MCP server ready!")
+            click.echo(f"   URL: {conn_info['url']}")
+            click.echo(f"   API Key: {conn_info['authentication']['token']}")
+            click.echo(f"   Health: {conn_info['endpoints']['health']}")
+            click.echo("   (Press Ctrl+C to stop)")
+            
+            try:
+                await server.start()
+            except KeyboardInterrupt:
+                pass
+            finally:
+                await server.stop()
+                sync_manager.stop()
+        else:
+            # Stdio mode
+            click.echo("📡 MCP server listening for requests...")
+            click.echo("   (Press Ctrl+C to stop)")
+            
+            try:
+                await server.run()
+            except KeyboardInterrupt:
+                pass
+            finally:
+                sync_manager.stop()
+        
+        return True
+    
+    try:
+        asyncio.run(run_server())
+    except KeyboardInterrupt:
+        # Handle Ctrl+C gracefully without error message
+        pass
+    except Exception as e:
+        try:
+            click.echo(f"❌ Server error: {e}")
+        except:
+            # If click.echo fails (closed stdout), just exit
+            pass
+        sys.exit(1)
+
+
+@cli.command()
+@click.option('--port', default=8000, type=int, help='Port for HTTP server')
+@click.option('--host', default="0.0.0.0", help='Host for HTTP server')
+@click.option('--api-key', help='API key for authentication (auto-generated if not provided)')
+@click.pass_context
+def serve(ctx, port, host, api_key):
+    """Start the FastIntercom HTTP MCP server."""
+    config = ctx.obj['config']
+    
+    click.echo(f"🌐 Starting FastIntercom HTTP MCP Server on {host}:{port}...")
+    
+    # Initialize components
+    db = DatabaseManager(config.database_path)
+    intercom_client = IntercomClient(config.intercom_token)
+    sync_manager = SyncManager(db, intercom_client)
+    
+    server = FastIntercomHTTPServer(
+        db, 
+        sync_manager.get_sync_service(), 
+        intercom_client,
+        api_key=api_key,
+        host=host,
+        port=port
+    )
+    
+    # Setup signal handlers for graceful shutdown
+    def signal_handler(signum, frame):
+        click.echo("\n🛑 Shutting down gracefully...")
+        sync_manager.stop()
+        sys.exit(0)
+    
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+    
+    async def run_server():
+        # Start background sync
+        sync_manager.start()
+        
+        # Test connection
+        if not await intercom_client.test_connection():
+            click.echo("❌ Failed to connect to Intercom API. Check your token.")
+            return False
+        
+        click.echo("✅ Connected to Intercom API")
+        click.echo("🔄 Background sync service started")
+        
+        # Show connection info
+        conn_info = server.get_connection_info()
+        click.echo("📡 HTTP MCP server ready!")
+        click.echo(f"   URL: {conn_info['url']}")
+        click.echo(f"   API Key: {conn_info['authentication']['token']}")
+        click.echo(f"   Health: {conn_info['endpoints']['health']}")
         click.echo("   (Press Ctrl+C to stop)")
         
         try:
-            await mcp_server.run()
+            await server.start()
         except KeyboardInterrupt:
             pass
         finally:
+            await server.stop()
             sync_manager.stop()
         
         return True
     
     try:
         asyncio.run(run_server())
+    except KeyboardInterrupt:
+        pass
     except Exception as e:
         click.echo(f"❌ Server error: {e}")
+        sys.exit(1)
+
+
+@cli.command()
+@click.pass_context
+def mcp(ctx):
+    """Start the FastIntercom MCP server in stdio mode (for MCP clients)."""
+    config = ctx.obj['config']
+    
+    # Initialize components
+    db = DatabaseManager(config.database_path)
+    intercom_client = IntercomClient(config.intercom_token)
+    sync_manager = SyncManager(db, intercom_client)
+    mcp_server = FastIntercomMCPServer(db, sync_manager.get_sync_service(), intercom_client)
+    
+    async def run_mcp_server():
+        # Start background sync
+        sync_manager.start()
+        
+        try:
+            await mcp_server.run()
+        finally:
+            sync_manager.stop()
+    
+    try:
+        asyncio.run(run_mcp_server())
+    except Exception as e:
+        # Log error but don't print to stdout (would interfere with MCP protocol)
+        logger.error(f"MCP server error: {e}")
         sys.exit(1)
 
 
