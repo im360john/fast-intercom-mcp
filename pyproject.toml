@@ -20,7 +20,7 @@ classifiers = [
     "Topic :: Internet :: WWW/HTTP :: Dynamic Content",
     "Topic :: Office/Business :: Groupware",
 ]
-packages = [{include = "fastintercom"}]
+packages = [{include = "fast_intercom_mcp"}]
 
 [tool.poetry.dependencies]
 python = "^3.11"
@@ -48,7 +48,7 @@ responses = "^0.24.0"
 testcontainers = "^3.7.0"
 
 [tool.poetry.scripts]
-fastintercom = "fastintercom.cli:cli"
+fast-intercom-mcp = "fast_intercom_mcp.cli:cli"
 
 [build-system]
 requires = ["poetry-core"]

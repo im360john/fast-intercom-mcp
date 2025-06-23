@@ -17,7 +17,7 @@ High-performance Model Context Protocol (MCP) server for Intercom conversation a
 ```bash
 # Clone and install
 git clone <repository-url>
-cd FastIntercomMCP
+cd fast-intercom-mcp
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -e .
@@ -27,13 +27,13 @@ pip install -e .
 
 ```bash
 # Initialize with your Intercom credentials
-fastintercom init
+fast-intercom-mcp init
 
 # Check status
-fastintercom status
+fast-intercom-mcp status
 
 # Sync conversation history
-fastintercom sync --force --days 7
+fast-intercom-mcp sync --force --days 7
 ```
 
 ### Claude Desktop Integration
@@ -43,8 +43,8 @@ Add to your Claude Desktop configuration (`~/.config/claude/claude_desktop_confi
 ```json
 {
   "mcpServers": {
-    "fastintercom": {
-      "command": "fastintercom",
+    "fast-intercom-mcp": {
+      "command": "fast-intercom-mcp",
       "args": ["start"],
       "env": {
         "INTERCOM_ACCESS_TOKEN": "your_token_here"
@@ -59,12 +59,12 @@ Add to your Claude Desktop configuration (`~/.config/claude/claude_desktop_confi
 ### CLI Commands
 
 ```bash
-fastintercom status              # Show server status and statistics
-fastintercom sync                # Incremental sync of recent conversations  
-fastintercom sync --force --days 7  # Force sync last 7 days
-fastintercom start               # Start MCP server
-fastintercom logs                # View recent log entries
-fastintercom reset               # Reset all data
+fast-intercom-mcp status              # Show server status and statistics
+fast-intercom-mcp sync                # Incremental sync of recent conversations  
+fast-intercom-mcp sync --force --days 7  # Force sync last 7 days
+fast-intercom-mcp start               # Start MCP server
+fast-intercom-mcp logs                # View recent log entries
+fast-intercom-mcp reset               # Reset all data
 ```
 
 ### MCP Tools
@@ -89,7 +89,7 @@ FASTINTERCOM_BACKGROUND_SYNC_INTERVAL=10
 
 ### Configuration File
 
-Located at `~/.fastintercom/config.json`:
+Located at `~/.fast-intercom-mcp/config.json`:
 
 ```json
 {
@@ -140,10 +140,10 @@ python test_mcp_real.py
 pip install -e .
 
 # Run with verbose logging
-fastintercom --verbose status
+fast-intercom-mcp --verbose status
 
 # Monitor logs in real-time
-tail -f ~/.fastintercom/logs/fastintercom.log
+tail -f ~/.fast-intercom-mcp/logs/fast-intercom-mcp.log
 ```
 
 ## Performance
@@ -171,18 +171,18 @@ tail -f ~/.fastintercom/logs/fastintercom.log
 - Test: `curl -H "Authorization: Bearer YOUR_TOKEN" https://api.intercom.io/me`
 
 **Database Locked**
-- Stop any running FastIntercom processes: `ps aux | grep fastintercom`
-- Check log file: `~/.fastintercom/logs/fastintercom.log`
+- Stop any running FastIntercom processes: `ps aux | grep fast-intercom-mcp`
+- Check log file: `~/.fast-intercom-mcp/logs/fast-intercom-mcp.log`
 
 **MCP Server Not Responding**
 - Verify Claude Desktop config JSON syntax
 - Restart Claude Desktop after configuration changes
-- Check that the `fastintercom` command is available in PATH
+- Check that the `fast-intercom-mcp` command is available in PATH
 
 ### Debug Mode
 
 ```bash
-fastintercom --verbose start    # Enable verbose logging
+fast-intercom-mcp --verbose start    # Enable verbose logging
 export FASTINTERCOM_LOG_LEVEL=DEBUG  # Set debug level
 ```
 
@@ -232,4 +232,4 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 - **Issues**: [GitHub Issues](https://github.com/your-repo/issues)
 - **Documentation**: This README and inline code documentation
-- **Logs**: Check `~/.fastintercom/logs/fastintercom.log` for detailed information
+- **Logs**: Check `~/.fast-intercom-mcp/logs/fast-intercom-mcp.log` for detailed information

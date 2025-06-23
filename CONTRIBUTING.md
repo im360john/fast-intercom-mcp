@@ -13,7 +13,7 @@
 ```bash
 # Clone the repository
 git clone <repository-url>
-cd FastIntercomMCP
+cd fast-intercom-mcp
 
 # Create virtual environment
 python -m venv venv
@@ -33,7 +33,7 @@ cp .env.example .env
 # Run basic functionality tests
 python -c "
 import asyncio
-from fastintercom import DatabaseManager, Config
+from fast_intercom_mcp import DatabaseManager, Config
 
 def test_basic():
     print('Testing database...')
@@ -50,7 +50,7 @@ test_basic()
 # Test with real API
 python -c "
 import asyncio
-from fastintercom import IntercomClient, Config
+from fast_intercom_mcp import IntercomClient, Config
 
 async def test_api():
     config = Config.load()
@@ -76,7 +76,7 @@ asyncio.run(test_api())
 ### Project Structure
 
 ```
-fastintercom/
+fast_intercom_mcp/
 ├── __init__.py          # Package exports
 ├── cli.py              # Command-line interface
 ├── config.py           # Configuration management
@@ -97,16 +97,16 @@ fastintercom/
 2. **Make your changes**:
    - Add functionality to appropriate modules
    - Update type hints and docstrings
-   - Test locally with `fastintercom` commands
+   - Test locally with `fast-intercom-mcp` commands
 
 3. **Test your changes**:
    ```bash
    # Test CLI functionality
-   fastintercom status
-   fastintercom sync --force --days 1
+   fast-intercom-mcp status
+   fast-intercom-mcp sync --force --days 1
    
    # Test package imports
-   python -c "from fastintercom import *; print('All imports working')"
+   python -c "from fast_intercom_mcp import *; print('All imports working')"
    ```
 
 4. **Commit and push**:
@@ -132,7 +132,7 @@ fastintercom/
 1. Update the schema in `database.py` `_init_database()` method
 2. Add migration logic if needed for existing installations
 3. Update related model classes in `models.py`
-4. Test with `fastintercom reset` and fresh initialization
+4. Test with `fast-intercom-mcp reset` and fresh initialization
 
 #### Adding CLI commands
 
@@ -144,18 +144,18 @@ fastintercom/
 
 #### Enable verbose logging
 ```bash
-fastintercom --verbose status
+fast-intercom-mcp --verbose status
 export FASTINTERCOM_LOG_LEVEL=DEBUG
 ```
 
 #### Check log files
 ```bash
-tail -f ~/.fastintercom/logs/fastintercom.log
+tail -f ~/.fast_intercom_mcp/logs/fast-intercom-mcp.log
 ```
 
 #### Database inspection
 ```bash
-sqlite3 ~/.fastintercom/data.db
+sqlite3 ~/.fast_intercom_mcp/data.db
 .tables
 .schema conversations
 SELECT COUNT(*) FROM conversations;
