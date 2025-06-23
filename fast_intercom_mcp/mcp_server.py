@@ -25,17 +25,12 @@ class FastIntercomMCPServer:
     def __init__(self, database_manager: DatabaseManager, sync_service: SyncService, intercom_client=None):
         self.db = database_manager
         self.sync_service = sync_service
+        self.intercom_client = intercom_client
         self.server = Server("fastintercom")
         
-        # Initialize background sync service
-        if intercom_client:
-            self.background_sync = BackgroundSyncService(
-                db_manager=database_manager,
-                intercom_client=intercom_client,
-                sync_interval_minutes=15
-            )
-        else:
-            self.background_sync = None
+        # Don't initialize background sync service for stdio mode
+        # We'll handle sync manually to avoid lifecycle conflicts
+        self.background_sync = None
             
         self._setup_tools()
     
@@ -697,17 +692,15 @@ class FastIntercomMCPServer:
         return []
 
     async def run(self):
-        """Run the MCP server."""
+        """Run the MCP server with simplified architecture."""
         logger.info("Starting FastIntercom MCP server...")
         
+        # Start a simple periodic sync task that won't interfere
+        sync_task = asyncio.create_task(self._periodic_sync())
+        logger.info("Background sync service started")
+        
         try:
-            # Start background sync in a separate task (don't await - runs independently)
-            sync_task = None
-            if self.background_sync:
-                sync_task = asyncio.create_task(self.background_sync.start())
-                logger.info("Background sync service started")
-            
-            # Run MCP server indefinitely - this is the main blocking operation
+            # Run MCP server - this should block indefinitely
             async with stdio_server() as (read_stream, write_stream):
                 logger.info("MCP server listening for requests...")
                 await self.server.run(
@@ -719,9 +712,37 @@ class FastIntercomMCPServer:
             logger.info("MCP server shutdown requested")
         except Exception as e:
             logger.error(f"MCP server error: {e}")
-            raise
         finally:
-            # Stop background sync when server stops
+            # Clean up sync task
             if sync_task and not sync_task.done():
                 sync_task.cancel()
-            await self.stop_background_sync()
+
+    async def _periodic_sync(self):
+        """Simple periodic sync that doesn't interfere with MCP server."""
+        # Wait a bit before starting first sync
+        await asyncio.sleep(10)
+        
+        while True:
+            try:
+                logger.info("Starting periodic sync...")
+                
+                # Perform a simple recent sync
+                if self.intercom_client:
+                    from datetime import datetime, timedelta
+                    end_date = datetime.now() 
+                    start_date = end_date - timedelta(hours=1)  # Just sync last hour
+                    
+                    # Simple sync without complex state management
+                    await self.sync_service.sync_period(start_date, end_date)
+                    logger.info("Periodic sync completed")
+                
+                # Wait 15 minutes for next sync
+                await asyncio.sleep(15 * 60)
+                
+            except asyncio.CancelledError:
+                logger.info("Periodic sync cancelled")
+                break
+            except Exception as e:
+                logger.error(f"Periodic sync error (non-fatal): {e}")
+                # Wait a bit before retrying
+                await asyncio.sleep(60)
