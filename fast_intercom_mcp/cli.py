@@ -130,7 +130,7 @@ def start(ctx, daemon):
     db = DatabaseManager(config.database_path)
     intercom_client = IntercomClient(config.intercom_token)
     sync_manager = SyncManager(db, intercom_client)
-    mcp_server = FastIntercomMCPServer(db, sync_manager.get_sync_service())
+    mcp_server = FastIntercomMCPServer(db, sync_manager.get_sync_service(), intercom_client)
     
     # Setup signal handlers for graceful shutdown
     def signal_handler(signum, frame):

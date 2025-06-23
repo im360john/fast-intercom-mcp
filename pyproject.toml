@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "fast-intercom-mcp"
-version = "0.2.0"
+version = "0.3.0"
 description = "High-performance MCP server for Intercom conversation analytics - 100x faster than REST API"
 authors = ["evolsb <your.email@example.com>"]
 license = "MIT"

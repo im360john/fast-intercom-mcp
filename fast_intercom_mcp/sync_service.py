@@ -265,6 +265,7 @@ class SyncService:
     async def test_connection(self) -> bool:
         """Test connection to Intercom API."""
         return await self.intercom.test_connection()
+    
 
 
 class SyncManager:

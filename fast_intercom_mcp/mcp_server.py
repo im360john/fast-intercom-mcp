@@ -13,6 +13,7 @@ from mcp.types import Tool, TextContent
 from .database import DatabaseManager
 from .models import ConversationFilters, MCPRequest, MCPResponse
 from .sync_service import SyncService
+from .background_sync import BackgroundSyncService
 
 
 logger = logging.getLogger(__name__)
@@ -21,10 +22,21 @@ logger = logging.getLogger(__name__)
 class FastIntercomMCPServer:
     """MCP server for Intercom conversation access."""
     
-    def __init__(self, database_manager: DatabaseManager, sync_service: SyncService):
+    def __init__(self, database_manager: DatabaseManager, sync_service: SyncService, intercom_client=None):
         self.db = database_manager
         self.sync_service = sync_service
         self.server = Server("fastintercom")
+        
+        # Initialize background sync service
+        if intercom_client:
+            self.background_sync = BackgroundSyncService(
+                db_manager=database_manager,
+                intercom_client=intercom_client,
+                sync_interval_minutes=15
+            )
+        else:
+            self.background_sync = None
+            
         self._setup_tools()
     
     def _setup_tools(self):
@@ -95,6 +107,51 @@ class FastIntercomMCPServer:
                             }
                         }
                     }
+                ),
+                Tool(
+                    name="get_data_info",
+                    description="Get information about cached data freshness and coverage",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {},
+                        "required": []
+                    }
+                ),
+                Tool(
+                    name="check_coverage",
+                    description="Check if cached data covers a specific date range",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "start_date": {
+                                "type": "string",
+                                "description": "Start date in ISO format (YYYY-MM-DD or full ISO timestamp)"
+                            },
+                            "end_date": {
+                                "type": "string",
+                                "description": "End date in ISO format (YYYY-MM-DD or full ISO timestamp)"
+                            }
+                        },
+                        "required": ["start_date", "end_date"]
+                    }
+                ),
+                Tool(
+                    name="get_sync_status",
+                    description="Check if a sync is currently in progress",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {},
+                        "required": []
+                    }
+                ),
+                Tool(
+                    name="force_sync",
+                    description="Force an immediate sync operation",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {},
+                        "required": []
+                    }
                 )
             ]
         
@@ -110,6 +167,14 @@ class FastIntercomMCPServer:
                     return await self._get_server_status(arguments)
                 elif name == "sync_conversations":
                     return await self._sync_conversations(arguments)
+                elif name == "get_data_info":
+                    return await self._get_data_info(arguments)
+                elif name == "check_coverage":
+                    return await self._check_coverage(arguments)
+                elif name == "get_sync_status":
+                    return await self._get_sync_status_tool(arguments)
+                elif name == "force_sync":
+                    return await self._force_sync_tool(arguments)
                 else:
                     return [TextContent(
                         type="text",
@@ -121,6 +186,203 @@ class FastIntercomMCPServer:
                     type="text", 
                     text=f"Error executing {name}: {str(e)}"
                 )]
+    
+    async def _get_data_info(self, args: Dict[str, Any]) -> List[TextContent]:
+        """Get information about cached data freshness and coverage."""
+        try:
+            import sqlite3
+            from pathlib import Path
+            
+            with sqlite3.connect(self.db.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                
+                # Query the most recent successful sync
+                result = conn.execute("""
+                    SELECT 
+                        sync_completed_at,
+                        coverage_start_date,
+                        coverage_end_date,
+                        total_conversations,
+                        total_messages,
+                        sync_type
+                    FROM sync_metadata
+                    WHERE sync_status = 'completed'
+                    ORDER BY sync_completed_at DESC
+                    LIMIT 1
+                """).fetchone()
+                
+                if not result:
+                    response = {
+                        "has_data": False,
+                        "message": "No successful sync found"
+                    }
+                else:
+                    last_sync = datetime.fromisoformat(result['sync_completed_at'])
+                    data_age_minutes = int((datetime.now() - last_sync).total_seconds() / 60)
+                    
+                    # Get database size
+                    db_path = Path(self.db.db_path)
+                    db_size_mb = round(db_path.stat().st_size / (1024 * 1024), 2)
+                    
+                    response = {
+                        "has_data": True,
+                        "last_sync": last_sync.isoformat(),
+                        "data_age_minutes": data_age_minutes,
+                        "coverage_start": result['coverage_start_date'],
+                        "coverage_end": result['coverage_end_date'],
+                        "total_conversations": result['total_conversations'],
+                        "total_messages": result['total_messages'],
+                        "sync_type": result['sync_type'],
+                        "database_size_mb": db_size_mb
+                    }
+                
+                return [TextContent(type="text", text=json.dumps(response, indent=2))]
+                
+        except Exception as e:
+            logger.error(f"Error getting data info: {e}")
+            response = {
+                "has_data": False,
+                "error": str(e)
+            }
+            return [TextContent(type="text", text=json.dumps(response, indent=2))]
+
+    async def _check_coverage(self, args: Dict[str, Any]) -> List[TextContent]:
+        """Check if cached data covers the requested date range."""
+        try:
+            start_date_str = args.get("start_date")
+            end_date_str = args.get("end_date")
+            
+            if not start_date_str or not end_date_str:
+                response = {
+                    "has_coverage": False,
+                    "error": "Both start_date and end_date are required"
+                }
+                return [TextContent(type="text", text=json.dumps(response, indent=2))]
+            
+            query_start = datetime.fromisoformat(start_date_str).date()
+            query_end = datetime.fromisoformat(end_date_str).date()
+            
+            import sqlite3
+            with sqlite3.connect(self.db.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                
+                # Get the most recent sync info
+                result = conn.execute("""
+                    SELECT 
+                        sync_completed_at,
+                        coverage_start_date,
+                        coverage_end_date
+                    FROM sync_metadata
+                    WHERE sync_status = 'completed'
+                    ORDER BY sync_completed_at DESC
+                    LIMIT 1
+                """).fetchone()
+                
+                if not result:
+                    response = {
+                        "has_coverage": False,
+                        "reason": "No data available",
+                        "coverage_gaps": [(start_date_str, end_date_str)]
+                    }
+                else:
+                    coverage_start = datetime.fromisoformat(result['coverage_start_date']).date()
+                    coverage_end = datetime.fromisoformat(result['coverage_end_date']).date()
+                    data_age_minutes = int((datetime.now() - datetime.fromisoformat(result['sync_completed_at'])).total_seconds() / 60)
+                    
+                    # Check if query range is within coverage
+                    has_full_coverage = (query_start >= coverage_start and query_end <= coverage_end)
+                    
+                    # Calculate gaps if any
+                    coverage_gaps = []
+                    if query_start < coverage_start:
+                        coverage_gaps.append((query_start.isoformat(), coverage_start.isoformat()))
+                    if query_end > coverage_end:
+                        coverage_gaps.append((coverage_end.isoformat(), query_end.isoformat()))
+                    
+                    response = {
+                        "has_coverage": has_full_coverage,
+                        "partial_coverage": len(coverage_gaps) > 0 and query_start <= coverage_end and query_end >= coverage_start,
+                        "coverage_gaps": coverage_gaps,
+                        "cached_range": {
+                            "start": coverage_start.isoformat(),
+                            "end": coverage_end.isoformat()
+                        },
+                        "data_age_minutes": data_age_minutes,
+                        "reason": "Full coverage" if has_full_coverage else f"Missing data for {len(coverage_gaps)} date ranges"
+                    }
+                
+                return [TextContent(type="text", text=json.dumps(response, indent=2))]
+                
+        except Exception as e:
+            logger.error(f"Error checking coverage: {e}")
+            response = {
+                "has_coverage": False,
+                "error": str(e)
+            }
+            return [TextContent(type="text", text=json.dumps(response, indent=2))]
+
+    async def _get_sync_status_tool(self, args: Dict[str, Any]) -> List[TextContent]:
+        """Check if a sync is currently in progress."""
+        try:
+            import sqlite3
+            with sqlite3.connect(self.db.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                
+                # Check for in-progress syncs
+                in_progress = conn.execute("""
+                    SELECT sync_started_at, coverage_start_date, coverage_end_date
+                    FROM sync_metadata
+                    WHERE sync_status = 'in_progress'
+                    ORDER BY sync_started_at DESC
+                    LIMIT 1
+                """).fetchone()
+                
+                if in_progress:
+                    duration_minutes = int((datetime.now() - datetime.fromisoformat(in_progress['sync_started_at'])).total_seconds() / 60)
+                    response = {
+                        "is_syncing": True,
+                        "sync_started_at": in_progress['sync_started_at'],
+                        "duration_minutes": duration_minutes,
+                        "coverage_dates": {
+                            "start": in_progress['coverage_start_date'],
+                            "end": in_progress['coverage_end_date']
+                        }
+                    }
+                else:
+                    response = {
+                        "is_syncing": False
+                    }
+                
+                return [TextContent(type="text", text=json.dumps(response, indent=2))]
+                
+        except Exception as e:
+            response = {
+                "is_syncing": False,
+                "error": str(e)
+            }
+            return [TextContent(type="text", text=json.dumps(response, indent=2))]
+
+    async def _force_sync_tool(self, args: Dict[str, Any]) -> List[TextContent]:
+        """Force an immediate sync operation."""
+        try:
+            if self.background_sync:
+                success = await self.background_sync.force_sync()
+                response = {
+                    "success": success,
+                    "message": "Sync completed successfully" if success else "Sync failed"
+                }
+            else:
+                response = {
+                    "success": False,
+                    "error": "Background sync service not available"
+                }
+            return [TextContent(type="text", text=json.dumps(response, indent=2))]
+        except Exception as e:
+            response = {
+                "success": False,
+                "error": str(e)
+            }
+            return [TextContent(type="text", text=json.dumps(response, indent=2))]
     
     async def _search_conversations(self, args: Dict[str, Any]) -> List[TextContent]:
         """Search conversations with filters."""
@@ -398,13 +660,32 @@ class FastIntercomMCPServer:
         # This would normally come from the sync service or be cached
         return getattr(self.sync_service, 'app_id', None)
     
+    async def start_background_sync(self):
+        """Start the background sync service."""
+        if self.background_sync:
+            await self.background_sync.start()
+            logger.info("Background sync service started")
+    
+    async def stop_background_sync(self):
+        """Stop the background sync service."""
+        if self.background_sync:
+            await self.background_sync.stop()
+            logger.info("Background sync service stopped")
+
     async def run(self):
         """Run the MCP server."""
         logger.info("Starting FastIntercom MCP server...")
         
-        async with stdio_server() as (read_stream, write_stream):
-            await self.server.run(
-                read_stream,
-                write_stream,
-                self.server.create_initialization_options()
-            )
+        try:
+            # Start background sync before starting MCP server
+            await self.start_background_sync()
+            
+            async with stdio_server() as (read_stream, write_stream):
+                await self.server.run(
+                    read_stream,
+                    write_stream,
+                    self.server.create_initialization_options()
+                )
+        finally:
+            # Stop background sync when server stops
+            await self.stop_background_sync()

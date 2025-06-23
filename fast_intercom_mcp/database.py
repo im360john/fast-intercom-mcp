@@ -37,6 +37,9 @@ class DatabaseManager:
         with sqlite3.connect(self.db_path) as conn:
             conn.execute("PRAGMA foreign_keys = ON")
             
+            # Check if this is an existing database that needs migration
+            self._run_migrations(conn)
+            
             # Conversations table
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS conversations (
@@ -76,14 +79,25 @@ class DatabaseManager:
                 )
             """)
             
-            # Sync metadata table for tracking overall sync state
+            # Sync metadata table for tracking sync operations
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS sync_metadata (
-                    key TEXT PRIMARY KEY,
-                    value TEXT NOT NULL,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    sync_started_at TIMESTAMP NOT NULL,
+                    sync_completed_at TIMESTAMP,
+                    sync_status TEXT NOT NULL, -- 'in_progress', 'completed', 'failed'
+                    coverage_start_date DATE,
+                    coverage_end_date DATE,
+                    total_conversations INTEGER DEFAULT 0,
+                    total_messages INTEGER DEFAULT 0,
+                    sync_type TEXT, -- 'full', 'incremental'
+                    error_message TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
+            
+            # Index for quick lookups
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_sync_metadata_completed ON sync_metadata(sync_completed_at DESC)")
             
             # Request tracking for intelligent sync triggers
             conn.execute("""
@@ -106,6 +120,72 @@ class DatabaseManager:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_sync_periods_timestamps ON sync_periods (start_timestamp, end_timestamp)")
             
             conn.commit()
+    
+    def _run_migrations(self, conn: sqlite3.Connection):
+        """Run database migrations for existing databases."""
+        # Check if the old sync_metadata table exists (key-value style)
+        cursor = conn.execute("""
+            SELECT name FROM sqlite_master 
+            WHERE type='table' AND name='sync_metadata'
+        """)
+        
+        old_table_exists = cursor.fetchone() is not None
+        
+        if old_table_exists:
+            # Check if it's the old format by looking at the schema
+            cursor = conn.execute("PRAGMA table_info(sync_metadata)")
+            columns = [col[1] for col in cursor.fetchall()]
+            
+            # If it has 'key' column, it's the old format
+            if 'key' in columns and 'id' not in columns:
+                # Rename old table and migrate data
+                conn.execute("ALTER TABLE sync_metadata RENAME TO sync_metadata_old")
+                
+                # Create new sync_metadata table
+                conn.execute("""
+                    CREATE TABLE sync_metadata (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        sync_started_at TIMESTAMP NOT NULL,
+                        sync_completed_at TIMESTAMP,
+                        sync_status TEXT NOT NULL, -- 'in_progress', 'completed', 'failed'
+                        coverage_start_date DATE,
+                        coverage_end_date DATE,
+                        total_conversations INTEGER DEFAULT 0,
+                        total_messages INTEGER DEFAULT 0,
+                        sync_type TEXT, -- 'full', 'incremental'
+                        error_message TEXT,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+                
+                # Create initial migration record if conversations exist
+                cursor = conn.execute("SELECT COUNT(*) FROM conversations")
+                conversation_count = cursor.fetchone()[0]
+                
+                if conversation_count > 0:
+                    conn.execute("""
+                        INSERT INTO sync_metadata (
+                            sync_started_at,
+                            sync_completed_at, 
+                            sync_status,
+                            coverage_start_date,
+                            coverage_end_date,
+                            total_conversations,
+                            sync_type
+                        )
+                        VALUES (?, ?, 'completed', ?, ?, ?, 'migration')
+                    """, [
+                        (datetime.now() - timedelta(hours=1)).isoformat(),
+                        datetime.now().isoformat(),
+                        (datetime.now() - timedelta(days=7)).date().isoformat(),
+                        datetime.now().date().isoformat(),
+                        conversation_count
+                    ])
+                
+                # Drop old table
+                conn.execute("DROP TABLE sync_metadata_old")
+                
+                conn.commit()
     
     def store_conversations(self, conversations: List[Conversation]) -> int:
         """Store or update conversations in database.
