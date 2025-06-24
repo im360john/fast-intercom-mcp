@@ -17,6 +17,7 @@ class Config:
     max_sync_age_minutes: int = 5
     background_sync_interval_minutes: int = 10
     initial_sync_days: int = 30  # 0 means ALL history
+    api_timeout_seconds: int = 300
     
     @classmethod
     def load(cls, config_path: Optional[str] = None) -> 'Config':
@@ -42,11 +43,12 @@ class Config:
             'max_sync_age_minutes': os.getenv('FASTINTERCOM_MAX_SYNC_AGE_MINUTES'),
             'background_sync_interval_minutes': os.getenv('FASTINTERCOM_BACKGROUND_SYNC_INTERVAL'),
             'initial_sync_days': os.getenv('FASTINTERCOM_INITIAL_SYNC_DAYS'),
+            'api_timeout_seconds': os.getenv('FASTINTERCOM_API_TIMEOUT_SECONDS'),
         }
         
         for key, value in env_overrides.items():
             if value is not None:
-                if key in ['max_sync_age_minutes', 'background_sync_interval_minutes', 'initial_sync_days']:
+                if key in ['max_sync_age_minutes', 'background_sync_interval_minutes', 'initial_sync_days', 'api_timeout_seconds']:
                     config_data[key] = int(value)
                 else:
                     config_data[key] = value
