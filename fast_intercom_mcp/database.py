@@ -4,10 +4,10 @@ import sqlite3
 import json
 import os
 from datetime import datetime, timezone, timedelta
-from typing import List, Optional, Dict, Any, Tuple, Literal
+from typing import List, Optional, Dict, Any, Tuple
 from pathlib import Path
 
-from .models import Conversation, Message, SyncPeriod
+from .models import Conversation, Message
 
 
 class DatabaseManager:

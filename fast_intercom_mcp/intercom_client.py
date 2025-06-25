@@ -2,13 +2,13 @@
 
 import asyncio
 import time
-from datetime import datetime, timezone, timedelta
-from typing import List, Optional, Dict, Any, Callable
+from datetime import datetime, timezone
+from typing import List, Optional, Callable
 import logging
 
 import httpx
 
-from .models import Conversation, Message, ConversationFilters, SyncStats
+from .models import Conversation, Message, SyncStats
 
 
 logger = logging.getLogger(__name__)

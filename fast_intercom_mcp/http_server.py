@@ -1,23 +1,18 @@
 """HTTP transport implementation for FastIntercom MCP server."""
 
-import asyncio
-import json
 import logging
 from typing import Dict, Any, Optional
 from datetime import datetime
 import secrets
-import hashlib
 import base64
 
 from fastapi import FastAPI, HTTPException, Depends, Security, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, StreamingResponse
 import uvicorn
 from pydantic import BaseModel
 
-from mcp.server import Server
-from mcp.types import JSONRPCMessage, JSONRPCRequest, JSONRPCResponse
+from mcp.types import JSONRPCRequest
 
 from .database import DatabaseManager
 from .sync_service import SyncService
