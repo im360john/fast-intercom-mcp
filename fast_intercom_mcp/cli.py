@@ -126,7 +126,7 @@ def init(ctx, token, sync_days):
         sys.exit(1)
     
     # Initialize database
-    db = DatabaseManager()
+    db = DatabaseManager(None, config.connection_pool_size)
     click.echo(f"📁 Database initialized at {db.db_path}")
     
     # Perform initial sync
@@ -182,7 +182,7 @@ def start(ctx, daemon, port, host, api_key):
         transport_mode = "stdio"
     
     # Initialize components
-    db = DatabaseManager(config.database_path)
+    db = DatabaseManager(config.database_path, config.connection_pool_size)
     intercom_client = IntercomClient(config.intercom_token, config.api_timeout_seconds)
     sync_manager = SyncManager(db, intercom_client)
     
@@ -276,7 +276,7 @@ def serve(ctx, port, host, api_key):
     click.echo(f"🌐 Starting FastIntercom HTTP MCP Server on {host}:{port}...")
     
     # Initialize components
-    db = DatabaseManager(config.database_path)
+    db = DatabaseManager(config.database_path, config.connection_pool_size)
     intercom_client = IntercomClient(config.intercom_token, config.api_timeout_seconds)
     sync_manager = SyncManager(db, intercom_client)
     
@@ -344,7 +344,7 @@ def mcp(ctx):
     config = ctx.obj['config']
     
     # Initialize components
-    db = DatabaseManager(config.database_path)
+    db = DatabaseManager(config.database_path, config.connection_pool_size)
     intercom_client = IntercomClient(config.intercom_token, config.api_timeout_seconds)
     sync_manager = SyncManager(db, intercom_client)
     mcp_server = FastIntercomMCPServer(db, sync_manager.get_sync_service(), intercom_client)
@@ -377,7 +377,7 @@ def status(ctx):
         click.echo("❌ Database not found. Run 'fastintercom init' first.")
         return
     
-    db = DatabaseManager(config.database_path)
+    db = DatabaseManager(config.database_path, config.connection_pool_size)
     status = db.get_sync_status()
     
     click.echo("📊 FastIntercom Server Status")
@@ -422,7 +422,7 @@ def sync(ctx, force, days):
     click.echo("🔄 Starting manual sync...")
     
     async def run_sync():
-        db = DatabaseManager(config.database_path)
+        db = DatabaseManager(config.database_path, config.connection_pool_size)
         intercom_client = IntercomClient(config.intercom_token, config.api_timeout_seconds)
         sync_manager = SyncManager(db, intercom_client)
         sync_service = sync_manager.get_sync_service()

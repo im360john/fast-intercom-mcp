@@ -13,12 +13,17 @@ from .models import Conversation, Message, SyncPeriod
 class DatabaseManager:
     """Manages SQLite database operations for conversation storage and sync tracking."""
     
-    def __init__(self, db_path: Optional[str] = None):
+    def __init__(self, db_path: Optional[str] = None, pool_size: int = 5):
         """Initialize database manager.
         
         Args:
             db_path: Path to SQLite database file. If None, uses ~/.fastintercom/data.db
+            pool_size: Number of connections to maintain in the pool (max 20)
         """
+        if pool_size < 1 or pool_size > 20:
+            raise ValueError(f"Database pool size must be between 1 and 20, got {pool_size}")
+        
+        self.pool_size = pool_size
         if db_path is None:
             # Default to user's home directory
             home_dir = Path.home()

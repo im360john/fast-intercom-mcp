@@ -17,6 +17,7 @@ class Config:
     max_sync_age_minutes: int = 5
     background_sync_interval_minutes: int = 10
     initial_sync_days: int = 30  # 0 means ALL history
+    connection_pool_size: int = 5  # Database connection pool size
     api_timeout_seconds: int = 300
     
     @classmethod
@@ -43,12 +44,13 @@ class Config:
             'max_sync_age_minutes': os.getenv('FASTINTERCOM_MAX_SYNC_AGE_MINUTES'),
             'background_sync_interval_minutes': os.getenv('FASTINTERCOM_BACKGROUND_SYNC_INTERVAL'),
             'initial_sync_days': os.getenv('FASTINTERCOM_INITIAL_SYNC_DAYS'),
+            'connection_pool_size': os.getenv('FASTINTERCOM_DB_POOL_SIZE'),
             'api_timeout_seconds': os.getenv('FASTINTERCOM_API_TIMEOUT_SECONDS'),
         }
         
         for key, value in env_overrides.items():
             if value is not None:
-                if key in ['max_sync_age_minutes', 'background_sync_interval_minutes', 'initial_sync_days', 'api_timeout_seconds']:
+                if key in ['max_sync_age_minutes', 'background_sync_interval_minutes', 'initial_sync_days', 'connection_pool_size', 'api_timeout_seconds']:
                     config_data[key] = int(value)
                 else:
                     config_data[key] = value
@@ -59,6 +61,12 @@ class Config:
                 "Intercom access token is required. Set INTERCOM_ACCESS_TOKEN environment variable "
                 "or include 'intercom_token' in config file."
             )
+        
+        # Validate pool size if provided
+        if 'connection_pool_size' in config_data:
+            pool_size = config_data['connection_pool_size']
+            if pool_size < 1 or pool_size > 20:
+                raise ValueError(f"Database pool size must be between 1 and 20, got {pool_size}")
         
         return cls(**config_data)
     
