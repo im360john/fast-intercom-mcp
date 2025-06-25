@@ -126,7 +126,7 @@ def init(ctx, token, sync_days):
         sys.exit(1)
     
     # Initialize database
-    db = DatabaseManager(None, config.connection_pool_size)
+    db = DatabaseManager(config.database_path, config.connection_pool_size)
     click.echo(f"📁 Database initialized at {db.db_path}")
     
     # Perform initial sync
