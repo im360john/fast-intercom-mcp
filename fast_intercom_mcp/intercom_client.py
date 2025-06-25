@@ -17,8 +17,9 @@ logger = logging.getLogger(__name__)
 class IntercomClient:
     """Intercom API client with smart sync and rate limiting."""
     
-    def __init__(self, access_token: str):
+    def __init__(self, access_token: str, timeout: int = 300):
         self.access_token = access_token
+        self.timeout = timeout
         self.base_url = "https://api.intercom.io"
         self.headers = {
             "Authorization": f"Bearer {access_token}",
@@ -38,7 +39,7 @@ class IntercomClient:
             return self._app_id
             
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
                 response = await client.get(f"{self.base_url}/me", headers=self.headers)
                 if response.status_code == 200:
                     data = response.json()
@@ -88,7 +89,7 @@ class IntercomClient:
         conversations = []
         api_calls = 0
         
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
             # Build search filters
             search_filters = [
                 {
@@ -194,7 +195,7 @@ class IntercomClient:
         """
         conversations = []
         
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
             # Use updated_at to capture both new conversations AND existing conversations with new messages
             search_filters = [
                 {
@@ -347,7 +348,7 @@ class IntercomClient:
     async def test_connection(self) -> bool:
         """Test if the API connection is working."""
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
                 response = await client.get(f"{self.base_url}/me", headers=self.headers)
                 return response.status_code == 200
         except Exception as e:
