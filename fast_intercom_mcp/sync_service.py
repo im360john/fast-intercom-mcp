@@ -2,14 +2,13 @@
 
 import asyncio
 import logging
-from datetime import datetime, timedelta, timezone
-from typing import Dict, Any, Optional, List
+from datetime import datetime, timedelta
+from typing import Dict, Any, Optional
 import threading
-import time
 
 from .database import DatabaseManager
 from .intercom_client import IntercomClient
-from .models import SyncStats, Conversation, SyncStateException
+from .models import SyncStats, SyncStateException
 
 
 logger = logging.getLogger(__name__)

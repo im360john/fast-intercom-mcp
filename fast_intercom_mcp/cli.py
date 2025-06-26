@@ -6,7 +6,6 @@ import signal
 import logging
 import os
 from pathlib import Path
-from typing import Optional
 import click
 from datetime import datetime, timedelta
 
@@ -140,7 +139,7 @@ def init(ctx, token, sync_days):
             
             try:
                 stats = await sync_service.sync_initial(sync_days)
-                click.echo(f"✅ Initial sync completed!")
+                click.echo("✅ Initial sync completed!")
                 click.echo(f"   - {stats.total_conversations:,} conversations")
                 click.echo(f"   - {stats.total_messages:,} messages")
                 click.echo(f"   - {stats.duration_seconds:.1f} seconds")
@@ -258,7 +257,7 @@ def start(ctx, daemon, port, host, api_key):
     except Exception as e:
         try:
             click.echo(f"❌ Server error: {e}")
-        except:
+        except Exception:
             # If click.echo fails (closed stdout), just exit
             pass
         sys.exit(1)

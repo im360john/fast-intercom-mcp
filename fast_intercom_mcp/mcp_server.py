@@ -11,9 +11,7 @@ from mcp.server.stdio import stdio_server
 from mcp.types import Tool, TextContent
 
 from .database import DatabaseManager
-from .models import ConversationFilters, MCPRequest, MCPResponse
 from .sync_service import SyncService
-from .background_sync import BackgroundSyncService
 
 
 logger = logging.getLogger(__name__)
@@ -545,7 +543,7 @@ class FastIntercomMCPServer:
             minutes_ago = int((datetime.now() - last_sync).total_seconds() / 60)
             result_text += f"🕒 **Last Sync:** {minutes_ago} minutes ago\n"
         else:
-            result_text += f"🕒 **Last Sync:** Never\n"
+            result_text += "🕒 **Last Sync:** Never\n"
         
         result_text += f"🔄 **Background Sync:** {'Active' if sync_status['active'] else 'Inactive'}\n"
         
@@ -581,8 +579,8 @@ class FastIntercomMCPServer:
                 # Incremental sync
                 stats = await self.sync_service.sync_recent()
             
-            result_text += f"✅ **Sync completed successfully!**\n\n"
-            result_text += f"📊 **Results:**\n"
+            result_text += "✅ **Sync completed successfully!**\n\n"
+            result_text += "📊 **Results:**\n"
             result_text += f"- Total conversations: {stats.total_conversations}\n"
             result_text += f"- New conversations: {stats.new_conversations}\n"  
             result_text += f"- Updated conversations: {stats.updated_conversations}\n"

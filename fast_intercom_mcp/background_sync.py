@@ -147,7 +147,7 @@ class BackgroundSyncService:
             from .config import Config
             config = Config.load()
             return config.initial_sync_days if config.initial_sync_days > 0 else 365  # Default to 1 year if ALL
-        except:
+        except Exception:
             return 30  # Fallback default
     
     async def force_sync(self) -> bool:

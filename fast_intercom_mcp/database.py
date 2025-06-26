@@ -5,10 +5,10 @@ import json
 import os
 import logging
 from datetime import datetime, timezone, timedelta
-from typing import List, Optional, Dict, Any, Tuple, Literal
+from typing import List, Optional, Dict, Any, Tuple
 from pathlib import Path
 
-from .models import Conversation, Message, SyncPeriod
+from .models import Conversation, Message
 
 logger = logging.getLogger(__name__)
 

@@ -1,5 +1,7 @@
 # FastIntercom MCP Server
 
+[![Fast Check](https://github.com/evolsb/fast-intercom-mcp/actions/workflows/fast-check.yml/badge.svg)](https://github.com/evolsb/fast-intercom-mcp/actions/workflows/fast-check.yml)
+
 High-performance Model Context Protocol (MCP) server for Intercom conversation analytics. Provides fast, local access to Intercom conversations through intelligent caching and background synchronization.
 
 ## Features
