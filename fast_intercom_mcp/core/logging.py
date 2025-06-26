@@ -1,17 +1,17 @@
 """Enhanced logging system with JSON format for FastIntercom MCP."""
 
+import json
 import logging
 import logging.config
 import logging.handlers
-import json
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any
 
 
 class JSONFormatter(logging.Formatter):
     """Custom JSON formatter for structured logging."""
-    
+
     def format(self, record):
         """Format log record as JSON."""
         log_data = {
@@ -23,19 +23,19 @@ class JSONFormatter(logging.Formatter):
             'line': record.lineno,
             'message': record.getMessage()
         }
-        
+
         # Add exception info if present
         if record.exc_info:
             log_data['exception'] = self.formatException(record.exc_info)
-        
+
         # Add extra fields
         if hasattr(record, 'extra_data'):
             log_data.update(record.extra_data)
-        
+
         return json.dumps(log_data)
 
 
-def setup_enhanced_logging(log_dir: str, log_level: str, enable_json: bool = False) -> Dict[str, Any]:
+def setup_enhanced_logging(log_dir: str, log_level: str, enable_json: bool = False) -> dict[str, Any]:
     """
     Setup enhanced logging with 3-file structure and optional JSON formatting.
     
@@ -49,12 +49,12 @@ def setup_enhanced_logging(log_dir: str, log_level: str, enable_json: bool = Fal
     """
     log_path = Path(log_dir)
     log_path.mkdir(parents=True, exist_ok=True)
-    
+
     # Define log files
     main_log = log_path / "main.log"
     sync_log = log_path / "sync.log"
     errors_log = log_path / "errors.log"
-    
+
     # Choose formatter
     if enable_json:
         formatter = JSONFormatter()
@@ -62,7 +62,7 @@ def setup_enhanced_logging(log_dir: str, log_level: str, enable_json: bool = Fal
         formatter = logging.Formatter(
             '%(asctime)s [%(levelname)s] %(name)s:%(funcName)s:%(lineno)d - %(message)s'
         )
-    
+
     # Create handlers
     handlers = {
         'console': logging.StreamHandler(),
@@ -76,18 +76,18 @@ def setup_enhanced_logging(log_dir: str, log_level: str, enable_json: bool = Fal
             errors_log, maxBytes=10*1024*1024, backupCount=5
         )
     }
-    
+
     # Set formatters
     for handler in handlers.values():
         handler.setFormatter(formatter)
-    
+
     # Set levels
     level = getattr(logging, log_level.upper())
     handlers['console'].setLevel(level)
     handlers['main_file'].setLevel(level)
     handlers['sync_file'].setLevel(level)
     handlers['error_file'].setLevel(logging.ERROR)
-    
+
     # Configure loggers
     logging_config = {
         'version': 1,
@@ -141,19 +141,19 @@ def setup_enhanced_logging(log_dir: str, log_level: str, enable_json: bool = Fal
                 'propagate': False
             },
             'fast_intercom_mcp.background_sync': {
-                'handlers': ['console', 'sync_file', 'error_file'], 
+                'handlers': ['console', 'sync_file', 'error_file'],
                 'level': log_level.upper(),
                 'propagate': False
             }
         }
     }
-    
+
     # Apply configuration
     logging.config.dictConfig(logging_config)
-    
+
     # Reduce noise from httpx
     logging.getLogger("httpx").setLevel(logging.WARNING)
-    
+
     return {
         'log_dir': log_dir,
         'main_log': str(main_log),
