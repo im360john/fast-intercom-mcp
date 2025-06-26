@@ -7,18 +7,19 @@ from typing import Optional, Dict, Any
 from dataclasses import dataclass, asdict
 from dotenv import load_dotenv
 
+from .logging import setup_enhanced_logging
+
 
 @dataclass
 class Config:
     """FastIntercom configuration."""
     intercom_token: str
     database_path: Optional[str] = None
+    connection_pool_size: int = 5
     log_level: str = "INFO"
     max_sync_age_minutes: int = 5
     background_sync_interval_minutes: int = 10
     initial_sync_days: int = 30  # 0 means ALL history
-    connection_pool_size: int = 5  # Database connection pool size
-    api_timeout_seconds: int = 300
     
     @classmethod
     def load(cls, config_path: Optional[str] = None) -> 'Config':
@@ -40,20 +41,23 @@ class Config:
         env_overrides = {
             'intercom_token': os.getenv('INTERCOM_ACCESS_TOKEN'),
             'database_path': os.getenv('FASTINTERCOM_DB_PATH'),
+            'connection_pool_size': os.getenv('FASTINTERCOM_DB_POOL_SIZE'),
             'log_level': os.getenv('FASTINTERCOM_LOG_LEVEL'),
             'max_sync_age_minutes': os.getenv('FASTINTERCOM_MAX_SYNC_AGE_MINUTES'),
             'background_sync_interval_minutes': os.getenv('FASTINTERCOM_BACKGROUND_SYNC_INTERVAL'),
             'initial_sync_days': os.getenv('FASTINTERCOM_INITIAL_SYNC_DAYS'),
-            'connection_pool_size': os.getenv('FASTINTERCOM_DB_POOL_SIZE'),
-            'api_timeout_seconds': os.getenv('FASTINTERCOM_API_TIMEOUT_SECONDS'),
         }
         
         for key, value in env_overrides.items():
             if value is not None:
-                if key in ['max_sync_age_minutes', 'background_sync_interval_minutes', 'initial_sync_days', 'connection_pool_size', 'api_timeout_seconds']:
+                if key in ['connection_pool_size', 'max_sync_age_minutes', 'background_sync_interval_minutes', 'initial_sync_days']:
                     config_data[key] = int(value)
                 else:
                     config_data[key] = value
+        
+        # Validate pool size
+        if 'connection_pool_size' in config_data and config_data['connection_pool_size'] > 20:
+            raise ValueError("Database connection pool size cannot exceed 20")
         
         # Validate required fields
         if not config_data.get('intercom_token'):
@@ -61,12 +65,6 @@ class Config:
                 "Intercom access token is required. Set INTERCOM_ACCESS_TOKEN environment variable "
                 "or include 'intercom_token' in config file."
             )
-        
-        # Validate pool size if provided
-        if 'connection_pool_size' in config_data:
-            pool_size = config_data['connection_pool_size']
-            if pool_size < 1 or pool_size > 20:
-                raise ValueError(f"Database pool size must be between 1 and 20, got {pool_size}")
         
         return cls(**config_data)
     
@@ -96,5 +94,26 @@ class Config:
         return str(Path.home() / ".fastintercom")
 
 
-# Import setup_logging from the new core module
-from .core.config import setup_logging
+def setup_logging(log_level: str = "INFO"):
+    """Setup logging configuration with enhanced 3-file structure."""
+    # Determine log directory - handle Docker environment
+    if os.getenv('FASTINTERCOM_DATA_DIR'):
+        # Docker environment
+        log_dir = Path(os.getenv('FASTINTERCOM_DATA_DIR')) / "logs"
+    else:
+        # Local environment
+        log_dir = Path.home() / ".fastintercom" / "logs"
+    
+    # Check if JSON logging is enabled
+    enable_json = os.getenv('FASTINTERCOM_JSON_LOGGING', '').lower() in ('true', '1', 'yes')
+    
+    try:
+        return setup_enhanced_logging(str(log_dir), log_level, enable_json)
+    except (PermissionError, OSError):
+        # Fallback to basic logging if setup fails
+        import logging
+        logging.basicConfig(
+            level=getattr(logging, log_level.upper()),
+            format='%(asctime)s [%(levelname)s] %(name)s - %(message)s'
+        )
+        return {'log_dir': 'console', 'config': 'basic'}

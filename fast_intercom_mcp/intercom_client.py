@@ -3,7 +3,7 @@
 import asyncio
 import time
 from datetime import datetime, timezone, timedelta
-from typing import List, Optional, Dict, Any, Callable
+from typing import List, Optional, Dict, Any, Callable, Tuple
 import logging
 
 import httpx
@@ -19,9 +19,10 @@ logger = logging.getLogger(__name__)
 class IntercomClient:
     """Enhanced Intercom API client with performance optimization and intelligent rate limiting."""
     
-    def __init__(self, access_token: str, rate_limit_config: RateLimitConfig = None, 
+    def __init__(self, access_token: str, timeout: int = 300, rate_limit_config: RateLimitConfig = None, 
                  optimization_config: OptimizationConfig = None):
         self.access_token = access_token
+        self.timeout = timeout
         self.base_url = "https://api.intercom.io"
         self.headers = {
             "Authorization": f"Bearer {access_token}",
@@ -86,7 +87,8 @@ class IntercomClient:
                 data=data,
                 cache_key=cache_key,
                 cache_ttl=cache_ttl,
-                priority=priority
+                priority=priority,
+                timeout=self.timeout
             )
             
             # Report successful request for adaptive learning
@@ -119,8 +121,8 @@ class IntercomClient:
         """Fetch conversations that have been updated since the given timestamp.
         
         Args:
-            since_timestamp: Only fetch conversations updated after this time
-            until_timestamp: Only fetch conversations updated before this time (optional)
+            since_timestamp: Fetch conversations updated after this time
+            until_timestamp: Optional upper bound for updated_at
             progress_callback: Optional callback for progress updates
             
         Returns:
@@ -130,7 +132,7 @@ class IntercomClient:
         conversations = []
         api_calls = 0
         
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
             # Build search filters
             search_filters = [
                 {
@@ -142,7 +144,7 @@ class IntercomClient:
             
             if until_timestamp:
                 search_filters.append({
-                    "field": "updated_at", 
+                    "field": "updated_at",
                     "operator": "<",
                     "value": int(until_timestamp.timestamp())
                 })
@@ -189,42 +191,36 @@ class IntercomClient:
                     if conversation:
                         conversations.append(conversation)
                 
-                total_found = data.get("total_count", len(page_conversations))
+                total_found += len(page_conversations)
                 
                 if progress_callback:
-                    await progress_callback(
-                        f"Syncing: {len(conversations)}/{total_found} conversations"
-                    )
+                    await progress_callback(f"Fetched {total_found} conversations...")
                 
-                # Check if we got all results
                 if len(page_conversations) < per_page:
                     break
-                    
+                
                 page += 1
+                
+        elapsed_time = time.time() - start_time
+        logger.info(f"Incremental sync complete: {len(conversations)} conversations in {elapsed_time:.2f}s ({api_calls} API calls)")
         
-        duration = time.time() - start_time
-        
-        # Count new vs updated (simplified - in real implementation, 
-        # this would check against database)
-        stats = SyncStats(
+        return SyncStats(
             total_conversations=len(conversations),
-            new_conversations=len(conversations),  # Simplified
-            updated_conversations=0,  # Simplified
             total_messages=sum(len(conv.messages) for conv in conversations),
-            duration_seconds=duration,
-            api_calls_made=api_calls
+            api_calls=api_calls,
+            sync_duration_seconds=elapsed_time,
+            sync_type="incremental",
+            period_start=since_timestamp,
+            period_end=until_timestamp or datetime.now(timezone.utc)
         )
-        
-        logger.info(f"Incremental sync completed: {stats.total_conversations} conversations in {duration:.1f}s")
-        return stats
     
     async def fetch_conversations_for_period(
-        self,
-        start_date: datetime,
+        self, 
+        start_date: datetime, 
         end_date: datetime,
         progress_callback: Optional[Callable] = None
     ) -> List[Conversation]:
-        """Fetch all conversations created within a specific time period.
+        """Fetch all conversations for a specific time period.
         
         Args:
             start_date: Start of time period
@@ -236,7 +232,7 @@ class IntercomClient:
         """
         conversations = []
         
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
             # Use updated_at to capture both new conversations AND existing conversations with new messages
             search_filters = [
                 {
@@ -246,23 +242,31 @@ class IntercomClient:
                 },
                 {
                     "field": "updated_at",
-                    "operator": "<", 
+                    "operator": "<",
                     "value": int(end_date.timestamp())
                 }
             ]
             
-            query = {"operator": "AND", "value": search_filters}
-            
+            # Paginate through results
             page = 1
-            per_page = 150
+            per_page = 150  # Max allowed by Intercom search API
             
             while True:
                 await self._rate_limit()
                 
                 request_body = {
-                    "query": query,
-                    "pagination": {"per_page": per_page, "page": page},
-                    "sort": {"field": "created_at", "order": "desc"}
+                    "query": {
+                        "operator": "AND",
+                        "value": search_filters
+                    },
+                    "pagination": {
+                        "per_page": per_page,
+                        "page": page
+                    },
+                    "sort": {
+                        "field": "updated_at",
+                        "order": "asc"
+                    }
                 }
                 
                 response = await client.post(
@@ -278,37 +282,36 @@ class IntercomClient:
                 if not page_conversations:
                     break
                 
+                # Parse conversations
                 for conv_data in page_conversations:
                     conversation = self._parse_conversation_from_search(conv_data)
                     if conversation:
                         conversations.append(conversation)
                 
                 if progress_callback:
-                    total_found = data.get("total_count", len(conversations))
-                    await progress_callback(
-                        f"Fetching: {len(conversations)}/{total_found} conversations"
-                    )
+                    await progress_callback(f"Fetched {len(conversations)} conversations from {start_date.date()} to {end_date.date()}")
                 
+                # Check if more pages available
                 if len(page_conversations) < per_page:
                     break
-                    
+                
                 page += 1
         
-        logger.info(f"Fetched {len(conversations)} conversations for period {start_date} to {end_date}")
         return conversations
     
     def _parse_conversation_from_search(self, conv_data: dict) -> Optional[Conversation]:
-        """Parse a conversation from Intercom Search API response."""
+        """Parse a conversation from search API response."""
         try:
-            # Parse messages from conversation_parts
+            # Parse messages
             messages = []
             has_customer_message = False
             
+            # Get conversation parts (messages)
             conversation_parts = conv_data.get("conversation_parts", {})
             if isinstance(conversation_parts, dict):
                 parts_list = conversation_parts.get("conversation_parts", [])
             else:
-                parts_list = []
+                parts_list = conversation_parts or []
             
             for part in parts_list:
                 if not isinstance(part, dict):
@@ -318,10 +321,7 @@ class IntercomClient:
                     if not part.get("body"):
                         continue
                     
-                    author_type = (
-                        "admin" if part.get("author", {}).get("type") == "admin" 
-                        else "user"
-                    )
+                    author_type = "admin" if part.get("author", {}).get("type") == "admin" else "user"
                     
                     if author_type == "user":
                         has_customer_message = True
@@ -335,12 +335,13 @@ class IntercomClient:
                     )
                     messages.append(message)
             
-            # Add initial message from source
-            if conv_data.get("source", {}).get("body"):
+            # Add initial message from source if exists
+            source = conv_data.get("source", {})
+            if isinstance(source, dict) and source.get("body"):
                 initial_message = Message(
                     id=conv_data["id"] + "_initial",
                     author_type="user",
-                    body=conv_data["source"]["body"],
+                    body=source["body"],
                     created_at=datetime.fromtimestamp(conv_data["created_at"], tz=timezone.utc),
                     part_type="initial"
                 )
@@ -351,9 +352,11 @@ class IntercomClient:
             if not has_customer_message:
                 return None
             
+            # Sort messages by creation time
+            messages.sort(key=lambda msg: msg.created_at)
+            
             # Get customer email
             customer_email = None
-            source = conv_data.get("source", {})
             if isinstance(source, dict):
                 author = source.get("author", {})
                 if isinstance(author, dict):
@@ -417,6 +420,11 @@ class IntercomClient:
         except Exception as e:
             logger.error(f"Failed to fetch conversation {conversation_id}: {e}")
             return None
+    
+    # Alias for backward compatibility
+    async def get_conversation_by_id(self, conversation_id: str) -> Optional[Conversation]:
+        """Alias for fetch_individual_conversation for backward compatibility."""
+        return await self.fetch_individual_conversation(conversation_id)
     
     async def fetch_individual_conversations(self, conversation_ids: List[str], 
                                            progress_callback: Optional[Callable] = None) -> List[Conversation]:
@@ -518,6 +526,13 @@ class IntercomClient:
                 if isinstance(author, dict):
                     customer_email = author.get("email")
             
+            # Fallback to contacts if no email in source
+            if not customer_email:
+                contacts = conv_data.get("contacts", {})
+                if isinstance(contacts, dict) and contacts.get("contacts"):
+                    contact = contacts["contacts"][0]
+                    customer_email = contact.get("email")
+            
             # Parse tags
             tags = []
             tags_data = conv_data.get("tags", {})
@@ -544,6 +559,130 @@ class IntercomClient:
         except Exception as e:
             logger.warning(f"Failed to parse individual conversation {conv_data.get('id', 'unknown')}: {e}")
             return None
+    
+    # Alias for backward compatibility
+    def _parse_conversation_from_api(self, conv_data: dict) -> Optional[Conversation]:
+        """Alias for _parse_individual_conversation for backward compatibility."""
+        return self._parse_individual_conversation(conv_data)
+    
+    async def get_conversation_messages(
+        self, 
+        conversation_id: str, 
+        per_page: int = 20,
+        starting_after: Optional[str] = None
+    ) -> Tuple[List[Message], Optional[str]]:
+        """Fetch messages for a conversation with pagination.
+        
+        Args:
+            conversation_id: The Intercom conversation ID
+            per_page: Number of messages per page (max 50)
+            starting_after: Cursor for pagination
+            
+        Returns:
+            Tuple of (messages, next_cursor) where next_cursor is None if no more pages
+        """
+        await self._rate_limit()
+        
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                params = {"per_page": min(per_page, 50)}
+                if starting_after:
+                    params["starting_after"] = starting_after
+                
+                response = await client.get(
+                    f"{self.base_url}/conversations/{conversation_id}/conversation_parts",
+                    headers=self.headers,
+                    params=params
+                )
+                
+                if response.status_code == 404:
+                    logger.warning(f"Conversation {conversation_id} not found")
+                    return [], None
+                
+                response.raise_for_status()
+                data = response.json()
+                
+                messages = []
+                conversation_parts = data.get("conversation_parts", [])
+                
+                for part in conversation_parts:
+                    message = self._parse_message_from_part(part)
+                    if message:
+                        messages.append(message)
+                
+                # Get next cursor for pagination
+                pages = data.get("pages", {})
+                next_cursor = pages.get("next", {}).get("starting_after") if pages.get("next") else None
+                
+                return messages, next_cursor
+                
+        except Exception as e:
+            logger.error(f"Failed to fetch messages for conversation {conversation_id}: {e}")
+            return [], None
+    
+    def _parse_message_from_part(self, part: dict) -> Optional[Message]:
+        """Parse a message from a conversation part."""
+        try:
+            if not isinstance(part, dict):
+                return None
+            
+            # Only process actual message parts
+            if part.get("part_type") not in ["comment", "note", "message"]:
+                return None
+            
+            if not part.get("body"):
+                return None
+            
+            author_type = (
+                "admin" if part.get("author", {}).get("type") == "admin" 
+                else "user"
+            )
+            
+            return Message(
+                id=str(part.get("id", "unknown")),
+                author_type=author_type,
+                body=part.get("body", ""),
+                created_at=datetime.fromtimestamp(part.get("created_at", 0), tz=timezone.utc),
+                part_type=part.get("part_type")
+            )
+            
+        except Exception as e:
+            logger.warning(f"Failed to parse message part: {e}")
+            return None
+    
+    async def fetch_complete_conversation_thread(self, conversation_id: str) -> Optional[Conversation]:
+        """Fetch a complete conversation with all messages using pagination.
+        
+        Args:
+            conversation_id: The Intercom conversation ID
+            
+        Returns:
+            Complete conversation with all messages
+        """
+        # First get conversation metadata
+        conversation = await self.get_conversation_by_id(conversation_id)
+        if not conversation:
+            return None
+        
+        # Then fetch all messages using pagination
+        all_messages = []
+        next_cursor = None
+        
+        while True:
+            messages, next_cursor = await self.get_conversation_messages(
+                conversation_id, 
+                per_page=50, 
+                starting_after=next_cursor
+            )
+            
+            all_messages.extend(messages)
+            
+            if not next_cursor:
+                break
+        
+        # Update conversation with complete message list
+        conversation.messages = sorted(all_messages, key=lambda m: m.created_at)
+        return conversation
 
     async def test_connection(self) -> bool:
         """Test if the API connection is working."""
