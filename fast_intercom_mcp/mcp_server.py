@@ -666,28 +666,148 @@ class FastIntercomMCPServer:
             logger.info("Background sync service stopped")
 
     async def _list_tools(self):
-        """Internal method to get tools list."""
-        # Get the list_tools handler from the server
-        list_tools_handler = None
-        for handler in self.server._tool_list_handlers:
-            list_tools_handler = handler
-            break
-        
-        if list_tools_handler:
-            return await list_tools_handler()
-        return []
+        """Internal method to get tools list for testing."""
+        # Return the tools directly since they're defined in _setup_tools
+        return [
+            Tool(
+                name="search_conversations",
+                description="Search Intercom conversations with flexible filters",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "Text to search for in conversation messages"
+                        },
+                        "timeframe": {
+                            "type": "string", 
+                            "description": "Time period like 'last 7 days', 'this month', 'last week'"
+                        },
+                        "customer_email": {
+                            "type": "string",
+                            "description": "Filter by specific customer email address"
+                        },
+                        "limit": {
+                            "type": "integer",
+                            "description": "Maximum number of conversations to return (default: 50)",
+                            "default": 50
+                        }
+                    }
+                }
+            ),
+            Tool(
+                name="get_conversation",
+                description="Get full details of a specific conversation by ID",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "conversation_id": {
+                            "type": "string",
+                            "description": "The Intercom conversation ID"
+                        }
+                    },
+                    "required": ["conversation_id"]
+                }
+            ),
+            Tool(
+                name="get_server_status",
+                description="Get FastIntercom server status and statistics",
+                inputSchema={
+                    "type": "object",
+                    "properties": {}
+                }
+            ),
+            Tool(
+                name="sync_conversations",
+                description="Trigger manual sync of recent conversations",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "force": {
+                            "type": "boolean",
+                            "description": "Force full sync even if recent data exists",
+                            "default": False
+                        }
+                    }
+                }
+            ),
+            Tool(
+                name="get_data_info",
+                description="Get information about cached data freshness and coverage",
+                inputSchema={
+                    "type": "object",
+                    "properties": {},
+                    "required": []
+                }
+            ),
+            Tool(
+                name="check_coverage",
+                description="Check if cached data covers a specific date range",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "start_date": {
+                            "type": "string",
+                            "description": "Start date in ISO format (YYYY-MM-DD or full ISO timestamp)"
+                        },
+                        "end_date": {
+                            "type": "string",
+                            "description": "End date in ISO format (YYYY-MM-DD or full ISO timestamp)"
+                        }
+                    },
+                    "required": ["start_date", "end_date"]
+                }
+            ),
+            Tool(
+                name="get_sync_status",
+                description="Check if a sync is currently in progress",
+                inputSchema={
+                    "type": "object",
+                    "properties": {},
+                    "required": []
+                }
+            ),
+            Tool(
+                name="force_sync",
+                description="Force an immediate sync operation",
+                inputSchema={
+                    "type": "object",
+                    "properties": {},
+                    "required": []
+                }
+            )
+        ]
     
     async def _call_tool(self, name: str, arguments: Dict[str, Any]):
-        """Internal method to call a tool."""
-        # Get the call_tool handler from the server
-        call_tool_handler = None
-        for handler in self.server._tool_call_handlers:
-            call_tool_handler = handler
-            break
-        
-        if call_tool_handler:
-            return await call_tool_handler(name, arguments)
-        return []
+        """Internal method to call a tool for testing."""
+        try:
+            if name == "search_conversations":
+                return await self._search_conversations(arguments)
+            elif name == "get_conversation":
+                return await self._get_conversation(arguments)
+            elif name == "get_server_status":
+                return await self._get_server_status(arguments)
+            elif name == "sync_conversations":
+                return await self._sync_conversations(arguments)
+            elif name == "get_data_info":
+                return await self._get_data_info(arguments)
+            elif name == "check_coverage":
+                return await self._check_coverage(arguments)
+            elif name == "get_sync_status":
+                return await self._get_sync_status_tool(arguments)
+            elif name == "force_sync":
+                return await self._force_sync_tool(arguments)
+            else:
+                return [TextContent(
+                    type="text",
+                    text=f"Unknown tool: {name}"
+                )]
+        except Exception as e:
+            logger.error(f"Tool call error for {name}: {e}")
+            return [TextContent(
+                type="text", 
+                text=f"Error executing {name}: {str(e)}"
+            )]
 
     async def run(self):
         """Run the MCP server with simplified architecture."""
