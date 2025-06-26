@@ -3,22 +3,30 @@
 import sqlite3
 import json
 import os
+import logging
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional, Dict, Any, Tuple
 from pathlib import Path
 
 from .models import Conversation, Message
 
+logger = logging.getLogger(__name__)
+
 
 class DatabaseManager:
     """Manages SQLite database operations for conversation storage and sync tracking."""
     
-    def __init__(self, db_path: Optional[str] = None):
+    def __init__(self, db_path: Optional[str] = None, pool_size: int = 5):
         """Initialize database manager.
         
         Args:
             db_path: Path to SQLite database file. If None, uses ~/.fastintercom/data.db
+            pool_size: Number of connections to maintain in the pool (max 20)
         """
+        if pool_size < 1 or pool_size > 20:
+            raise ValueError(f"Database pool size must be between 1 and 20, got {pool_size}")
+        
+        self.pool_size = pool_size
         if db_path is None:
             # Default to user's home directory
             home_dir = Path.home()
@@ -37,10 +45,10 @@ class DatabaseManager:
         with sqlite3.connect(self.db_path) as conn:
             conn.execute("PRAGMA foreign_keys = ON")
             
-            # Check if this is an existing database that needs migration
-            self._run_migrations(conn)
+            # Check for schema compatibility
+            self._check_schema_compatibility(conn)
             
-            # Conversations table
+            # Enhanced conversations table with thread tracking
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS conversations (
                     id TEXT PRIMARY KEY,
@@ -49,11 +57,16 @@ class DatabaseManager:
                     customer_email TEXT,
                     tags TEXT, -- JSON array
                     last_synced TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    message_count INTEGER DEFAULT 0
+                    message_count INTEGER DEFAULT 0,
+                    -- New thread tracking fields
+                    thread_complete BOOLEAN DEFAULT FALSE,
+                    last_message_synced TIMESTAMP,
+                    message_sequence_number INTEGER DEFAULT 0,
+                    thread_last_checked TIMESTAMP
                 )
             """)
             
-            # Messages table
+            # Enhanced messages table with thread position tracking
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS messages (
                     id TEXT PRIMARY KEY,
@@ -62,6 +75,12 @@ class DatabaseManager:
                     body TEXT NOT NULL,
                     created_at TIMESTAMP NOT NULL,
                     part_type TEXT, -- 'comment' | 'note' | 'message'
+                    -- New thread tracking fields
+                    sequence_number INTEGER,
+                    last_synced TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    sync_version INTEGER DEFAULT 1,
+                    thread_position INTEGER,
+                    is_complete BOOLEAN DEFAULT TRUE,
                     FOREIGN KEY (conversation_id) REFERENCES conversations (id) ON DELETE CASCADE
                 )
             """)
@@ -111,6 +130,51 @@ class DatabaseManager:
                 )
             """)
             
+            # Conversation-level sync state tracking
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS conversation_sync_state (
+                    conversation_id TEXT PRIMARY KEY,
+                    last_message_timestamp TIMESTAMP,
+                    total_messages_synced INTEGER DEFAULT 0,
+                    thread_complete BOOLEAN DEFAULT FALSE,
+                    last_sync_attempt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    sync_status TEXT DEFAULT 'complete', -- 'incomplete', 'complete', 'error'
+                    error_message TEXT,
+                    next_sync_needed BOOLEAN DEFAULT FALSE,
+                    FOREIGN KEY (conversation_id) REFERENCES conversations (id) ON DELETE CASCADE
+                )
+            """)
+            
+            # Message thread tracking for handling message dependencies
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS message_threads (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    conversation_id TEXT NOT NULL,
+                    parent_message_id TEXT,
+                    child_message_id TEXT NOT NULL,
+                    thread_depth INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (conversation_id) REFERENCES conversations (id) ON DELETE CASCADE,
+                    FOREIGN KEY (child_message_id) REFERENCES messages (id) ON DELETE CASCADE,
+                    UNIQUE(parent_message_id, child_message_id)
+                )
+            """)
+            
+            # Schema version tracking for future compatibility
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS schema_version (
+                    version INTEGER PRIMARY KEY,
+                    applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    description TEXT
+                )
+            """)
+            
+            # Record current schema version
+            conn.execute("""
+                INSERT OR IGNORE INTO schema_version (version, description)
+                VALUES (2, 'Enhanced message tracking with conversation threads')
+            """)
+            
             # Create indexes for performance
             conn.execute("CREATE INDEX IF NOT EXISTS idx_conversations_created_at ON conversations (created_at)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_conversations_updated_at ON conversations (updated_at)")
@@ -119,73 +183,122 @@ class DatabaseManager:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages (created_at)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_sync_periods_timestamps ON sync_periods (start_timestamp, end_timestamp)")
             
+            # Enhanced indexes for thread tracking
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_conversations_thread_complete ON conversations (thread_complete)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_conversations_last_message_synced ON conversations (last_message_synced)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_conversations_message_sequence ON conversations (message_sequence_number)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_messages_sequence_number ON messages (conversation_id, sequence_number)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_messages_last_synced ON messages (last_synced)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_messages_sync_version ON messages (sync_version)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_messages_thread_position ON messages (conversation_id, thread_position)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_conversation_sync_state_status ON conversation_sync_state (sync_status)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_conversation_sync_state_next_sync ON conversation_sync_state (next_sync_needed)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_conversation_sync_state_last_sync ON conversation_sync_state (last_sync_attempt)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_message_threads_conversation ON message_threads (conversation_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_message_threads_parent ON message_threads (parent_message_id)")
+            
+            # Create useful views for sync operations
+            conn.execute("""
+                CREATE VIEW IF NOT EXISTS conversations_needing_sync AS
+                SELECT 
+                    c.id,
+                    c.created_at,
+                    c.updated_at,
+                    c.thread_complete,
+                    c.last_message_synced,
+                    css.sync_status,
+                    css.error_message,
+                    css.next_sync_needed
+                FROM conversations c
+                LEFT JOIN conversation_sync_state css ON c.id = css.conversation_id
+                WHERE 
+                    c.thread_complete = FALSE 
+                    OR css.sync_status = 'incomplete' 
+                    OR css.next_sync_needed = TRUE
+                    OR css.conversation_id IS NULL
+            """)
+            
+            conn.execute("""
+                CREATE VIEW IF NOT EXISTS conversations_needing_incremental_sync AS
+                SELECT 
+                    c.id,
+                    c.updated_at,
+                    c.last_message_synced,
+                    CASE 
+                        WHEN c.last_message_synced IS NULL THEN 1
+                        WHEN c.updated_at > c.last_message_synced THEN 1
+                        ELSE 0
+                    END as needs_sync
+                FROM conversations c
+                WHERE needs_sync = 1
+            """)
+            
             conn.commit()
     
-    def _run_migrations(self, conn: sqlite3.Connection):
-        """Run database migrations for existing databases."""
-        # Check if the old sync_metadata table exists (key-value style)
+    def _check_schema_compatibility(self, conn: sqlite3.Connection):
+        """Check if existing database is compatible with current schema version."""
+        try:
+            # Check if schema_version table exists
+            cursor = conn.execute("""
+                SELECT name FROM sqlite_master 
+                WHERE type='table' AND name='schema_version'
+            """)
+            schema_table_exists = cursor.fetchone() is not None
+            
+            if schema_table_exists:
+                # Check current schema version
+                cursor = conn.execute("SELECT MAX(version) FROM schema_version")
+                current_version = cursor.fetchone()[0]
+                
+                if current_version and current_version < 2:
+                    # Incompatible schema - require fresh database
+                    self._backup_and_reset_database(conn)
+            else:
+                # Check if old database exists by looking for conversations table
+                cursor = conn.execute("""
+                    SELECT name FROM sqlite_master 
+                    WHERE type='table' AND name='conversations'
+                """)
+                conversations_table_exists = cursor.fetchone() is not None
+                
+                if conversations_table_exists:
+                    # Check if it has new thread tracking columns
+                    cursor = conn.execute("PRAGMA table_info(conversations)")
+                    columns = [col[1] for col in cursor.fetchall()]
+                    
+                    if 'thread_complete' not in columns:
+                        # Old schema - require fresh database
+                        self._backup_and_reset_database(conn)
+                        
+        except Exception as e:
+            logger.warning(f"Schema compatibility check failed: {e}")
+            # On error, assume incompatible and reset
+            self._backup_and_reset_database(conn)
+    
+    def _backup_and_reset_database(self, conn: sqlite3.Connection):
+        """Backup old database and reset for new schema."""
+        logger.info("Incompatible database schema detected. Creating backup and resetting database.")
+        
+        # Get table names
         cursor = conn.execute("""
             SELECT name FROM sqlite_master 
-            WHERE type='table' AND name='sync_metadata'
+            WHERE type='table' AND name NOT LIKE 'sqlite_%'
         """)
+        tables = [row[0] for row in cursor.fetchall()]
         
-        old_table_exists = cursor.fetchone() is not None
-        
-        if old_table_exists:
-            # Check if it's the old format by looking at the schema
-            cursor = conn.execute("PRAGMA table_info(sync_metadata)")
-            columns = [col[1] for col in cursor.fetchall()]
+        if tables:
+            # Create backup timestamp
+            backup_suffix = datetime.now().strftime("%Y%m%d_%H%M%S")
             
-            # If it has 'key' column, it's the old format
-            if 'key' in columns and 'id' not in columns:
-                # Rename old table and migrate data
-                conn.execute("ALTER TABLE sync_metadata RENAME TO sync_metadata_old")
-                
-                # Create new sync_metadata table
-                conn.execute("""
-                    CREATE TABLE sync_metadata (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        sync_started_at TIMESTAMP NOT NULL,
-                        sync_completed_at TIMESTAMP,
-                        sync_status TEXT NOT NULL, -- 'in_progress', 'completed', 'failed'
-                        coverage_start_date DATE,
-                        coverage_end_date DATE,
-                        total_conversations INTEGER DEFAULT 0,
-                        total_messages INTEGER DEFAULT 0,
-                        sync_type TEXT, -- 'full', 'incremental'
-                        error_message TEXT,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                    )
-                """)
-                
-                # Create initial migration record if conversations exist
-                cursor = conn.execute("SELECT COUNT(*) FROM conversations")
-                conversation_count = cursor.fetchone()[0]
-                
-                if conversation_count > 0:
-                    conn.execute("""
-                        INSERT INTO sync_metadata (
-                            sync_started_at,
-                            sync_completed_at, 
-                            sync_status,
-                            coverage_start_date,
-                            coverage_end_date,
-                            total_conversations,
-                            sync_type
-                        )
-                        VALUES (?, ?, 'completed', ?, ?, ?, 'migration')
-                    """, [
-                        (datetime.now() - timedelta(hours=1)).isoformat(),
-                        datetime.now().isoformat(),
-                        (datetime.now() - timedelta(days=7)).date().isoformat(),
-                        datetime.now().date().isoformat(),
-                        conversation_count
-                    ])
-                
-                # Drop old table
-                conn.execute("DROP TABLE sync_metadata_old")
-                
-                conn.commit()
+            # Rename all existing tables with backup suffix
+            for table in tables:
+                try:
+                    conn.execute(f"ALTER TABLE {table} RENAME TO {table}_backup_{backup_suffix}")
+                except sqlite3.OperationalError as e:
+                    logger.warning(f"Could not backup table {table}: {e}")
+        
+        conn.commit()
+        logger.info(f"Database reset complete. Old tables backed up with suffix '_backup_{backup_suffix}'")
     
     def store_conversations(self, conversations: List[Conversation]) -> int:
         """Store or update conversations in database.
@@ -665,6 +778,142 @@ class DatabaseManager:
                 "message": f"Analysis includes conversations up to {last_sync.strftime('%Y-%m-%d %H:%M:%S')} - may be missing very recent conversations",
                 "should_sync": False,
                 "data_complete": False
+            }
+
+    def get_conversations_needing_thread_sync(self, limit: int = 50) -> List[Dict[str, Any]]:
+        """Get conversations that need complete thread fetching."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            
+            cursor = conn.execute("""
+                SELECT * FROM conversations_needing_sync
+                ORDER BY created_at DESC
+                LIMIT ?
+            """, (limit,))
+            
+            return [dict(row) for row in cursor.fetchall()]
+    
+    def get_conversations_needing_incremental_sync(self, limit: int = 50) -> List[Dict[str, Any]]:
+        """Get conversations that need incremental message updates."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            
+            cursor = conn.execute("""
+                SELECT * FROM conversations_needing_incremental_sync
+                ORDER BY updated_at DESC
+                LIMIT ?
+            """, (limit,))
+            
+            return [dict(row) for row in cursor.fetchall()]
+    
+    def update_conversation_sync_state(
+        self, 
+        conversation_id: str, 
+        sync_status: str = 'complete',
+        thread_complete: bool = True,
+        total_messages: Optional[int] = None,
+        error_message: Optional[str] = None
+    ) -> None:
+        """Update the sync state for a conversation."""
+        with sqlite3.connect(self.db_path) as conn:
+            # Update conversation table
+            conn.execute("""
+                UPDATE conversations 
+                SET thread_complete = ?, 
+                    last_message_synced = CURRENT_TIMESTAMP,
+                    message_sequence_number = COALESCE(?, message_sequence_number)
+                WHERE id = ?
+            """, (thread_complete, total_messages, conversation_id))
+            
+            # Update or insert sync state
+            conn.execute("""
+                INSERT OR REPLACE INTO conversation_sync_state 
+                (conversation_id, sync_status, thread_complete, total_messages_synced, 
+                 last_sync_attempt, error_message, next_sync_needed)
+                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?, FALSE)
+            """, (
+                conversation_id, 
+                sync_status, 
+                thread_complete, 
+                total_messages or 0,
+                error_message
+            ))
+            
+            conn.commit()
+    
+    def mark_conversation_for_resync(self, conversation_id: str, reason: str = None) -> None:
+        """Mark a conversation as needing re-synchronization."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("""
+                UPDATE conversations 
+                SET thread_complete = FALSE
+                WHERE id = ?
+            """, (conversation_id,))
+            
+            conn.execute("""
+                INSERT OR REPLACE INTO conversation_sync_state 
+                (conversation_id, sync_status, thread_complete, next_sync_needed, error_message)
+                VALUES (?, 'incomplete', FALSE, TRUE, ?)
+            """, (conversation_id, reason))
+            
+            conn.commit()
+    
+    def get_incomplete_conversations_count(self) -> int:
+        """Get count of conversations with incomplete thread sync."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute("""
+                SELECT COUNT(*) FROM conversations 
+                WHERE thread_complete = FALSE
+            """)
+            return cursor.fetchone()[0]
+    
+    def get_sync_progress_stats(self) -> Dict[str, Any]:
+        """Get detailed sync progress statistics."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            
+            # Total conversations
+            cursor = conn.execute("SELECT COUNT(*) as total FROM conversations")
+            total_conversations = cursor.fetchone()['total']
+            
+            # Complete vs incomplete threads
+            cursor = conn.execute("""
+                SELECT 
+                    SUM(CASE WHEN thread_complete = TRUE THEN 1 ELSE 0 END) as complete,
+                    SUM(CASE WHEN thread_complete = FALSE THEN 1 ELSE 0 END) as incomplete
+                FROM conversations
+            """)
+            thread_stats = cursor.fetchone()
+            
+            # Sync state breakdown
+            cursor = conn.execute("""
+                SELECT sync_status, COUNT(*) as count 
+                FROM conversation_sync_state 
+                GROUP BY sync_status
+            """)
+            sync_status_breakdown = {row['sync_status']: row['count'] for row in cursor.fetchall()}
+            
+            # Messages statistics
+            cursor = conn.execute("""
+                SELECT 
+                    COUNT(*) as total_messages,
+                    COUNT(DISTINCT conversation_id) as conversations_with_messages,
+                    AVG(CAST(substr(created_at, 1, 10) AS INTEGER)) as avg_message_age_days
+                FROM messages
+            """)
+            message_stats = cursor.fetchone()
+            
+            return {
+                'total_conversations': total_conversations,
+                'complete_threads': thread_stats['complete'] or 0,
+                'incomplete_threads': thread_stats['incomplete'] or 0,
+                'completion_percentage': round((thread_stats['complete'] or 0) / max(total_conversations, 1) * 100, 1),
+                'sync_status_breakdown': sync_status_breakdown,
+                'total_messages': message_stats['total_messages'] or 0,
+                'conversations_with_messages': message_stats['conversations_with_messages'] or 0,
+                'average_messages_per_conversation': round(
+                    (message_stats['total_messages'] or 0) / max(total_conversations, 1), 1
+                )
             }
 
     def close(self):
