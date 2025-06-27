@@ -95,11 +95,17 @@ class Config:
     @staticmethod
     def get_default_config_path() -> str:
         """Get the default configuration file path."""
+        config_dir = os.getenv("FASTINTERCOM_CONFIG_DIR")
+        if config_dir:
+            return str(Path(config_dir) / "config.json")
         return str(Path.home() / ".fastintercom" / "config.json")
 
     @staticmethod
     def get_default_data_dir() -> str:
         """Get the default data directory."""
+        config_dir = os.getenv("FASTINTERCOM_CONFIG_DIR")
+        if config_dir:
+            return str(Path(config_dir))
         return str(Path.home() / ".fastintercom")
 
 

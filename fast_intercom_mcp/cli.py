@@ -113,7 +113,7 @@ def init(_ctx, token, sync_days):
 
     # Test connection
     async def test_connection():
-        client = IntercomClient(token, config.api_timeout_seconds)
+        client = IntercomClient(token, timeout=config.api_timeout_seconds)
         if await client.test_connection():
             click.echo("✅ Connection to Intercom API successful")
             app_id = await client.get_app_id()
@@ -136,7 +136,7 @@ def init(_ctx, token, sync_days):
         click.echo("🔄 Starting initial sync (this may take a few minutes)...")
 
         async def initial_sync():
-            client = IntercomClient(token, config.api_timeout_seconds)
+            client = IntercomClient(token, timeout=config.api_timeout_seconds)
             sync_manager = SyncManager(db, client)
             sync_service = sync_manager.get_sync_service()
 
