@@ -206,16 +206,20 @@ class DatabaseManager:
 
             # Enhanced indexes for thread tracking
             conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_conversations_thread_complete ON conversations (thread_complete)"
+                "CREATE INDEX IF NOT EXISTS idx_conversations_thread_complete "
+                "ON conversations (thread_complete)"
             )
             conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_conversations_last_message_synced ON conversations (last_message_synced)"
+                "CREATE INDEX IF NOT EXISTS idx_conversations_last_message_synced "
+                "ON conversations (last_message_synced)"
             )
             conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_conversations_message_sequence ON conversations (message_sequence_number)"
+                "CREATE INDEX IF NOT EXISTS idx_conversations_message_sequence "
+                "ON conversations (message_sequence_number)"
             )
             conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_messages_sequence_number ON messages (conversation_id, sequence_number)"
+                "CREATE INDEX IF NOT EXISTS idx_messages_sequence_number "
+                "ON messages (conversation_id, sequence_number)"
             )
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_messages_last_synced ON messages (last_synced)"
@@ -224,22 +228,28 @@ class DatabaseManager:
                 "CREATE INDEX IF NOT EXISTS idx_messages_sync_version ON messages (sync_version)"
             )
             conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_messages_thread_position ON messages (conversation_id, thread_position)"
+                "CREATE INDEX IF NOT EXISTS idx_messages_thread_position "
+                "ON messages (conversation_id, thread_position)"
             )
             conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_conversation_sync_state_status ON conversation_sync_state (sync_status)"
+                "CREATE INDEX IF NOT EXISTS idx_conversation_sync_state_status "
+                "ON conversation_sync_state (sync_status)"
             )
             conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_conversation_sync_state_next_sync ON conversation_sync_state (next_sync_needed)"
+                "CREATE INDEX IF NOT EXISTS idx_conversation_sync_state_next_sync "
+                "ON conversation_sync_state (next_sync_needed)"
             )
             conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_conversation_sync_state_last_sync ON conversation_sync_state (last_sync_attempt)"
+                "CREATE INDEX IF NOT EXISTS idx_conversation_sync_state_last_sync "
+                "ON conversation_sync_state (last_sync_attempt)"
             )
             conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_message_threads_conversation ON message_threads (conversation_id)"
+                "CREATE INDEX IF NOT EXISTS idx_message_threads_conversation "
+                "ON message_threads (conversation_id)"
             )
             conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_message_threads_parent ON message_threads (parent_message_id)"
+                "CREATE INDEX IF NOT EXISTS idx_message_threads_parent "
+                "ON message_threads (parent_message_id)"
             )
 
             # Create useful views for sync operations
@@ -322,7 +332,9 @@ class DatabaseManager:
 
     def _backup_and_reset_database(self, conn: sqlite3.Connection):
         """Backup old database and reset for new schema."""
-        logger.info("Incompatible database schema detected. Creating backup and resetting database.")
+        logger.info(
+            "Incompatible database schema detected. Creating backup and resetting database."
+        )
 
         # Get table names
         cursor = conn.execute("""
@@ -343,7 +355,9 @@ class DatabaseManager:
                     logger.warning(f"Could not backup table {table}: {e}")
 
         conn.commit()
-        logger.info(f"Database reset complete. Old tables backed up with suffix '_backup_{backup_suffix}'")
+        logger.info(
+            f"Database reset complete. Old tables backed up with suffix '_backup_{backup_suffix}'"
+        )
 
     def store_conversations(self, conversations: list[Conversation]) -> int:
         """Store or update conversations in database.

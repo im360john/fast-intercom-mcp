@@ -74,7 +74,7 @@ def cli(ctx, config, verbose):
 
     # Setup logging
     log_level = "DEBUG" if verbose else "INFO"
-    setup_enhanced_logging(".", log_level)
+    setup_logging(log_level)
 
     # Load configuration
     try:
