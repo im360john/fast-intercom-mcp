@@ -1,6 +1,7 @@
 """Background sync service for keeping conversation data up to date."""
 
 import asyncio
+import contextlib
 import logging
 import threading
 from datetime import datetime, timedelta
@@ -76,7 +77,7 @@ class SyncService:
                 try:
                     await asyncio.wait_for(
                         self._shutdown_event.wait(),
-                        timeout=self.background_sync_interval_minutes * 60
+                        timeout=self.background_sync_interval_minutes * 60,
                     )
                     break  # Shutdown requested
                 except TimeoutError:
@@ -101,14 +102,18 @@ class SyncService:
         stale_request_timeframes = self.db.get_stale_timeframes(self.max_sync_age_minutes)
 
         if stale_request_timeframes:
-            logger.info(f"Found {len(stale_request_timeframes)} request-triggered timeframes needing sync")
+            logger.info(
+                f"Found {len(stale_request_timeframes)} request-triggered timeframes needing sync"
+            )
             for start, end in stale_request_timeframes[:2]:  # Limit to 2 to avoid overwhelming API
                 await self.sync_period(start, end, is_background=True)
 
         # Priority 2: Check legacy period-based syncing
         stale_periods = self.db.get_periods_needing_sync(self.max_sync_age_minutes)
 
-        if stale_periods and not stale_request_timeframes:  # Only if no request-triggered syncs needed
+        if (
+            stale_periods and not stale_request_timeframes
+        ):  # Only if no request-triggered syncs needed
             logger.info(f"Found {len(stale_periods)} stale periods, triggering background sync")
             for start, end in stale_periods[:2]:  # Limit to 2 periods
                 await self.sync_period(start, end, is_background=True)
@@ -124,7 +129,7 @@ class SyncService:
             with sqlite3.connect(self.db.db_path) as conn:
                 cursor = conn.execute(
                     "SELECT COUNT(*) FROM conversations WHERE created_at >= ?",
-                    [today_start.isoformat()]
+                    [today_start.isoformat()],
                 )
                 today_count = cursor.fetchone()[0]
 
@@ -140,10 +145,10 @@ class SyncService:
     async def sync_if_needed(self, start_date: datetime | None, end_date: datetime | None):
         """
         Smart sync based on 3-state sync logic.
-        
+
         States:
         - 'stale': Data is too old, trigger sync and wait
-        - 'partial': Data is incomplete but usable, proceed with warning  
+        - 'partial': Data is incomplete but usable, proceed with warning
         - 'fresh': Data is current, proceed normally
         """
         # Check sync state using intelligent logic
@@ -172,8 +177,8 @@ class SyncService:
                     raise SyncStateException(
                         f"Data is stale and sync failed: {str(e)}",
                         sync_state="stale",
-                        last_sync=sync_info.get("last_sync")
-                    )
+                        last_sync=sync_info.get("last_sync"),
+                    ) from e
 
         elif sync_state == "partial":
             # State 2: Partial data - proceed but log warning
@@ -191,30 +196,29 @@ class SyncService:
         since = now - timedelta(hours=6)  # Last 6 hours
         return await self.sync_incremental(since)
 
-    async def sync_period(self, start_date: datetime, end_date: datetime,
-                         is_background: bool = False) -> SyncStats:
+    async def sync_period(
+        self, start_date: datetime, end_date: datetime, is_background: bool = False
+    ) -> SyncStats:
         """Sync all conversations in a specific time period."""
         if self._sync_active and not is_background:
             raise Exception("Sync already in progress")
 
         self._sync_active = True
-        self._current_operation = f"Syncing {start_date.strftime('%m/%d')} to {end_date.strftime('%m/%d')}"
+        self._current_operation = (
+            f"Syncing {start_date.strftime('%m/%d')} to {end_date.strftime('%m/%d')}"
+        )
 
         try:
             logger.info(f"Starting period sync: {start_date} to {end_date}")
 
             # Fetch conversations from Intercom
-            conversations = await self.intercom.fetch_conversations_for_period(
-                start_date, end_date
-            )
+            conversations = await self.intercom.fetch_conversations_for_period(start_date, end_date)
 
             # Store in database
             stored_count = self.db.store_conversations(conversations)
 
             # Record sync period
-            self.db.record_sync_period(
-                start_date, end_date, len(conversations), stored_count, 0
-            )
+            self.db.record_sync_period(start_date, end_date, len(conversations), stored_count, 0)
 
             stats = SyncStats(
                 total_conversations=len(conversations),
@@ -222,7 +226,7 @@ class SyncService:
                 updated_conversations=0,  # Simplified for now
                 total_messages=sum(len(conv.messages) for conv in conversations),
                 duration_seconds=0,  # Would track this in real implementation
-                api_calls_made=0  # Would track this in real implementation
+                api_calls_made=0,  # Would track this in real implementation
             )
 
             self._last_sync_time = datetime.now()
@@ -259,14 +263,17 @@ class SyncService:
             self._sync_active = False
             self._current_operation = None
 
-    async def sync_period_two_phase(self, start_date: datetime, end_date: datetime,
-                                   is_background: bool = False) -> SyncStats:
+    async def sync_period_two_phase(
+        self, start_date: datetime, end_date: datetime, is_background: bool = False
+    ) -> SyncStats:
         """Two-phase sync: search for conversations, then fetch complete threads."""
         if self._sync_active and not is_background:
             raise Exception("Sync already in progress")
 
         self._sync_active = True
-        self._current_operation = f"Two-phase sync {start_date.strftime('%m/%d')} to {end_date.strftime('%m/%d')}"
+        self._current_operation = (
+            f"Two-phase sync {start_date.strftime('%m/%d')} to {end_date.strftime('%m/%d')}"
+        )
 
         try:
             logger.info(f"Starting two-phase sync: {start_date} to {end_date}")
@@ -288,7 +295,7 @@ class SyncService:
 
     async def sync_initial(self, days_back: int = 30) -> SyncStats:
         """Perform initial sync of conversation history.
-        
+
         Args:
             days_back: Number of days of history to sync (default: 30, max: 30)
         """
@@ -304,17 +311,16 @@ class SyncService:
     def get_status(self) -> dict[str, Any]:
         """Get current sync service status."""
         return {
-            'active': self._sync_active,
-            'current_operation': self._current_operation,
-            'last_sync_time': self._last_sync_time.isoformat() if self._last_sync_time else None,
-            'last_sync_stats': self._sync_stats,
-            'app_id': self.app_id
+            "active": self._sync_active,
+            "current_operation": self._current_operation,
+            "last_sync_time": self._last_sync_time.isoformat() if self._last_sync_time else None,
+            "last_sync_stats": self._sync_stats,
+            "app_id": self.app_id,
         }
 
     async def test_connection(self) -> bool:
         """Test connection to Intercom API."""
         return await self.intercom.test_connection()
-
 
 
 class SyncManager:
@@ -354,18 +360,15 @@ class SyncManager:
         try:
             # Schedule stop on the event loop and wait for completion
             future = asyncio.run_coroutine_threadsafe(
-                self.sync_service.stop_background_sync(),
-                self._loop
+                self.sync_service.stop_background_sync(), self._loop
             )
             future.result(timeout=5)  # Wait up to 5 seconds
         except Exception as e:
             logger.warning(f"Error stopping sync service: {e}")
 
         # Stop the event loop
-        try:
+        with contextlib.suppress(Exception):
             self._loop.call_soon_threadsafe(self._loop.stop)
-        except Exception:
-            pass
 
         # Wait for thread to finish
         if self._thread and self._thread.is_alive():

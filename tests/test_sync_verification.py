@@ -13,6 +13,7 @@ Tests cover:
 """
 
 import asyncio
+import contextlib
 import sqlite3
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock
@@ -26,7 +27,9 @@ class TestInitialSyncVerification:
     """Test suite for initial sync verification."""
 
     @pytest.mark.asyncio
-    async def test_initial_sync_fetches_conversations(self, sync_service, database_manager, test_conversations):
+    async def test_initial_sync_fetches_conversations(
+        self, sync_service, database_manager, test_conversations
+    ):
         """Test that initial sync actually retrieves conversations from Intercom."""
         # Get initial conversation count
         with sqlite3.connect(database_manager.db_path) as conn:
@@ -43,10 +46,14 @@ class TestInitialSyncVerification:
 
         # Verify conversations were fetched
         assert stats.total_conversations > 0, "No conversations were synced"
-        assert stats.total_conversations == len(test_conversations), "Incorrect number of conversations synced"
+        assert stats.total_conversations == len(test_conversations), (
+            "Incorrect number of conversations synced"
+        )
 
         # Verify API was called correctly
-        sync_service.intercom.fetch_conversations_for_period.assert_called_once_with(start_date, end_date)
+        sync_service.intercom.fetch_conversations_for_period.assert_called_once_with(
+            start_date, end_date
+        )
 
         # Verify database was updated
         with sqlite3.connect(database_manager.db_path) as conn:
@@ -62,7 +69,9 @@ class TestInitialSyncVerification:
             assert sample_conv[1] is not None, "Conversation created_at is None"
 
     @pytest.mark.asyncio
-    async def test_initial_sync_stores_messages(self, sync_service, database_manager, test_conversations):
+    async def test_initial_sync_stores_messages(
+        self, sync_service, database_manager, test_conversations
+    ):
         """Test that initial sync stores all messages for conversations."""
         # Run sync
         start_date = datetime.now(UTC) - timedelta(days=1)
@@ -80,7 +89,7 @@ class TestInitialSyncVerification:
 
             # Verify message data integrity
             cursor = conn.execute("""
-                SELECT id, author_type, body, created_at, conversation_id 
+                SELECT id, author_type, body, created_at, conversation_id
                 FROM messages LIMIT 1
             """)
             sample_msg = cursor.fetchone()
@@ -114,7 +123,9 @@ class TestNewConversationDetection:
     """Test suite for new conversation detection in sync."""
 
     @pytest.mark.asyncio
-    async def test_new_conversations_detected_in_incremental_sync(self, sync_service, test_conversations):
+    async def test_new_conversations_detected_in_incremental_sync(
+        self, sync_service, test_conversations
+    ):
         """Test that new conversations created in Intercom are detected."""
         # Mock incremental sync to return new conversation
         # (This is used for documentation/clarity, not directly in the test)
@@ -129,9 +140,9 @@ class TestNewConversationDetection:
                     author_type="user",
                     body="This is a new conversation",
                     created_at=datetime.now(UTC),
-                    part_type="comment"
+                    part_type="comment",
                 )
-            ]
+            ],
         )
 
         sync_service.intercom.fetch_conversations_incremental.return_value = SyncStats(
@@ -140,7 +151,7 @@ class TestNewConversationDetection:
             updated_conversations=0,
             total_messages=1,
             duration_seconds=1.0,
-            api_calls_made=1
+            api_calls_made=1,
         )
 
         # Run incremental sync
@@ -158,14 +169,16 @@ class TestNewConversationDetection:
     async def test_no_new_conversations_detected(self, sync_service):
         """Test incremental sync when no new conversations exist."""
         # Mock to return no new conversations
-        sync_service.intercom.fetch_conversations_incremental = AsyncMock(return_value=SyncStats(
-            total_conversations=0,
-            new_conversations=0,
-            updated_conversations=0,
-            total_messages=0,
-            duration_seconds=0.5,
-            api_calls_made=1
-        ))
+        sync_service.intercom.fetch_conversations_incremental = AsyncMock(
+            return_value=SyncStats(
+                total_conversations=0,
+                new_conversations=0,
+                updated_conversations=0,
+                total_messages=0,
+                duration_seconds=0.5,
+                api_calls_made=1,
+            )
+        )
 
         # Run incremental sync
         since_time = datetime.now(UTC) - timedelta(minutes=30)
@@ -180,7 +193,9 @@ class TestMessageCompleteness:
     """Test suite for message completeness verification."""
 
     @pytest.mark.asyncio
-    async def test_all_messages_in_conversation_synced(self, sync_service, database_manager, test_conversations):
+    async def test_all_messages_in_conversation_synced(
+        self, sync_service, database_manager, test_conversations
+    ):
         """Test that ALL messages in a conversation are synced."""
         # Find the long conversation from test data
         long_conv = next(conv for conv in test_conversations if conv.id == "test_conv_3_long")
@@ -193,17 +208,23 @@ class TestMessageCompleteness:
 
         # Verify all messages are stored
         with sqlite3.connect(database_manager.db_path) as conn:
-            cursor = conn.execute("""
-                SELECT COUNT(*) FROM messages 
+            cursor = conn.execute(
+                """
+                SELECT COUNT(*) FROM messages
                 WHERE conversation_id = ?
-            """, [long_conv.id])
+            """,
+                [long_conv.id],
+            )
             stored_message_count = cursor.fetchone()[0]
 
-            assert stored_message_count == expected_message_count, \
+            assert stored_message_count == expected_message_count, (
                 f"Expected {expected_message_count} messages, got {stored_message_count}"
+            )
 
     @pytest.mark.asyncio
-    async def test_message_ordering_preserved(self, sync_service, database_manager, test_conversations):
+    async def test_message_ordering_preserved(
+        self, sync_service, database_manager, test_conversations
+    ):
         """Test that message ordering and timestamps are preserved."""
         # Run sync
         start_date = datetime.now(UTC) - timedelta(days=1)
@@ -221,11 +242,14 @@ class TestMessageCompleteness:
             assert len(stored_conv_ids) > 0, "No conversations with messages found in database"
 
             for conv_id in stored_conv_ids:
-                cursor = conn.execute("""
-                    SELECT created_at FROM messages 
-                    WHERE conversation_id = ? 
+                cursor = conn.execute(
+                    """
+                    SELECT created_at FROM messages
+                    WHERE conversation_id = ?
                     ORDER BY created_at
-                """, [conv_id])
+                """,
+                    [conv_id],
+                )
 
                 timestamps = [row[0] for row in cursor.fetchall()]
 
@@ -234,8 +258,9 @@ class TestMessageCompleteness:
 
                 # Check that timestamps are sorted (allowing for equal timestamps)
                 for i in range(1, len(timestamps)):
-                    assert timestamps[i] >= timestamps[i-1], \
+                    assert timestamps[i] >= timestamps[i - 1], (
                         f"Messages not in chronological order for conversation {conv_id}"
+                    )
 
     @pytest.mark.asyncio
     async def test_no_duplicate_messages(self, sync_service, database_manager, test_conversations):
@@ -250,9 +275,9 @@ class TestMessageCompleteness:
         # Check for duplicate messages
         with sqlite3.connect(database_manager.db_path) as conn:
             cursor = conn.execute("""
-                SELECT id, COUNT(*) as count 
-                FROM messages 
-                GROUP BY id 
+                SELECT id, COUNT(*) as count
+                FROM messages
+                GROUP BY id
                 HAVING count > 1
             """)
 
@@ -260,7 +285,9 @@ class TestMessageCompleteness:
             assert len(duplicates) == 0, f"Found duplicate messages: {duplicates}"
 
     @pytest.mark.asyncio
-    async def test_both_user_and_admin_messages_captured(self, sync_service, database_manager, test_conversations):
+    async def test_both_user_and_admin_messages_captured(
+        self, sync_service, database_manager, test_conversations
+    ):
         """Test that both user and admin messages are captured."""
         # Run sync
         start_date = datetime.now(UTC) - timedelta(days=1)
@@ -289,7 +316,7 @@ class TestIncrementalSyncEfficiency:
             updated_conversations=0,
             total_messages=50,
             duration_seconds=5.0,
-            api_calls_made=10
+            api_calls_made=10,
         )
 
         # Mock incremental sync with no changes
@@ -299,10 +326,12 @@ class TestIncrementalSyncEfficiency:
             updated_conversations=0,
             total_messages=0,
             duration_seconds=0.5,
-            api_calls_made=1  # Should be much fewer API calls
+            api_calls_made=1,  # Should be much fewer API calls
         )
 
-        sync_service.intercom.fetch_conversations_incremental = AsyncMock(return_value=incremental_stats)
+        sync_service.intercom.fetch_conversations_incremental = AsyncMock(
+            return_value=incremental_stats
+        )
 
         # Run incremental sync
         since_time = datetime.now(UTC) - timedelta(hours=1)
@@ -310,10 +339,12 @@ class TestIncrementalSyncEfficiency:
 
         # Verify efficiency
         assert stats.total_conversations == 0, "No changes should be detected"
-        assert stats.api_calls_made < initial_stats.api_calls_made, \
+        assert stats.api_calls_made < initial_stats.api_calls_made, (
             "Incremental sync should make fewer API calls"
-        assert stats.duration_seconds < initial_stats.duration_seconds, \
+        )
+        assert stats.duration_seconds < initial_stats.duration_seconds, (
             "Incremental sync should be faster"
+        )
 
     @pytest.mark.asyncio
     async def test_sync_state_tracking(self, sync_service, database_manager):
@@ -331,9 +362,9 @@ class TestIncrementalSyncEfficiency:
 
             # Check sync period data
             cursor = conn.execute("""
-                SELECT start_timestamp, end_timestamp, last_synced 
-                FROM sync_periods 
-                ORDER BY last_synced DESC 
+                SELECT start_timestamp, end_timestamp, last_synced
+                FROM sync_periods
+                ORDER BY last_synced DESC
                 LIMIT 1
             """)
             sync_record = cursor.fetchone()
@@ -347,13 +378,17 @@ class TestConversationThreadCompleteness:
     """Test suite for conversation thread completeness."""
 
     @pytest.mark.asyncio
-    async def test_complete_conversation_threads_fetched(self, enhanced_sync_service, test_conversations):
+    async def test_complete_conversation_threads_fetched(
+        self, enhanced_sync_service, test_conversations
+    ):
         """Test that complete conversation threads are fetched."""
         # Find long conversation for testing
         long_conv = next(conv for conv in test_conversations if conv.id == "test_conv_3_long")
 
         # Mock individual conversation fetching
-        enhanced_sync_service.intercom.fetch_individual_conversations = AsyncMock(return_value=[long_conv])
+        enhanced_sync_service.intercom.fetch_individual_conversations = AsyncMock(
+            return_value=[long_conv]
+        )
 
         # Fetch complete conversation thread
         conversation_ids = [long_conv.id]
@@ -361,8 +396,9 @@ class TestConversationThreadCompleteness:
 
         # Verify thread completeness
         assert stats.total_conversations == 1, "Expected 1 conversation"
-        assert stats.total_messages == len(long_conv.messages), \
+        assert stats.total_messages == len(long_conv.messages), (
             f"Expected {len(long_conv.messages)} messages"
+        )
 
         # Verify API was called correctly
         enhanced_sync_service.intercom.fetch_individual_conversations.assert_called_once_with(
@@ -384,13 +420,15 @@ class TestConversationThreadCompleteness:
                     author_type="user" if i % 2 == 0 else "admin",
                     body=f"Message {i} in very long conversation",
                     created_at=datetime.now(UTC) - timedelta(minutes=i),
-                    part_type="comment"
+                    part_type="comment",
                 )
                 for i in range(100)  # 100 messages to test pagination
-            ]
+            ],
         )
 
-        enhanced_sync_service.intercom.fetch_individual_conversations = AsyncMock(return_value=[very_long_conv])
+        enhanced_sync_service.intercom.fetch_individual_conversations = AsyncMock(
+            return_value=[very_long_conv]
+        )
 
         # Fetch complete thread
         stats = await enhanced_sync_service.sync_full_threads_for_conversations([very_long_conv.id])
@@ -402,7 +440,9 @@ class TestConversationThreadCompleteness:
         assert stats.total_conversations == 1, "Expected 1 conversation"
 
     @pytest.mark.asyncio
-    async def test_initial_message_included_in_thread(self, sync_service, database_manager, test_conversations):
+    async def test_initial_message_included_in_thread(
+        self, sync_service, database_manager, test_conversations
+    ):
         """Test that initial message is included in conversation thread."""
         # Run sync
         start_date = datetime.now(UTC) - timedelta(days=1)
@@ -420,15 +460,18 @@ class TestConversationThreadCompleteness:
             """)
 
             conversations_without_messages = cursor.fetchall()
-            assert len(conversations_without_messages) == 0, \
+            assert len(conversations_without_messages) == 0, (
                 f"Conversations without messages: {conversations_without_messages}"
+            )
 
 
 class TestSyncDataIntegrity:
     """Test suite for overall sync data integrity."""
 
     @pytest.mark.asyncio
-    async def test_conversation_customer_association(self, sync_service, database_manager, test_conversations):
+    async def test_conversation_customer_association(
+        self, sync_service, database_manager, test_conversations
+    ):
         """Test that customer information is properly associated with conversations."""
         # Run sync
         start_date = datetime.now(UTC) - timedelta(days=1)
@@ -438,7 +481,7 @@ class TestSyncDataIntegrity:
         # Check customer email associations
         with sqlite3.connect(database_manager.db_path) as conn:
             cursor = conn.execute("""
-                SELECT id, customer_email FROM conversations 
+                SELECT id, customer_email FROM conversations
                 WHERE customer_email IS NOT NULL
             """)
             conversations_with_emails = cursor.fetchall()
@@ -450,7 +493,9 @@ class TestSyncDataIntegrity:
                 assert "@" in email, f"Invalid email format for conversation {conv_id}: {email}"
 
     @pytest.mark.asyncio
-    async def test_conversation_tags_preserved(self, sync_service, database_manager, test_conversations):
+    async def test_conversation_tags_preserved(
+        self, sync_service, database_manager, test_conversations
+    ):
         """Test that conversation tags are preserved during sync."""
         # Run sync
         start_date = datetime.now(UTC) - timedelta(days=1)
@@ -468,7 +513,9 @@ class TestSyncDataIntegrity:
     async def test_sync_handles_api_errors_gracefully(self, sync_service):
         """Test that sync handles API errors gracefully."""
         # Mock API error
-        sync_service.intercom.fetch_conversations_for_period = AsyncMock(side_effect=Exception("API Error"))
+        sync_service.intercom.fetch_conversations_for_period = AsyncMock(
+            side_effect=Exception("API Error")
+        )
 
         # Run sync and expect exception
         start_date = datetime.now(UTC) - timedelta(days=1)
@@ -482,6 +529,7 @@ class TestSyncDataIntegrity:
     @pytest.mark.asyncio
     async def test_sync_prevents_concurrent_operations(self, sync_service):
         """Test that sync prevents concurrent operations."""
+
         # Mock a long-running sync that sleeps for a bit
         async def long_running_sync(*args, **kwargs):
             await asyncio.sleep(0.1)
@@ -505,10 +553,8 @@ class TestSyncDataIntegrity:
         assert "already in progress" in str(exc_info.value).lower()
 
         # Clean up
-        try:
+        with contextlib.suppress(Exception):
             await task1
-        except Exception:
-            pass
 
 
 class TestSyncPerformanceAndReliability:
@@ -523,10 +569,10 @@ class TestSyncPerformanceAndReliability:
         stats = await sync_service.sync_period(start_date, end_date)
 
         # Verify performance metrics are tracked
-        assert hasattr(stats, 'duration_seconds'), "Duration not tracked"
-        assert hasattr(stats, 'api_calls_made'), "API calls not tracked"
-        assert hasattr(stats, 'total_conversations'), "Conversation count not tracked"
-        assert hasattr(stats, 'total_messages'), "Message count not tracked"
+        assert hasattr(stats, "duration_seconds"), "Duration not tracked"
+        assert hasattr(stats, "api_calls_made"), "API calls not tracked"
+        assert hasattr(stats, "total_conversations"), "Conversation count not tracked"
+        assert hasattr(stats, "total_messages"), "Message count not tracked"
 
     @pytest.mark.asyncio
     async def test_sync_service_status_reporting(self, sync_service):
@@ -534,14 +580,14 @@ class TestSyncPerformanceAndReliability:
         status = sync_service.get_status()
 
         # Verify status structure
-        assert 'active' in status, "Status missing 'active' field"
-        assert 'current_operation' in status, "Status missing 'current_operation' field"
-        assert 'last_sync_time' in status, "Status missing 'last_sync_time' field"
-        assert 'last_sync_stats' in status, "Status missing 'last_sync_stats' field"
+        assert "active" in status, "Status missing 'active' field"
+        assert "current_operation" in status, "Status missing 'current_operation' field"
+        assert "last_sync_time" in status, "Status missing 'last_sync_time' field"
+        assert "last_sync_stats" in status, "Status missing 'last_sync_stats' field"
 
         # Test status during sync
         # This would require mocking a long-running sync to test properly
-        assert not status['active'], "Sync should not be active initially"
+        assert not status["active"], "Sync should not be active initially"
 
     @pytest.mark.asyncio
     async def test_connection_testing(self, sync_service):
@@ -554,4 +600,3 @@ class TestSyncPerformanceAndReliability:
 
         # Verify API was called
         sync_service.intercom.test_connection.assert_called_once()
-

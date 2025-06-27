@@ -18,6 +18,7 @@ class SyncStateException(Exception):
 @dataclass
 class Message:
     """A message within an Intercom conversation."""
+
     id: str
     author_type: str  # 'user' | 'admin'
     body: str
@@ -28,6 +29,7 @@ class Message:
 @dataclass
 class Conversation:
     """An Intercom conversation with messages."""
+
     id: str
     created_at: datetime
     updated_at: datetime
@@ -45,16 +47,17 @@ class Conversation:
 
     def get_customer_messages(self) -> list[Message]:
         """Get only messages from customers (not admins)."""
-        return [msg for msg in self.messages if msg.author_type == 'user']
+        return [msg for msg in self.messages if msg.author_type == "user"]
 
     def get_admin_messages(self) -> list[Message]:
         """Get only messages from admins."""
-        return [msg for msg in self.messages if msg.author_type == 'admin']
+        return [msg for msg in self.messages if msg.author_type == "admin"]
 
 
 @dataclass
 class SyncPeriod:
     """Represents a time period that has been synced from Intercom."""
+
     start_timestamp: datetime
     end_timestamp: datetime
     last_synced: datetime
@@ -66,6 +69,7 @@ class SyncPeriod:
 @dataclass
 class ConversationFilters:
     """Filters for searching conversations."""
+
     query: str | None = None
     start_date: datetime | None = None
     end_date: datetime | None = None
@@ -77,6 +81,7 @@ class ConversationFilters:
 @dataclass
 class SyncStats:
     """Statistics about a sync operation."""
+
     total_conversations: int
     new_conversations: int
     updated_conversations: int
@@ -89,6 +94,7 @@ class SyncStats:
 @dataclass
 class ServerStatus:
     """Overall server status information."""
+
     is_running: bool
     database_size_mb: float
     total_conversations: int
@@ -103,6 +109,7 @@ class ServerStatus:
 @dataclass
 class MCPTool:
     """Definition of an MCP tool."""
+
     name: str
     description: str
     parameters: dict[str, Any]
@@ -111,6 +118,7 @@ class MCPTool:
 @dataclass
 class MCPRequest:
     """An incoming MCP request."""
+
     tool_name: str
     parameters: dict[str, Any]
     request_id: str | None = None
@@ -119,6 +127,7 @@ class MCPRequest:
 @dataclass
 class MCPResponse:
     """Response to an MCP request."""
+
     success: bool
     data: Any = None
     error: str | None = None

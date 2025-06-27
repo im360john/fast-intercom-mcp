@@ -16,7 +16,7 @@ from fast_intercom_mcp.models import Conversation, Message
 @pytest.fixture
 def temp_db_path():
     """Create a temporary database file for testing."""
-    with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as tmp_file:
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp_file:
         db_path = tmp_file.name
 
     yield db_path
@@ -51,7 +51,7 @@ class TestDatabaseInitialization:
         with sqlite3.connect(test_db_manager.db_path) as conn:
             # Get all table names
             cursor = conn.execute("""
-                SELECT name FROM sqlite_master 
+                SELECT name FROM sqlite_master
                 WHERE type='table' AND name NOT LIKE 'sqlite_%'
                 ORDER BY name
             """)
@@ -59,14 +59,14 @@ class TestDatabaseInitialization:
 
             # Check expected tables exist
             expected_tables = [
-                'conversations',
-                'messages',
-                'sync_periods',
-                'sync_metadata',
-                'request_patterns',
-                'conversation_sync_state',
-                'message_threads',
-                'schema_version'
+                "conversations",
+                "messages",
+                "sync_periods",
+                "sync_metadata",
+                "request_patterns",
+                "conversation_sync_state",
+                "message_threads",
+                "schema_version",
             ]
 
             for table in expected_tables:
@@ -77,17 +77,17 @@ class TestDatabaseInitialization:
         with sqlite3.connect(test_db_manager.db_path) as conn:
             # Get all index names
             cursor = conn.execute("""
-                SELECT name FROM sqlite_master 
+                SELECT name FROM sqlite_master
                 WHERE type='index' AND name NOT LIKE 'sqlite_%'
             """)
             indexes = [row[0] for row in cursor.fetchall()]
 
             # Check some key indexes exist
             expected_indexes = [
-                'idx_conversations_created_at',
-                'idx_conversations_updated_at',
-                'idx_messages_conversation_id',
-                'idx_messages_created_at'
+                "idx_conversations_created_at",
+                "idx_conversations_updated_at",
+                "idx_messages_conversation_id",
+                "idx_messages_created_at",
             ]
 
             for idx in expected_indexes:
@@ -98,15 +98,15 @@ class TestDatabaseInitialization:
         with sqlite3.connect(test_db_manager.db_path) as conn:
             # Get all view names
             cursor = conn.execute("""
-                SELECT name FROM sqlite_master 
+                SELECT name FROM sqlite_master
                 WHERE type='view'
             """)
             views = [row[0] for row in cursor.fetchall()]
 
             # Check expected views exist
             expected_views = [
-                'conversations_needing_sync',
-                'conversations_needing_incremental_sync'
+                "conversations_needing_sync",
+                "conversations_needing_incremental_sync",
             ]
 
             for view in expected_views:
@@ -145,19 +145,18 @@ class TestDatabaseInitialization:
 
     def test_default_database_path(self):
         """Test that default database path is created correctly."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            with patch('pathlib.Path.home') as mock_home:
-                mock_home.return_value = Path(temp_dir)
+        with tempfile.TemporaryDirectory() as temp_dir, patch("pathlib.Path.home") as mock_home:
+            mock_home.return_value = Path(temp_dir)
 
-                # Create the database manager with default path
-                db_manager = DatabaseManager()
+            # Create the database manager with default path
+            db_manager = DatabaseManager()
 
-                expected_path = Path(temp_dir) / '.fastintercom' / 'data.db'
-                assert db_manager.db_path == expected_path
+            expected_path = Path(temp_dir) / ".fastintercom" / "data.db"
+            assert db_manager.db_path == expected_path
 
-                # Verify the directory and file were created
-                assert expected_path.parent.exists(), "Database directory should be created"
-                assert expected_path.exists(), "Database file should be created"
+            # Verify the directory and file were created
+            assert expected_path.parent.exists(), "Database directory should be created"
+            assert expected_path.exists(), "Database file should be created"
 
 
 class TestDatabaseOperations:
@@ -167,17 +166,11 @@ class TestDatabaseOperations:
         """Test storing and retrieving conversations."""
         # Create test data
         message1 = Message(
-            id="msg1",
-            author_type="user",
-            body="Hello, I need help",
-            created_at=datetime.now()
+            id="msg1", author_type="user", body="Hello, I need help", created_at=datetime.now()
         )
 
         message2 = Message(
-            id="msg2",
-            author_type="admin",
-            body="How can I help you?",
-            created_at=datetime.now()
+            id="msg2", author_type="admin", body="How can I help you?", created_at=datetime.now()
         )
 
         conversation = Conversation(
@@ -186,7 +179,7 @@ class TestDatabaseOperations:
             updated_at=datetime.now(),
             messages=[message1, message2],
             customer_email="test@example.com",
-            tags=["support", "urgent"]
+            tags=["support", "urgent"],
         )
 
         # Store conversation
@@ -195,8 +188,7 @@ class TestDatabaseOperations:
 
         # Retrieve conversation
         retrieved = test_db_manager.search_conversations(
-            customer_email="test@example.com",
-            limit=10
+            customer_email="test@example.com", limit=10
         )
 
         assert len(retrieved) == 1
@@ -212,33 +204,27 @@ class TestDatabaseOperations:
         # Get initial status
         status = test_db_manager.get_sync_status()
 
-        assert status['total_conversations'] == 0
-        assert status['total_messages'] == 0
-        assert status['last_sync'] is None
-        assert status['database_size_mb'] > 0  # Should have some size even empty
+        assert status["total_conversations"] == 0
+        assert status["total_messages"] == 0
+        assert status["last_sync"] is None
+        assert status["database_size_mb"] > 0  # Should have some size even empty
 
         # Add some test data
         message = Message(
-            id="msg1",
-            author_type="user",
-            body="Test message",
-            created_at=datetime.now()
+            id="msg1", author_type="user", body="Test message", created_at=datetime.now()
         )
 
         conversation = Conversation(
-            id="conv1",
-            created_at=datetime.now(),
-            updated_at=datetime.now(),
-            messages=[message]
+            id="conv1", created_at=datetime.now(), updated_at=datetime.now(), messages=[message]
         )
 
         test_db_manager.store_conversations([conversation])
 
         # Check updated status
         status = test_db_manager.get_sync_status()
-        assert status['total_conversations'] == 1
-        assert status['total_messages'] == 1
-        assert status['last_sync'] is not None
+        assert status["total_conversations"] == 1
+        assert status["total_messages"] == 1
+        assert status["last_sync"] is not None
 
     def test_data_freshness_check(self, test_db_manager):
         """Test data freshness checking functionality."""
@@ -255,14 +241,14 @@ class TestDatabaseOperations:
             id="msg1",
             author_type="user",
             body="Test message",
-            created_at=start_time + timedelta(minutes=30)
+            created_at=start_time + timedelta(minutes=30),
         )
 
         conversation = Conversation(
             id="conv1",
             created_at=start_time + timedelta(minutes=30),
             updated_at=start_time + timedelta(minutes=30),
-            messages=[message]
+            messages=[message],
         )
 
         test_db_manager.store_conversations([conversation])
@@ -278,44 +264,35 @@ class TestDatabaseTransaction:
     def test_transaction_rollback_on_error(self, test_db_manager):
         """Test that transactions are rolled back on error."""
         # This test ensures data integrity by verifying rollback behavior
-        initial_count = test_db_manager.get_sync_status()['total_conversations']
+        initial_count = test_db_manager.get_sync_status()["total_conversations"]
 
         # Create valid conversation
         valid_message = Message(
-            id="valid_msg",
-            author_type="user",
-            body="Valid message",
-            created_at=datetime.now()
+            id="valid_msg", author_type="user", body="Valid message", created_at=datetime.now()
         )
 
         valid_conversation = Conversation(
             id="valid_conv",
             created_at=datetime.now(),
             updated_at=datetime.now(),
-            messages=[valid_message]
+            messages=[valid_message],
         )
 
         # Store valid conversation first
         test_db_manager.store_conversations([valid_conversation])
 
         # Verify it was stored
-        assert test_db_manager.get_sync_status()['total_conversations'] == initial_count + 1
+        assert test_db_manager.get_sync_status()["total_conversations"] == initial_count + 1
 
     def test_duplicate_conversation_handling(self, test_db_manager):
         """Test that duplicate conversations are handled correctly."""
         # Create conversation
         message = Message(
-            id="msg1",
-            author_type="user",
-            body="Original message",
-            created_at=datetime.now()
+            id="msg1", author_type="user", body="Original message", created_at=datetime.now()
         )
 
         conversation = Conversation(
-            id="conv1",
-            created_at=datetime.now(),
-            updated_at=datetime.now(),
-            messages=[message]
+            id="conv1", created_at=datetime.now(), updated_at=datetime.now(), messages=[message]
         )
 
         # Store conversation twice
@@ -328,7 +305,7 @@ class TestDatabaseTransaction:
 
         # Should still have only one conversation
         status = test_db_manager.get_sync_status()
-        assert status['total_conversations'] == 1
+        assert status["total_conversations"] == 1
 
 
 class TestDatabaseCompatibility:
@@ -337,7 +314,7 @@ class TestDatabaseCompatibility:
     def test_schema_compatibility_check(self, temp_db_path):
         """Test schema compatibility checking."""
         # Create database with current schema
-        db_manager = DatabaseManager(db_path=temp_db_path)
+        DatabaseManager(db_path=temp_db_path)
 
         # Verify schema version is current
         with sqlite3.connect(temp_db_path) as conn:
@@ -345,7 +322,7 @@ class TestDatabaseCompatibility:
             version = cursor.fetchone()[0]
             assert version == 2
 
-    @patch('fast_intercom_mcp.database.logger')
+    @patch("fast_intercom_mcp.database.logger")
     def test_backup_and_reset_on_incompatible_schema(self, mock_logger, temp_db_path):
         """Test that incompatible schemas trigger backup and reset."""
         # Create old schema database
@@ -361,7 +338,7 @@ class TestDatabaseCompatibility:
             conn.commit()
 
         # Initialize DatabaseManager - should detect incompatible schema
-        db_manager = DatabaseManager(db_path=temp_db_path)
+        DatabaseManager(db_path=temp_db_path)
 
         # Should have logged the backup message
         mock_logger.info.assert_any_call(
@@ -372,7 +349,7 @@ class TestDatabaseCompatibility:
         with sqlite3.connect(temp_db_path) as conn:
             cursor = conn.execute("PRAGMA table_info(conversations)")
             columns = [col[1] for col in cursor.fetchall()]
-            assert 'thread_complete' in columns  # New column should exist
+            assert "thread_complete" in columns  # New column should exist
 
 
 class TestDatabaseCleanup:

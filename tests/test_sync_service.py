@@ -17,7 +17,7 @@ from fast_intercom_mcp.sync_service import SyncManager, SyncService
 @pytest.fixture
 def temp_db_path():
     """Create a temporary database file for testing."""
-    with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as tmp_file:
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp_file:
         db_path = tmp_file.name
 
     yield db_path
@@ -47,7 +47,7 @@ def mock_intercom_client():
             updated_conversations=0,
             total_messages=0,
             duration_seconds=0.1,
-            api_calls_made=1
+            api_calls_made=1,
         )
     )
     return mock_client
@@ -82,15 +82,15 @@ class TestSyncServiceInitialization:
         status = sync_service.get_status()
 
         assert isinstance(status, dict)
-        assert 'active' in status
-        assert 'current_operation' in status
-        assert 'last_sync_time' in status
-        assert 'last_sync_stats' in status
-        assert 'app_id' in status
+        assert "active" in status
+        assert "current_operation" in status
+        assert "last_sync_time" in status
+        assert "last_sync_stats" in status
+        assert "app_id" in status
 
-        assert not status['active']  # Should not be active initially
-        assert status['current_operation'] is None
-        assert status['last_sync_time'] is None
+        assert not status["active"]  # Should not be active initially
+        assert status["current_operation"] is None
+        assert status["last_sync_time"] is None
 
     @pytest.mark.asyncio
     async def test_sync_service_connection_test(self, sync_service):
@@ -131,7 +131,7 @@ class TestSyncServiceOperations:
             updated_conversations=2,
             total_messages=15,
             duration_seconds=2.5,
-            api_calls_made=3
+            api_calls_made=3,
         )
         sync_service.intercom.fetch_conversations_incremental.return_value = test_stats
 
@@ -157,17 +157,11 @@ class TestSyncServiceOperations:
 
         # Create test conversations
         test_message = Message(
-            id="msg1",
-            author_type="user",
-            body="Test message",
-            created_at=datetime.now()
+            id="msg1", author_type="user", body="Test message", created_at=datetime.now()
         )
 
         test_conversation = Conversation(
-            id="conv1",
-            created_at=start_date,
-            updated_at=end_date,
-            messages=[test_message]
+            id="conv1", created_at=start_date, updated_at=end_date, messages=[test_message]
         )
 
         sync_service.intercom.fetch_conversations_for_period.return_value = [test_conversation]
@@ -194,17 +188,14 @@ class TestSyncServiceOperations:
         """Test initial sync operation."""
         # Configure mock to return test data
         test_message = Message(
-            id="msg1",
-            author_type="user",
-            body="Test message",
-            created_at=datetime.now()
+            id="msg1", author_type="user", body="Test message", created_at=datetime.now()
         )
 
         test_conversation = Conversation(
             id="conv1",
             created_at=datetime.now() - timedelta(days=5),
             updated_at=datetime.now(),
-            messages=[test_message]
+            messages=[test_message],
         )
 
         sync_service.intercom.fetch_conversations_for_period.return_value = [test_conversation]
@@ -238,9 +229,7 @@ class TestSyncServiceOperations:
 
         # Background sync should be allowed
         await sync_service.sync_period(
-            datetime.now() - timedelta(hours=1),
-            datetime.now(),
-            is_background=True
+            datetime.now() - timedelta(hours=1), datetime.now(), is_background=True
         )
 
     @pytest.mark.asyncio
@@ -292,7 +281,7 @@ class TestSyncServiceBackgroundOperations:
         await sync_service.stop_background_sync()
 
     @pytest.mark.asyncio
-    @patch('fast_intercom_mcp.sync_service.logger')
+    @patch("fast_intercom_mcp.sync_service.logger")
     async def test_background_sync_error_handling(self, mock_logger, sync_service):
         """Test background sync error handling."""
         # Mock database methods to raise exceptions
@@ -337,12 +326,14 @@ class TestSyncServiceSmartSyncLogic:
     async def test_sync_if_needed_fresh_data(self, sync_service):
         """Test sync_if_needed with fresh data."""
         # Mock database to return fresh sync state
-        sync_service.db.check_sync_state = Mock(return_value={
-            "sync_state": "fresh",
-            "last_sync": datetime.now(),
-            "should_sync": False,
-            "data_complete": True
-        })
+        sync_service.db.check_sync_state = Mock(
+            return_value={
+                "sync_state": "fresh",
+                "last_sync": datetime.now(),
+                "should_sync": False,
+                "data_complete": True,
+            }
+        )
 
         start_date = datetime.now() - timedelta(hours=1)
         end_date = datetime.now()
@@ -359,13 +350,15 @@ class TestSyncServiceSmartSyncLogic:
     async def test_sync_if_needed_stale_data(self, sync_service):
         """Test sync_if_needed with stale data."""
         # Mock database to return stale sync state
-        sync_service.db.check_sync_state = Mock(return_value={
-            "sync_state": "stale",
-            "last_sync": datetime.now() - timedelta(hours=2),
-            "should_sync": True,
-            "data_complete": False,
-            "message": "Data is stale"
-        })
+        sync_service.db.check_sync_state = Mock(
+            return_value={
+                "sync_state": "stale",
+                "last_sync": datetime.now() - timedelta(hours=2),
+                "should_sync": True,
+                "data_complete": False,
+                "message": "Data is stale",
+            }
+        )
 
         # Configure mock to return test data
         sync_service.intercom.fetch_conversations_for_period.return_value = []
@@ -386,13 +379,15 @@ class TestSyncServiceSmartSyncLogic:
     async def test_sync_if_needed_partial_data(self, sync_service):
         """Test sync_if_needed with partial data."""
         # Mock database to return partial sync state
-        sync_service.db.check_sync_state = Mock(return_value={
-            "sync_state": "partial",
-            "last_sync": datetime.now() - timedelta(minutes=30),
-            "should_sync": False,
-            "data_complete": False,
-            "message": "Data is partial"
-        })
+        sync_service.db.check_sync_state = Mock(
+            return_value={
+                "sync_state": "partial",
+                "last_sync": datetime.now() - timedelta(minutes=30),
+                "should_sync": False,
+                "data_complete": False,
+                "message": "Data is partial",
+            }
+        )
 
         start_date = datetime.now() - timedelta(hours=1)
         end_date = datetime.now()
@@ -433,6 +428,7 @@ class TestSyncManager:
 
         # Wait for thread to finish and state to update
         import time
+
         max_wait = 2.0  # Wait up to 2 seconds
         wait_time = 0.0
         while manager._started and wait_time < max_wait:
@@ -488,16 +484,19 @@ class TestSyncServiceConfiguration:
 
         # Verify all expected fields are present
         required_fields = [
-            'active', 'current_operation', 'last_sync_time',
-            'last_sync_stats', 'app_id'
+            "active",
+            "current_operation",
+            "last_sync_time",
+            "last_sync_stats",
+            "app_id",
         ]
 
         for field in required_fields:
             assert field in status
 
         # Verify types
-        assert isinstance(status['active'], bool)
-        assert status['current_operation'] is None or isinstance(status['current_operation'], str)
-        assert status['last_sync_time'] is None or isinstance(status['last_sync_time'], str)
-        assert isinstance(status['last_sync_stats'], dict)
-        assert status['app_id'] is None or isinstance(status['app_id'], str)
+        assert isinstance(status["active"], bool)
+        assert status["current_operation"] is None or isinstance(status["current_operation"], str)
+        assert status["last_sync_time"] is None or isinstance(status["last_sync_time"], str)
+        assert isinstance(status["last_sync_stats"], dict)
+        assert status["app_id"] is None or isinstance(status["app_id"], str)
