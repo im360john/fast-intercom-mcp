@@ -1,1 +1,1 @@
-# Test package initialization
+"""Test package for fast-intercom-mcp."""
