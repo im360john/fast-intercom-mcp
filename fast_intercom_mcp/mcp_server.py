@@ -189,7 +189,7 @@ class FastIntercomMCPServer:
 
                 # Query the most recent successful sync
                 result = conn.execute("""
-                    SELECT 
+                    SELECT
                         sync_completed_at,
                         coverage_start_date,
                         coverage_end_date,
@@ -259,7 +259,7 @@ class FastIntercomMCPServer:
 
                 # Get the most recent sync info
                 result = conn.execute("""
-                    SELECT 
+                    SELECT
                         sync_completed_at,
                         coverage_start_date,
                         coverage_end_date
@@ -625,7 +625,7 @@ class FastIntercomMCPServer:
 
     async def _smart_background_sync(self, start_date: datetime, end_date: datetime):
         """Perform intelligent background sync for a specific timeframe.
-        
+
         This runs in the background and doesn't block the current request.
         The synced data will be available for the next request.
         """

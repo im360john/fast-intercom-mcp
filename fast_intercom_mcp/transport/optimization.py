@@ -155,7 +155,7 @@ class APICache:
                 self._cache.clear()
                 self._current_size_bytes = 0
             else:
-                keys_to_remove = [key for key in self._cache.keys() if pattern in key]
+                keys_to_remove = [key for key in self._cache if pattern in key]
                 for key in keys_to_remove:
                     self._remove_entry(key)
 
@@ -342,7 +342,7 @@ class APIOptimizer:
                           data: Any = None, cache_key: str = None,
                           cache_ttl: int = None, priority: str = "normal") -> Any:
         """Make an optimized API request with caching, deduplication, etc.
-        
+
         Args:
             method: HTTP method
             url: Request URL
@@ -351,7 +351,7 @@ class APIOptimizer:
             cache_key: Key for caching (if None, no caching)
             cache_ttl: Cache TTL in seconds
             priority: Request priority
-            
+
         Returns:
             Response data
         """

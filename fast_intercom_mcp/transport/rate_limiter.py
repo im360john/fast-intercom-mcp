@@ -80,10 +80,10 @@ class AdaptiveRateLimiter:
 
     async def acquire(self, priority: str = "normal") -> float:
         """Acquire permission to make a request.
-        
+
         Args:
             priority: Request priority ("high", "normal", "low")
-            
+
         Returns:
             Delay time in seconds (0 if no delay needed)
         """
@@ -133,7 +133,7 @@ class AdaptiveRateLimiter:
 
     def report_rate_limit_hit(self, retry_after_seconds: float | None = None):
         """Report that a rate limit was hit by the API.
-        
+
         Args:
             retry_after_seconds: Server-suggested retry delay
         """
@@ -150,7 +150,7 @@ class AdaptiveRateLimiter:
 
     def report_successful_request(self, response_time_seconds: float = 0.0):
         """Report a successful request to help with adaptive learning.
-        
+
         Args:
             response_time_seconds: Time taken for the request
         """

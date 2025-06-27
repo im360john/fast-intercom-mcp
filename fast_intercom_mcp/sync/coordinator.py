@@ -101,15 +101,15 @@ class TwoPhaseSyncCoordinator:
         force_refetch: bool = False
     ) -> SyncStats:
         """Execute two-phase sync for a time period.
-        
+
         Phase 1: Search for conversations in the time period
         Phase 2: Fetch individual complete conversation threads
-        
+
         Args:
             start_date: Start of time period
-            end_date: End of time period  
+            end_date: End of time period
             force_refetch: Force refetch of conversations already in database
-            
+
         Returns:
             Combined sync statistics
         """

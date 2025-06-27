@@ -1,6 +1,7 @@
 """Background sync service that runs inside the MCP server process."""
 
 import asyncio
+import contextlib
 import logging
 import sqlite3
 from datetime import datetime, timedelta
@@ -34,10 +35,8 @@ class BackgroundSyncService:
         self.running = False
         if self.sync_task:
             self.sync_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self.sync_task
-            except asyncio.CancelledError:
-                pass
         logger.info("Background sync stopped")
 
     async def _sync_loop(self):
@@ -101,7 +100,7 @@ class BackgroundSyncService:
                 # Update metadata on success
                 with sqlite3.connect(self.db.db_path) as conn:
                     conn.execute("""
-                        UPDATE sync_metadata 
+                        UPDATE sync_metadata
                         SET sync_completed_at = ?,
                             sync_status = 'completed',
                             total_conversations = ?,
@@ -123,7 +122,7 @@ class BackgroundSyncService:
                 # Update metadata on failure
                 with sqlite3.connect(self.db.db_path) as conn:
                     conn.execute("""
-                        UPDATE sync_metadata 
+                        UPDATE sync_metadata
                         SET sync_completed_at = ?,
                             sync_status = 'failed',
                             error_message = ?

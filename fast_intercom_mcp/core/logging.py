@@ -40,12 +40,12 @@ def setup_enhanced_logging(
 ) -> dict[str, Any]:
     """
     Setup enhanced logging with 3-file structure and optional JSON formatting.
-    
+
     Args:
         log_dir: Directory to store log files
         log_level: Logging level (DEBUG, INFO, WARNING, ERROR)
         enable_json: Whether to use JSON formatting
-        
+
     Returns:
         Dict with logging configuration info
     """

@@ -154,7 +154,7 @@ class ConversationSyncTracker:
             conn.row_factory = sqlite3.Row
 
             cursor = conn.execute("""
-                SELECT * FROM conversation_sync_state 
+                SELECT * FROM conversation_sync_state
                 WHERE conversation_id = ?
             """, (conversation_id,))
 
@@ -240,13 +240,13 @@ class ConversationSyncTracker:
 
         with sqlite3.connect(self.db.db_path) as conn:
             cursor = conn.execute("""
-                SELECT c.id 
+                SELECT c.id
                 FROM conversations c
                 LEFT JOIN conversation_sync_state css ON c.id = css.conversation_id
-                WHERE css.last_full_sync IS NULL 
+                WHERE css.last_full_sync IS NULL
                    OR css.last_full_sync < ?
                    OR css.sync_status = 'failed'
-                ORDER BY 
+                ORDER BY
                     CASE WHEN css.last_full_sync IS NULL THEN 0 ELSE 1 END,
                     css.last_full_sync ASC
                 LIMIT ?
@@ -262,13 +262,13 @@ class ConversationSyncTracker:
 
         with sqlite3.connect(self.db.db_path) as conn:
             cursor = conn.execute("""
-                SELECT c.id 
+                SELECT c.id
                 FROM conversations c
                 LEFT JOIN conversation_sync_state css ON c.id = css.conversation_id
                 WHERE (css.last_incremental_sync IS NULL OR css.last_incremental_sync < ?)
                   AND css.sync_status != 'in_progress'
                   AND (css.error_count = 0 OR css.error_count IS NULL OR css.last_error_timestamp < ?)
-                ORDER BY 
+                ORDER BY
                     c.updated_at DESC,
                     css.last_incremental_sync ASC
                 LIMIT ?
@@ -283,7 +283,7 @@ class ConversationSyncTracker:
 
             # Basic counts
             cursor = conn.execute("""
-                SELECT 
+                SELECT
                     COUNT(*) as total_conversations,
                     COUNT(css.conversation_id) as conversations_with_sync_state,
                     COUNT(CASE WHEN css.last_full_sync IS NOT NULL THEN 1 END) as full_synced,
@@ -299,7 +299,7 @@ class ConversationSyncTracker:
             # Recent sync activity
             recent_threshold = datetime.now() - timedelta(hours=24)
             cursor = conn.execute("""
-                SELECT 
+                SELECT
                     COUNT(*) as recent_full_syncs,
                     COUNT(CASE WHEN sync_type = 'incremental' THEN 1 END) as recent_incremental_syncs,
                     COUNT(CASE WHEN sync_status = 'failed' THEN 1 END) as recent_failures,
@@ -313,7 +313,7 @@ class ConversationSyncTracker:
 
             # Error analysis
             cursor = conn.execute("""
-                SELECT 
+                SELECT
                     COUNT(DISTINCT conversation_id) as conversations_with_errors,
                     COUNT(*) as total_errors,
                     MAX(last_error_timestamp) as latest_error_time
@@ -334,7 +334,7 @@ class ConversationSyncTracker:
             conn.row_factory = sqlite3.Row
 
             cursor = conn.execute("""
-                SELECT 
+                SELECT
                     css.conversation_id,
                     css.error_count,
                     css.last_error,
@@ -354,12 +354,12 @@ class ConversationSyncTracker:
         """Reset sync state for a conversation (useful for troubleshooting)."""
         with sqlite3.connect(self.db.db_path) as conn:
             conn.execute("""
-                DELETE FROM conversation_sync_state 
+                DELETE FROM conversation_sync_state
                 WHERE conversation_id = ?
             """, (conversation_id,))
 
             conn.execute("""
-                DELETE FROM conversation_sync_attempts 
+                DELETE FROM conversation_sync_attempts
                 WHERE conversation_id = ?
             """, (conversation_id,))
 

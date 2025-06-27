@@ -32,7 +32,7 @@ class SyncProgress:
 
 class FullThreadSyncStrategy:
     """Strategy for complete conversation thread synchronization.
-    
+
     Uses a two-phase approach:
     1. Search phase: Find conversations in the time period
     2. Fetch phase: Get complete threads for each conversation
@@ -49,11 +49,11 @@ class FullThreadSyncStrategy:
 
     async def sync_period(self, start_date: datetime, end_date: datetime) -> SyncStats:
         """Sync all conversations in a period with complete threads.
-        
+
         Args:
             start_date: Start of time period
             end_date: End of time period
-            
+
         Returns:
             Sync statistics
         """
@@ -116,7 +116,7 @@ class FullThreadSyncStrategy:
     def _merge_conversation_data(self, search_results: list[Conversation],
                                complete_threads: list[Conversation]) -> list[Conversation]:
         """Merge data from search results with complete thread data.
-        
+
         The search API may have different/incomplete message data compared to
         the individual conversation API, so we prioritize the complete thread data.
         """
@@ -163,7 +163,7 @@ class FullThreadSyncStrategy:
 
 class IncrementalSyncStrategy:
     """Enhanced strategy for incremental conversation synchronization.
-    
+
     Uses change detection to identify only conversations that need updates,
     minimizing API calls and focusing on efficiency.
     """
@@ -184,11 +184,11 @@ class IncrementalSyncStrategy:
     async def sync_since(self, since_timestamp: datetime,
                         until_timestamp: datetime | None = None) -> SyncStats:
         """Enhanced incremental sync with change detection.
-        
+
         Args:
             since_timestamp: Only sync conversations updated after this time
             until_timestamp: Only sync conversations updated before this time (optional)
-            
+
         Returns:
             Sync statistics
         """
@@ -219,11 +219,11 @@ class IncrementalSyncStrategy:
     async def detect_changes_only(self, since_timestamp: datetime,
                                 until_timestamp: datetime | None = None) -> dict[str, Any]:
         """Detect changes without syncing (for analysis purposes).
-        
+
         Args:
             since_timestamp: Look for changes since this time
             until_timestamp: Look for changes until this time
-            
+
         Returns:
             Change detection results
         """
@@ -296,11 +296,11 @@ class IncrementalSyncStrategy:
 
 class SmartSyncStrategy:
     """Smart strategy that chooses the best sync approach based on context.
-    
+
     Decides between full thread sync, incremental sync, or hybrid approaches
     based on factors like:
     - Time since last sync
-    - Number of conversations to sync  
+    - Number of conversations to sync
     - API rate limit budget
     - Data completeness requirements
     """
@@ -321,12 +321,12 @@ class SmartSyncStrategy:
     async def sync_period(self, start_date: datetime, end_date: datetime,
                          force_full: bool = False) -> SyncStats:
         """Smart sync for a time period.
-        
+
         Args:
             start_date: Start of time period
             end_date: End of time period
             force_full: Force full thread sync even if incremental would be better
-            
+
         Returns:
             Sync statistics
         """
@@ -350,11 +350,11 @@ class SmartSyncStrategy:
     async def _analyze_sync_requirements(self, start_date: datetime,
                                        end_date: datetime) -> dict[str, Any]:
         """Analyze what sync strategy to use.
-        
+
         Args:
             start_date: Start of sync period
             end_date: End of sync period
-            
+
         Returns:
             Dictionary with strategy decision and reasoning
         """

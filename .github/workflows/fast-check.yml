@@ -28,7 +28,7 @@ jobs:
         run: python -c "import fast_intercom_mcp"
       
       - name: Ruff linting (critical errors only)
-        run: ruff check . --select E,F --exclude __pycache__
+        run: ruff check . --config pyproject.toml --select E,F --exclude __pycache__
       
       - name: CLI smoke test
         run: python -m fast_intercom_mcp --help

@@ -54,12 +54,12 @@ class ConversationChangeDetector:
                                         end_time: datetime,
                                         change_types: list[str] | None = None) -> ChangeDetectionResult:
         """Detect changes in conversations within a specific timeframe.
-        
+
         Args:
             start_time: Start of timeframe to check
             end_time: End of timeframe to check
             change_types: Types of changes to detect (default: all)
-            
+
         Returns:
             Change detection results
         """
@@ -116,11 +116,11 @@ class ConversationChangeDetector:
                                             conversation_ids: list[str],
                                             change_types: list[str] | None = None) -> ChangeDetectionResult:
         """Detect changes in specific conversations.
-        
+
         Args:
             conversation_ids: Specific conversations to check
             change_types: Types of changes to detect
-            
+
         Returns:
             Change detection results
         """
@@ -214,22 +214,21 @@ class ConversationChangeDetector:
                     ))
 
         # Detect tag changes
-        if 'tags_updated' in change_types:
-            if set(local_conv.tags) != set(remote_conv.tags):
-                added_tags = set(remote_conv.tags) - set(local_conv.tags)
-                removed_tags = set(local_conv.tags) - set(remote_conv.tags)
+        if 'tags_updated' in change_types and set(local_conv.tags) != set(remote_conv.tags):
+            added_tags = set(remote_conv.tags) - set(local_conv.tags)
+            removed_tags = set(local_conv.tags) - set(remote_conv.tags)
 
-                changes.append(ConversationChange(
-                    conversation_id=local_conv.id,
-                    change_type='tags_updated',
-                    detected_at=now,
-                    details={
-                        'old_tags': local_conv.tags,
-                        'new_tags': remote_conv.tags,
-                        'added_tags': list(added_tags),
-                        'removed_tags': list(removed_tags)
-                    }
-                ))
+            changes.append(ConversationChange(
+                conversation_id=local_conv.id,
+                change_type='tags_updated',
+                detected_at=now,
+                details={
+                    'old_tags': local_conv.tags,
+                    'new_tags': remote_conv.tags,
+                    'added_tags': list(added_tags),
+                    'removed_tags': list(removed_tags)
+                }
+            ))
 
         return changes
 
@@ -250,11 +249,11 @@ class ConversationChangeDetector:
                                        staleness_threshold_minutes: int = 30,
                                        max_conversations: int = 100) -> list[str]:
         """Detect conversations that haven't been synced recently and might be stale.
-        
+
         Args:
             staleness_threshold_minutes: Consider conversations stale after this many minutes
             max_conversations: Maximum number of conversations to return
-            
+
         Returns:
             List of conversation IDs that might be stale
         """
@@ -288,11 +287,11 @@ class ConversationChangeDetector:
                               changes: list[ConversationChange],
                               time_window_hours: int = 24) -> dict[str, Any]:
         """Analyze patterns in detected changes to optimize sync scheduling.
-        
+
         Args:
             changes: List of detected changes
             time_window_hours: Time window for pattern analysis
-            
+
         Returns:
             Analysis of change patterns
         """
@@ -338,10 +337,10 @@ class ConversationChangeDetector:
 
     def _calculate_recommended_frequency(self, changes_per_hour: float) -> int:
         """Calculate recommended sync frequency based on change rate.
-        
+
         Args:
             changes_per_hour: Average changes detected per hour
-            
+
         Returns:
             Recommended sync frequency in minutes
         """
