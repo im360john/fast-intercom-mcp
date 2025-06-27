@@ -10,7 +10,8 @@ from pathlib import Path
 
 import click
 
-from .config import Config, setup_logging
+from .config import Config
+from .core.logging import setup_enhanced_logging
 from .database import DatabaseManager
 from .http_server import FastIntercomHTTPServer
 from .intercom_client import IntercomClient
@@ -72,7 +73,7 @@ def cli(ctx, config, verbose):
 
     # Setup logging
     log_level = "DEBUG" if verbose else "INFO"
-    setup_logging(log_level)
+    setup_enhanced_logging(".", log_level)
 
     # Load configuration
     try:
