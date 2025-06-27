@@ -1,6 +1,7 @@
 """Enhanced sync service with full conversation thread support."""
 
 import asyncio
+import contextlib
 import logging
 import threading
 from collections.abc import Callable
@@ -211,13 +212,13 @@ class EnhancedSyncService:
                                    is_background: bool = False,
                                    force_refetch: bool = False) -> SyncStats:
         """Two-phase sync: search for conversations, then fetch complete threads.
-        
+
         Args:
             start_date: Start of time period
             end_date: End of time period
             is_background: Whether this is a background sync
             force_refetch: Force refetch of conversations already in database
-            
+
         Returns:
             Sync statistics
         """
@@ -265,13 +266,13 @@ class EnhancedSyncService:
                                  is_background: bool = False,
                                  force_full_threads: bool = False) -> SyncStats:
         """Enhanced period sync with full conversation thread support.
-        
+
         Args:
             start_date: Start of time period
             end_date: End of time period
             is_background: Whether this is a background sync
             force_full_threads: Force full thread fetching even for incremental syncs
-            
+
         Returns:
             Sync statistics
         """
@@ -356,10 +357,10 @@ class EnhancedSyncService:
 
     async def sync_full_threads_for_conversations(self, conversation_ids: list[str]) -> SyncStats:
         """Sync full threads for specific conversations.
-        
+
         Args:
             conversation_ids: List of conversation IDs to fetch complete threads for
-            
+
         Returns:
             Sync statistics
         """
@@ -412,7 +413,7 @@ class EnhancedSyncService:
 
     async def sync_initial(self, days_back: int = 30, force_full_threads: bool = True) -> SyncStats:
         """Perform initial sync of conversation history with enhanced capabilities.
-        
+
         Args:
             days_back: Number of days of history to sync (default: 30, max: 30)
             force_full_threads: Whether to force full thread fetching
@@ -499,10 +500,8 @@ class EnhancedSyncManager:
             logger.warning(f"Error stopping sync service: {e}")
 
         # Stop the event loop
-        try:
+        with contextlib.suppress(Exception):
             self._loop.call_soon_threadsafe(self._loop.stop)
-        except Exception:
-            pass
 
         # Wait for thread to finish
         if self._thread and self._thread.is_alive():

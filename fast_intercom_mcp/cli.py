@@ -1,6 +1,7 @@
 """Command line interface for FastIntercom MCP server."""
 
 import asyncio
+import contextlib
 import logging
 import os
 import signal
@@ -242,10 +243,8 @@ def start(ctx, daemon, port, host, api_key):
             click.echo("📡 MCP server listening for requests...")
             click.echo("   (Press Ctrl+C to stop)")
 
-            try:
+            with contextlib.suppress(KeyboardInterrupt):
                 await server.run()
-            except KeyboardInterrupt:
-                pass
 
         return True
 

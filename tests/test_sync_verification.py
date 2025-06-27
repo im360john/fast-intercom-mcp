@@ -13,6 +13,7 @@ Tests cover:
 """
 
 import asyncio
+import contextlib
 import sqlite3
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock
@@ -80,7 +81,7 @@ class TestInitialSyncVerification:
 
             # Verify message data integrity
             cursor = conn.execute("""
-                SELECT id, author_type, body, created_at, conversation_id 
+                SELECT id, author_type, body, created_at, conversation_id
                 FROM messages LIMIT 1
             """)
             sample_msg = cursor.fetchone()
@@ -194,7 +195,7 @@ class TestMessageCompleteness:
         # Verify all messages are stored
         with sqlite3.connect(database_manager.db_path) as conn:
             cursor = conn.execute("""
-                SELECT COUNT(*) FROM messages 
+                SELECT COUNT(*) FROM messages
                 WHERE conversation_id = ?
             """, [long_conv.id])
             stored_message_count = cursor.fetchone()[0]
@@ -222,8 +223,8 @@ class TestMessageCompleteness:
 
             for conv_id in stored_conv_ids:
                 cursor = conn.execute("""
-                    SELECT created_at FROM messages 
-                    WHERE conversation_id = ? 
+                    SELECT created_at FROM messages
+                    WHERE conversation_id = ?
                     ORDER BY created_at
                 """, [conv_id])
 
@@ -250,9 +251,9 @@ class TestMessageCompleteness:
         # Check for duplicate messages
         with sqlite3.connect(database_manager.db_path) as conn:
             cursor = conn.execute("""
-                SELECT id, COUNT(*) as count 
-                FROM messages 
-                GROUP BY id 
+                SELECT id, COUNT(*) as count
+                FROM messages
+                GROUP BY id
                 HAVING count > 1
             """)
 
@@ -331,9 +332,9 @@ class TestIncrementalSyncEfficiency:
 
             # Check sync period data
             cursor = conn.execute("""
-                SELECT start_timestamp, end_timestamp, last_synced 
-                FROM sync_periods 
-                ORDER BY last_synced DESC 
+                SELECT start_timestamp, end_timestamp, last_synced
+                FROM sync_periods
+                ORDER BY last_synced DESC
                 LIMIT 1
             """)
             sync_record = cursor.fetchone()
@@ -438,7 +439,7 @@ class TestSyncDataIntegrity:
         # Check customer email associations
         with sqlite3.connect(database_manager.db_path) as conn:
             cursor = conn.execute("""
-                SELECT id, customer_email FROM conversations 
+                SELECT id, customer_email FROM conversations
                 WHERE customer_email IS NOT NULL
             """)
             conversations_with_emails = cursor.fetchall()
@@ -505,10 +506,8 @@ class TestSyncDataIntegrity:
         assert "already in progress" in str(exc_info.value).lower()
 
         # Clean up
-        try:
+        with contextlib.suppress(Exception):
             await task1
-        except Exception:
-            pass
 
 
 class TestSyncPerformanceAndReliability:

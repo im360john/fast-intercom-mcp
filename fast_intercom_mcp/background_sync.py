@@ -1,6 +1,7 @@
 """Background sync service that runs inside the MCP server process."""
 
 import asyncio
+import contextlib
 import logging
 import sqlite3
 from datetime import datetime, timedelta
@@ -32,10 +33,8 @@ class BackgroundSyncService:
         self.running = False
         if self.sync_task:
             self.sync_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self.sync_task
-            except asyncio.CancelledError:
-                pass
         logger.info("Background sync stopped")
 
     async def _sync_loop(self):
@@ -65,7 +64,7 @@ class BackgroundSyncService:
             # Start sync - write metadata
             with sqlite3.connect(self.db.db_path) as conn:
                 cursor = conn.execute("""
-                    INSERT INTO sync_metadata 
+                    INSERT INTO sync_metadata
                     (sync_started_at, sync_status, sync_type, coverage_start_date, coverage_end_date)
                     VALUES (?, 'in_progress', 'background', ?, ?)
                 """, [start_time.isoformat(), start_date.date().isoformat(), end_date.date().isoformat()])
@@ -88,7 +87,7 @@ class BackgroundSyncService:
                 # Update metadata on success
                 with sqlite3.connect(self.db.db_path) as conn:
                     conn.execute("""
-                        UPDATE sync_metadata 
+                        UPDATE sync_metadata
                         SET sync_completed_at = ?,
                             sync_status = 'completed',
                             total_conversations = ?,
@@ -105,7 +104,7 @@ class BackgroundSyncService:
                 # Update metadata on failure
                 with sqlite3.connect(self.db.db_path) as conn:
                     conn.execute("""
-                        UPDATE sync_metadata 
+                        UPDATE sync_metadata
                         SET sync_completed_at = ?,
                             sync_status = 'failed',
                             error_message = ?

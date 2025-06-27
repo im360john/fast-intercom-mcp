@@ -75,7 +75,7 @@ class IntercomClient:
                                     cache_ttl: int = None, priority: str = "normal") -> Any:
         """Make an optimized API request with rate limiting and caching."""
         # Apply intelligent rate limiting
-        delay = await self.rate_limiter.acquire(priority)
+        await self.rate_limiter.acquire(priority)
 
         try:
             # Use optimized request
@@ -117,12 +117,12 @@ class IntercomClient:
         progress_callback: Callable | None = None
     ) -> SyncStats:
         """Fetch conversations that have been updated since the given timestamp.
-        
+
         Args:
             since_timestamp: Fetch conversations updated after this time
             until_timestamp: Optional upper bound for updated_at
             progress_callback: Optional callback for progress updates
-            
+
         Returns:
             SyncStats with information about what was synced
         """
@@ -130,7 +130,7 @@ class IntercomClient:
         conversations = []
         api_calls = 0
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
+        async with httpx.AsyncClient(timeout=self.timeout):
             # Build search filters
             search_filters = [
                 {
@@ -219,12 +219,12 @@ class IntercomClient:
         progress_callback: Callable | None = None
     ) -> list[Conversation]:
         """Fetch all conversations for a specific time period.
-        
+
         Args:
             start_date: Start of time period
             end_date: End of time period
             progress_callback: Optional progress callback
-            
+
         Returns:
             List of conversations in the period
         """
@@ -389,10 +389,10 @@ class IntercomClient:
 
     async def fetch_individual_conversation(self, conversation_id: str) -> Conversation | None:
         """Fetch a complete conversation thread with all messages.
-        
+
         Args:
             conversation_id: The Intercom conversation ID
-            
+
         Returns:
             Complete conversation with all messages, or None if not found
         """
@@ -427,11 +427,11 @@ class IntercomClient:
     async def fetch_individual_conversations(self, conversation_ids: list[str],
                                            progress_callback: Callable | None = None) -> list[Conversation]:
         """Fetch multiple complete conversation threads.
-        
+
         Args:
             conversation_ids: List of conversation IDs to fetch
             progress_callback: Optional progress callback
-            
+
         Returns:
             List of complete conversations
         """
@@ -570,12 +570,12 @@ class IntercomClient:
         starting_after: str | None = None
     ) -> tuple[list[Message], str | None]:
         """Fetch messages for a conversation with pagination.
-        
+
         Args:
             conversation_id: The Intercom conversation ID
             per_page: Number of messages per page (max 50)
             starting_after: Cursor for pagination
-            
+
         Returns:
             Tuple of (messages, next_cursor) where next_cursor is None if no more pages
         """
@@ -650,10 +650,10 @@ class IntercomClient:
 
     async def fetch_complete_conversation_thread(self, conversation_id: str) -> Conversation | None:
         """Fetch a complete conversation with all messages using pagination.
-        
+
         Args:
             conversation_id: The Intercom conversation ID
-            
+
         Returns:
             Complete conversation with all messages
         """

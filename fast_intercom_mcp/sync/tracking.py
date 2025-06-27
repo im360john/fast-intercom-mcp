@@ -56,12 +56,12 @@ class SyncStateManager:
                              force_full_sync: bool = False,
                              max_conversations: int = 100) -> SyncPlan:
         """Create an optimal sync plan based on current state.
-        
+
         Args:
             target_conversations: Specific conversations to sync (default: auto-detect)
             force_full_sync: Force full sync for all conversations
             max_conversations: Maximum conversations to include in plan
-            
+
         Returns:
             Sync plan with prioritized conversation lists
         """
@@ -134,11 +134,11 @@ class SyncStateManager:
     async def execute_sync_plan(self, plan: SyncPlan,
                               progress_callback: callable | None = None) -> SyncExecutionResult:
         """Execute a sync plan with proper state tracking.
-        
+
         Args:
             plan: Sync plan to execute
             progress_callback: Optional progress callback
-            
+
         Returns:
             Execution results
         """
@@ -250,7 +250,7 @@ class SyncStateManager:
 
         try:
             # Get current state
-            state = self.sync_tracker.get_conversation_sync_state(conversation_id)
+            self.sync_tracker.get_conversation_sync_state(conversation_id)
 
             # Fetch current conversation
             current_conversation = await self.intercom.fetch_individual_conversation(conversation_id)

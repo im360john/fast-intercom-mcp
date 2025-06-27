@@ -1,6 +1,7 @@
 """Background sync service for keeping conversation data up to date."""
 
 import asyncio
+import contextlib
 import logging
 import threading
 from datetime import datetime, timedelta
@@ -140,10 +141,10 @@ class SyncService:
     async def sync_if_needed(self, start_date: datetime | None, end_date: datetime | None):
         """
         Smart sync based on 3-state sync logic.
-        
+
         States:
         - 'stale': Data is too old, trigger sync and wait
-        - 'partial': Data is incomplete but usable, proceed with warning  
+        - 'partial': Data is incomplete but usable, proceed with warning
         - 'fresh': Data is current, proceed normally
         """
         # Check sync state using intelligent logic
@@ -288,7 +289,7 @@ class SyncService:
 
     async def sync_initial(self, days_back: int = 30) -> SyncStats:
         """Perform initial sync of conversation history.
-        
+
         Args:
             days_back: Number of days of history to sync (default: 30, max: 30)
         """
@@ -362,10 +363,8 @@ class SyncManager:
             logger.warning(f"Error stopping sync service: {e}")
 
         # Stop the event loop
-        try:
+        with contextlib.suppress(Exception):
             self._loop.call_soon_threadsafe(self._loop.stop)
-        except Exception:
-            pass
 
         # Wait for thread to finish
         if self._thread and self._thread.is_alive():

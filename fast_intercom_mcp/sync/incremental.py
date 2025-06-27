@@ -42,12 +42,12 @@ class IncrementalSync:
                              until_timestamp: datetime | None = None,
                              conversation_ids: list[str] | None = None) -> IncrementalSyncStats:
         """Perform incremental sync to detect and fetch new/updated messages.
-        
+
         Args:
             since_timestamp: Look for updates since this time (default: last sync + lookback)
             until_timestamp: Look for updates until this time (default: now)
             conversation_ids: Specific conversations to check (default: detect automatically)
-            
+
         Returns:
             Incremental sync statistics
         """
@@ -133,7 +133,7 @@ class IncrementalSync:
     async def _identify_stale_conversations(self, since_timestamp: datetime,
                                           until_timestamp: datetime) -> list[str]:
         """Identify conversations that may have updates in the given timeframe.
-        
+
         Uses Intercom's search API to find conversations updated in the timeframe,
         then filters to those we already have in our database.
         """
@@ -165,7 +165,7 @@ class IncrementalSync:
                                              since_timestamp: datetime,
                                              until_timestamp: datetime) -> dict[str, Any]:
         """Check which conversations actually need updates.
-        
+
         Compares local data freshness with expected update times to minimize API calls.
         """
         needs_update = []
@@ -182,7 +182,7 @@ class IncrementalSync:
             # Large batch - check local data freshness first
             for conv_id in conversation_ids:
                 # Check when we last synced this conversation
-                local_conversations = self.db.search_conversations(limit=1)
+                self.db.search_conversations(limit=1)
                 # This is a simplified check - in a real implementation,
                 # we'd query specifically for this conversation's last sync time
 
@@ -198,7 +198,7 @@ class IncrementalSync:
 
     async def _sync_updated_conversations(self, conversation_ids: list[str]) -> dict[str, Any]:
         """Sync the conversations that need updates.
-        
+
         Fetches complete conversation threads for the given IDs and stores them.
         """
         if not conversation_ids:
@@ -215,7 +215,7 @@ class IncrementalSync:
         total_new_messages = 0
         for conv in updated_conversations:
             # Get existing conversation from database
-            existing = self.db.search_conversations(limit=1)  # Simplified
+            self.db.search_conversations(limit=1)  # Simplified
             # In a real implementation, we'd query for the specific conversation
             # and compare message counts or timestamps
 
@@ -239,11 +239,11 @@ class IncrementalSync:
                                         conversation_ids: list[str],
                                         check_message_level: bool = True) -> dict[str, Any]:
         """Detect specific changes in conversations without syncing.
-        
+
         Args:
             conversation_ids: Conversations to check
             check_message_level: Whether to detect message-level changes
-            
+
         Returns:
             Dictionary with change detection results
         """
@@ -303,10 +303,10 @@ class IncrementalSync:
 
     def get_recommended_sync_schedule(self, conversation_volume: int) -> dict[str, Any]:
         """Get recommended incremental sync schedule based on conversation volume.
-        
+
         Args:
             conversation_volume: Approximate number of conversations per day
-            
+
         Returns:
             Recommended sync schedule configuration
         """

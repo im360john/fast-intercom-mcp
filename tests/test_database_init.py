@@ -51,7 +51,7 @@ class TestDatabaseInitialization:
         with sqlite3.connect(test_db_manager.db_path) as conn:
             # Get all table names
             cursor = conn.execute("""
-                SELECT name FROM sqlite_master 
+                SELECT name FROM sqlite_master
                 WHERE type='table' AND name NOT LIKE 'sqlite_%'
                 ORDER BY name
             """)
@@ -77,7 +77,7 @@ class TestDatabaseInitialization:
         with sqlite3.connect(test_db_manager.db_path) as conn:
             # Get all index names
             cursor = conn.execute("""
-                SELECT name FROM sqlite_master 
+                SELECT name FROM sqlite_master
                 WHERE type='index' AND name NOT LIKE 'sqlite_%'
             """)
             indexes = [row[0] for row in cursor.fetchall()]
@@ -98,7 +98,7 @@ class TestDatabaseInitialization:
         with sqlite3.connect(test_db_manager.db_path) as conn:
             # Get all view names
             cursor = conn.execute("""
-                SELECT name FROM sqlite_master 
+                SELECT name FROM sqlite_master
                 WHERE type='view'
             """)
             views = [row[0] for row in cursor.fetchall()]
@@ -337,7 +337,7 @@ class TestDatabaseCompatibility:
     def test_schema_compatibility_check(self, temp_db_path):
         """Test schema compatibility checking."""
         # Create database with current schema
-        db_manager = DatabaseManager(db_path=temp_db_path)
+        DatabaseManager(db_path=temp_db_path)
 
         # Verify schema version is current
         with sqlite3.connect(temp_db_path) as conn:
@@ -361,7 +361,7 @@ class TestDatabaseCompatibility:
             conn.commit()
 
         # Initialize DatabaseManager - should detect incompatible schema
-        db_manager = DatabaseManager(db_path=temp_db_path)
+        DatabaseManager(db_path=temp_db_path)
 
         # Should have logged the backup message
         mock_logger.info.assert_any_call(

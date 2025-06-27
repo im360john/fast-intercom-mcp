@@ -18,7 +18,7 @@ class DatabaseManager:
 
     def __init__(self, db_path: str | None = None, pool_size: int = 5):
         """Initialize database manager.
-        
+
         Args:
             db_path: Path to SQLite database file. If None, uses ~/.fastintercom/data.db
             pool_size: Number of connections to maintain in the pool (max 20)
@@ -200,7 +200,7 @@ class DatabaseManager:
             # Create useful views for sync operations
             conn.execute("""
                 CREATE VIEW IF NOT EXISTS conversations_needing_sync AS
-                SELECT 
+                SELECT
                     c.id,
                     c.created_at,
                     c.updated_at,
@@ -211,20 +211,20 @@ class DatabaseManager:
                     css.next_sync_needed
                 FROM conversations c
                 LEFT JOIN conversation_sync_state css ON c.id = css.conversation_id
-                WHERE 
-                    c.thread_complete = FALSE 
-                    OR css.sync_status = 'incomplete' 
+                WHERE
+                    c.thread_complete = FALSE
+                    OR css.sync_status = 'incomplete'
                     OR css.next_sync_needed = TRUE
                     OR css.conversation_id IS NULL
             """)
 
             conn.execute("""
                 CREATE VIEW IF NOT EXISTS conversations_needing_incremental_sync AS
-                SELECT 
+                SELECT
                     c.id,
                     c.updated_at,
                     c.last_message_synced,
-                    CASE 
+                    CASE
                         WHEN c.last_message_synced IS NULL THEN 1
                         WHEN c.updated_at > c.last_message_synced THEN 1
                         ELSE 0
@@ -240,7 +240,7 @@ class DatabaseManager:
         try:
             # Check if schema_version table exists
             cursor = conn.execute("""
-                SELECT name FROM sqlite_master 
+                SELECT name FROM sqlite_master
                 WHERE type='table' AND name='schema_version'
             """)
             schema_table_exists = cursor.fetchone() is not None
@@ -256,7 +256,7 @@ class DatabaseManager:
             else:
                 # Check if old database exists by looking for conversations table
                 cursor = conn.execute("""
-                    SELECT name FROM sqlite_master 
+                    SELECT name FROM sqlite_master
                     WHERE type='table' AND name='conversations'
                 """)
                 conversations_table_exists = cursor.fetchone() is not None
@@ -281,7 +281,7 @@ class DatabaseManager:
 
         # Get table names
         cursor = conn.execute("""
-            SELECT name FROM sqlite_master 
+            SELECT name FROM sqlite_master
             WHERE type='table' AND name NOT LIKE 'sqlite_%'
         """)
         tables = [row[0] for row in cursor.fetchall()]
@@ -302,10 +302,10 @@ class DatabaseManager:
 
     def store_conversations(self, conversations: list[Conversation]) -> int:
         """Store or update conversations in database.
-        
+
         Args:
             conversations: List of conversations to store
-            
+
         Returns:
             Number of conversations actually stored/updated
         """
@@ -337,8 +337,8 @@ class DatabaseManager:
 
                         # Update conversation
                         conn.execute("""
-                            UPDATE conversations 
-                            SET updated_at = ?, customer_email = ?, tags = ?, 
+                            UPDATE conversations
+                            SET updated_at = ?, customer_email = ?, tags = ?,
                                 last_synced = CURRENT_TIMESTAMP, message_count = ?
                             WHERE id = ?
                         """, (
@@ -356,7 +356,7 @@ class DatabaseManager:
                 else:
                     # Insert new conversation
                     conn.execute("""
-                        INSERT INTO conversations 
+                        INSERT INTO conversations
                         (id, created_at, updated_at, customer_email, tags, message_count)
                         VALUES (?, ?, ?, ?, ?, ?)
                     """, (
@@ -380,7 +380,7 @@ class DatabaseManager:
         """Store messages for a conversation."""
         for msg in messages:
             conn.execute("""
-                INSERT OR REPLACE INTO messages 
+                INSERT OR REPLACE INTO messages
                 (id, conversation_id, author_type, body, created_at, part_type)
                 VALUES (?, ?, ?, ?, ?, ?)
             """, (
@@ -401,14 +401,14 @@ class DatabaseManager:
         limit: int = 100
     ) -> list[Conversation]:
         """Search conversations with filters.
-        
+
         Args:
             query: Text search in message bodies
             start_date: Filter conversations created after this date
             end_date: Filter conversations created before this date
             customer_email: Filter by customer email
             limit: Maximum number of conversations to return
-            
+
         Returns:
             List of matching conversations with messages
         """
@@ -435,8 +435,8 @@ class DatabaseManager:
                 # Search in message bodies
                 conditions.append("""
                     c.id IN (
-                        SELECT DISTINCT conversation_id 
-                        FROM messages 
+                        SELECT DISTINCT conversation_id
+                        FROM messages
                         WHERE body LIKE ?
                     )
                 """)
@@ -446,9 +446,9 @@ class DatabaseManager:
 
             # Get conversations
             conv_query = f"""
-                SELECT c.* FROM conversations c 
+                SELECT c.* FROM conversations c
                 {where_clause}
-                ORDER BY c.created_at DESC 
+                ORDER BY c.created_at DESC
                 LIMIT ?
             """
             params.append(limit)
@@ -458,8 +458,8 @@ class DatabaseManager:
                 # Get messages for this conversation
                 messages = []
                 msg_cursor = conn.execute("""
-                    SELECT * FROM messages 
-                    WHERE conversation_id = ? 
+                    SELECT * FROM messages
+                    WHERE conversation_id = ?
                     ORDER BY created_at ASC
                 """, (row['id'],))
 
@@ -500,7 +500,7 @@ class DatabaseManager:
 
             # Get last sync time
             cursor = conn.execute("""
-                SELECT MAX(last_synced) as last_sync 
+                SELECT MAX(last_synced) as last_sync
                 FROM conversations
             """)
             last_sync_row = cursor.fetchone()
@@ -508,8 +508,8 @@ class DatabaseManager:
 
             # Get recent sync activity
             cursor = conn.execute("""
-                SELECT * FROM sync_periods 
-                ORDER BY last_synced DESC 
+                SELECT * FROM sync_periods
+                ORDER BY last_synced DESC
                 LIMIT 5
             """)
             recent_syncs = [dict(row) for row in cursor.fetchall()]
@@ -531,21 +531,21 @@ class DatabaseManager:
                           conversation_count: int, new_count: int = 0,
                           updated_count: int = 0) -> int:
         """Record a sync period for tracking.
-        
+
         Args:
             start_time: Start of the sync period
-            end_time: End of the sync period  
+            end_time: End of the sync period
             conversation_count: Total conversations in this period
             new_count: Number of new conversations added
             updated_count: Number of existing conversations updated
-            
+
         Returns:
             ID of the created sync period record
         """
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.execute("""
-                INSERT INTO sync_periods 
-                (start_timestamp, end_timestamp, conversation_count, 
+                INSERT INTO sync_periods
+                (start_timestamp, end_timestamp, conversation_count,
                  new_conversations, updated_conversations)
                 VALUES (?, ?, ?, ?, ?)
             """, (
@@ -560,10 +560,10 @@ class DatabaseManager:
 
     def get_periods_needing_sync(self, max_age_minutes: int = 5) -> list[tuple[datetime, datetime]]:
         """Get time periods that need syncing based on last sync time.
-        
+
         Args:
             max_age_minutes: Maximum age in minutes before considering data stale
-            
+
         Returns:
             List of (start_time, end_time) tuples that need syncing
         """
@@ -575,8 +575,8 @@ class DatabaseManager:
 
             # Find periods that haven't been synced recently
             cursor = conn.execute("""
-                SELECT start_timestamp, end_timestamp 
-                FROM sync_periods 
+                SELECT start_timestamp, end_timestamp
+                FROM sync_periods
                 WHERE last_synced < ?
                 ORDER BY start_timestamp DESC
                 LIMIT 10
@@ -593,19 +593,19 @@ class DatabaseManager:
     def record_request_pattern(self, start_time: datetime, end_time: datetime,
                               data_freshness_seconds: int, sync_triggered: bool = False) -> int:
         """Record a request pattern for intelligent sync analysis.
-        
+
         Args:
             start_time: Start of the requested timeframe
             end_time: End of the requested timeframe
             data_freshness_seconds: How old the data was when served
             sync_triggered: Whether this request triggered a background sync
-            
+
         Returns:
             ID of the created request pattern record
         """
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.execute("""
-                INSERT INTO request_patterns 
+                INSERT INTO request_patterns
                 (timeframe_start, timeframe_end, data_freshness_seconds, sync_triggered)
                 VALUES (?, ?, ?, ?)
             """, (
@@ -619,10 +619,10 @@ class DatabaseManager:
 
     def get_stale_timeframes(self, staleness_threshold_minutes: int = 5) -> list[tuple[datetime, datetime]]:
         """Get timeframes that have been requested recently but may have stale data.
-        
+
         Args:
             staleness_threshold_minutes: Consider data stale if older than this
-            
+
         Returns:
             List of (start_time, end_time) tuples that need refreshing
         """
@@ -635,8 +635,8 @@ class DatabaseManager:
             # Find recent requests where data was stale or sync wasn't triggered
             cursor = conn.execute("""
                 SELECT DISTINCT timeframe_start, timeframe_end, data_freshness_seconds
-                FROM request_patterns 
-                WHERE request_timestamp >= ? 
+                FROM request_patterns
+                WHERE request_timestamp >= ?
                   AND (data_freshness_seconds > ? OR sync_triggered = FALSE)
                 ORDER BY request_timestamp DESC
                 LIMIT 10
@@ -655,11 +655,11 @@ class DatabaseManager:
 
     def get_data_freshness_for_timeframe(self, start_time: datetime, end_time: datetime) -> int:
         """Calculate how old the data is for a given timeframe.
-        
+
         Args:
             start_time: Start of timeframe
             end_time: End of timeframe
-            
+
         Returns:
             Age of data in seconds (0 if no data exists)
         """
@@ -667,7 +667,7 @@ class DatabaseManager:
             # Find the most recent conversation in this timeframe
             cursor = conn.execute("""
                 SELECT MAX(last_synced) as latest_sync
-                FROM conversations 
+                FROM conversations
                 WHERE created_at >= ? AND created_at <= ?
             """, (start_time.isoformat(), end_time.isoformat()))
 
@@ -687,14 +687,14 @@ class DatabaseManager:
     ) -> dict[str, Any]:
         """
         Check sync state relative to requested timeframe.
-        
+
         Returns sync state ('stale', 'partial', 'fresh') with metadata.
-        
+
         Args:
-            start_date: Start of requested timeframe  
+            start_date: Start of requested timeframe
             end_date: End of requested timeframe
             freshness_threshold_minutes: Minutes before data considered stale
-            
+
         Returns:
             Dict with sync_state, last_sync, message, and should_sync fields
         """
@@ -816,8 +816,8 @@ class DatabaseManager:
         with sqlite3.connect(self.db_path) as conn:
             # Update conversation table
             conn.execute("""
-                UPDATE conversations 
-                SET thread_complete = ?, 
+                UPDATE conversations
+                SET thread_complete = ?,
                     last_message_synced = CURRENT_TIMESTAMP,
                     message_sequence_number = COALESCE(?, message_sequence_number)
                 WHERE id = ?
@@ -825,8 +825,8 @@ class DatabaseManager:
 
             # Update or insert sync state
             conn.execute("""
-                INSERT OR REPLACE INTO conversation_sync_state 
-                (conversation_id, sync_status, thread_complete, total_messages_synced, 
+                INSERT OR REPLACE INTO conversation_sync_state
+                (conversation_id, sync_status, thread_complete, total_messages_synced,
                  last_sync_attempt, error_message, next_sync_needed)
                 VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?, FALSE)
             """, (
@@ -843,13 +843,13 @@ class DatabaseManager:
         """Mark a conversation as needing re-synchronization."""
         with sqlite3.connect(self.db_path) as conn:
             conn.execute("""
-                UPDATE conversations 
+                UPDATE conversations
                 SET thread_complete = FALSE
                 WHERE id = ?
             """, (conversation_id,))
 
             conn.execute("""
-                INSERT OR REPLACE INTO conversation_sync_state 
+                INSERT OR REPLACE INTO conversation_sync_state
                 (conversation_id, sync_status, thread_complete, next_sync_needed, error_message)
                 VALUES (?, 'incomplete', FALSE, TRUE, ?)
             """, (conversation_id, reason))
@@ -860,7 +860,7 @@ class DatabaseManager:
         """Get count of conversations with incomplete thread sync."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.execute("""
-                SELECT COUNT(*) FROM conversations 
+                SELECT COUNT(*) FROM conversations
                 WHERE thread_complete = FALSE
             """)
             return cursor.fetchone()[0]
@@ -876,7 +876,7 @@ class DatabaseManager:
 
             # Complete vs incomplete threads
             cursor = conn.execute("""
-                SELECT 
+                SELECT
                     SUM(CASE WHEN thread_complete = TRUE THEN 1 ELSE 0 END) as complete,
                     SUM(CASE WHEN thread_complete = FALSE THEN 1 ELSE 0 END) as incomplete
                 FROM conversations
@@ -885,15 +885,15 @@ class DatabaseManager:
 
             # Sync state breakdown
             cursor = conn.execute("""
-                SELECT sync_status, COUNT(*) as count 
-                FROM conversation_sync_state 
+                SELECT sync_status, COUNT(*) as count
+                FROM conversation_sync_state
                 GROUP BY sync_status
             """)
             sync_status_breakdown = {row['sync_status']: row['count'] for row in cursor.fetchall()}
 
             # Messages statistics
             cursor = conn.execute("""
-                SELECT 
+                SELECT
                     COUNT(*) as total_messages,
                     COUNT(DISTINCT conversation_id) as conversations_with_messages,
                     AVG(CAST(substr(created_at, 1, 10) AS INTEGER)) as avg_message_age_days
