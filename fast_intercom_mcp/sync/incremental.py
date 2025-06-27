@@ -182,7 +182,7 @@ class IncrementalSync:
             # Large batch - check local data freshness first
             for conv_id in conversation_ids:
                 # Check when we last synced this conversation
-                local_conversations = self.db.search_conversations(limit=1)
+                self.db.search_conversations(limit=1)
                 # This is a simplified check - in a real implementation,
                 # we'd query specifically for this conversation's last sync time
 
@@ -215,7 +215,7 @@ class IncrementalSync:
         total_new_messages = 0
         for conv in updated_conversations:
             # Get existing conversation from database
-            existing = self.db.search_conversations(limit=1)  # Simplified
+            self.db.search_conversations(limit=1)  # Simplified
             # In a real implementation, we'd query for the specific conversation
             # and compare message counts or timestamps
 

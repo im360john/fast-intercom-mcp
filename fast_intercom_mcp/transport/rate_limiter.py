@@ -87,7 +87,7 @@ class AdaptiveRateLimiter:
         Returns:
             Delay time in seconds (0 if no delay needed)
         """
-        start_time = time.time()
+        time.time()
         delay_time = 0.0
 
         with self._lock:
@@ -318,7 +318,7 @@ class AdaptiveRateLimiter:
     def get_stats(self) -> dict[str, Any]:
         """Get comprehensive rate limiting statistics."""
         with self._lock:
-            now = time.time()
+            time.time()
 
             # Calculate efficiency metrics
             efficiency = 1.0

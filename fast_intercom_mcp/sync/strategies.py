@@ -121,7 +121,7 @@ class FullThreadSyncStrategy:
         the individual conversation API, so we prioritize the complete thread data.
         """
         # Create a mapping of complete threads by ID
-        complete_by_id = {conv.id: conv for conv in complete_threads}
+        {conv.id: conv for conv in complete_threads}
 
         merged = []
         seen_ids: set[str] = set()
@@ -192,7 +192,7 @@ class IncrementalSyncStrategy:
         Returns:
             Sync statistics
         """
-        start_time = datetime.now()
+        datetime.now()
 
         await self._update_progress("detect", 0, 1, "Detecting conversation changes...")
 
@@ -397,7 +397,7 @@ class SmartSyncStrategy:
     async def _update_progress(self, phase: str, current: int, total: int, message: str):
         """Update progress with standardized format."""
         if self.progress_callback:
-            progress = SyncProgress(phase, current, total, message)
+            SyncProgress(phase, current, total, message)
             await self.progress_callback(
                 f"{phase.capitalize()}: {message}"
             )

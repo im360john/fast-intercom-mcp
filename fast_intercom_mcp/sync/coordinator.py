@@ -148,7 +148,7 @@ class TwoPhaseSyncCoordinator:
                 )
 
             # Phase 2: Detail Fetching
-            fetch_result = await self._execute_fetch_phase(conversations_to_fetch)
+            await self._execute_fetch_phase(conversations_to_fetch)
 
             # Create comprehensive statistics
             total_duration = time.time() - operation_start
@@ -193,7 +193,7 @@ class TwoPhaseSyncCoordinator:
                 self._discovered_conversations.add(conv.id)
 
             # Store basic conversation data from search
-            stored_count = self.db.store_conversations(conversations)
+            self.db.store_conversations(conversations)
             api_calls = len(conversations) // self.config.search_batch_size + 1
 
             duration = time.time() - phase_start

@@ -122,7 +122,7 @@ class APICache:
         try:
             data_json = json.dumps(data, default=str)
             size_bytes = len(data_json.encode('utf-8'))
-        except:
+        except Exception:
             size_bytes = 1024  # Fallback estimate
 
         with self._lock:
