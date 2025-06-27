@@ -10,6 +10,7 @@ from typing import Any
 from ..database import DatabaseManager
 from ..intercom_client import IntercomClient
 from ..models import SyncStateException, SyncStats
+from .coordinator import TwoPhaseConfig, TwoPhaseSyncCoordinator
 from .strategies import FullThreadSyncStrategy, IncrementalSyncStrategy, SmartSyncStrategy
 
 logger = logging.getLogger(__name__)
@@ -27,6 +28,11 @@ class EnhancedSyncService:
         self.full_strategy = FullThreadSyncStrategy(intercom_client, database_manager)
         self.incremental_strategy = IncrementalSyncStrategy(intercom_client, database_manager)
         self.smart_strategy = SmartSyncStrategy(intercom_client, database_manager)
+
+        # Two-phase coordinator for advanced sync operations
+        self.two_phase_coordinator = TwoPhaseSyncCoordinator(
+            intercom_client, database_manager, TwoPhaseConfig()
+        )
 
         # Sync state
         self._sync_active = False
@@ -52,6 +58,7 @@ class EnhancedSyncService:
         self.full_strategy.set_progress_callback(self._broadcast_progress)
         self.incremental_strategy.set_progress_callback(self._broadcast_progress)
         self.smart_strategy.set_progress_callback(self._broadcast_progress)
+        self.two_phase_coordinator.set_progress_callback(self._broadcast_progress)
 
     async def _broadcast_progress(self, message: str):
         """Broadcast progress to all registered callbacks."""
@@ -131,7 +138,7 @@ class EnhancedSyncService:
         if stale_request_timeframes:
             logger.info(f"Found {len(stale_request_timeframes)} request-triggered timeframes needing sync")
             for start, end in stale_request_timeframes[:2]:  # Limit to 2 to avoid overwhelming API
-                await self.sync_period_enhanced(start, end, is_background=True)
+                await self.sync_period_two_phase(start, end, is_background=True)
 
         # Priority 2: Check legacy period-based syncing
         stale_periods = self.db.get_periods_needing_sync(self.max_sync_age_minutes)
@@ -139,7 +146,7 @@ class EnhancedSyncService:
         if stale_periods and not stale_request_timeframes:  # Only if no request-triggered syncs needed
             logger.info(f"Found {len(stale_periods)} stale periods, triggering background sync")
             for start, end in stale_periods[:2]:  # Limit to 2 periods
-                await self.sync_period_enhanced(start, end, is_background=True)
+                await self.sync_period_two_phase(start, end, is_background=True)
 
         # Priority 3: Enhanced background sync for better coverage
         if not stale_request_timeframes and not stale_periods:
@@ -151,7 +158,7 @@ class EnhancedSyncService:
 
             if sync_state["sync_state"] in ["stale", "partial"]:
                 logger.info("Recent data needs refresh, triggering background sync")
-                await self.sync_period_enhanced(recent_start, now, is_background=True)
+                await self.sync_period_two_phase(recent_start, now, is_background=True)
 
     async def sync_if_needed(self, start_date: datetime | None, end_date: datetime | None):
         """Smart sync based on enhanced 3-state sync logic."""
@@ -172,14 +179,14 @@ class EnhancedSyncService:
                 # No specific range, sync recent data
                 await self.sync_recent_enhanced()
             else:
-                # Sync specific period with enhanced strategy
+                # Sync specific period with two-phase strategy
                 try:
-                    await self.sync_period_enhanced(start_date, end_date)
-                    logger.info("Enhanced sync completed, data is now fresh")
+                    await self.sync_period_two_phase(start_date, end_date)
+                    logger.info("Two-phase sync completed, data is now fresh")
                 except Exception as e:
                     # If sync fails, raise exception to inform user
                     raise SyncStateException(
-                        f"Data is stale and enhanced sync failed: {str(e)}",
+                        f"Data is stale and two-phase sync failed: {str(e)}",
                         sync_state="stale",
                         last_sync=sync_info.get("last_sync")
                     )
@@ -199,6 +206,60 @@ class EnhancedSyncService:
         now = datetime.now()
         since = now - timedelta(hours=6)  # Last 6 hours
         return await self.sync_incremental_enhanced(since)
+
+    async def sync_period_two_phase(self, start_date: datetime, end_date: datetime,
+                                   is_background: bool = False,
+                                   force_refetch: bool = False) -> SyncStats:
+        """Two-phase sync: search for conversations, then fetch complete threads.
+        
+        Args:
+            start_date: Start of time period
+            end_date: End of time period
+            is_background: Whether this is a background sync
+            force_refetch: Force refetch of conversations already in database
+            
+        Returns:
+            Sync statistics
+        """
+        if self._sync_active and not is_background:
+            raise Exception("Sync already in progress")
+
+        self._sync_active = True
+        self._current_operation = f"Two-phase sync {start_date.strftime('%m/%d')} to {end_date.strftime('%m/%d')}"
+
+        try:
+            logger.info(f"Starting two-phase sync: {start_date} to {end_date}")
+
+            # Use two-phase coordinator
+            stats = await self.two_phase_coordinator.sync_period_two_phase(
+                start_date, end_date, force_refetch
+            )
+
+            # Record sync period in database
+            self.db.record_sync_period(
+                start_date, end_date, stats.total_conversations,
+                stats.new_conversations, stats.updated_conversations
+            )
+
+            # Update internal state
+            self._last_sync_time = datetime.now()
+            self._sync_stats = stats.__dict__
+
+            logger.info(f"Two-phase sync completed: {stats.total_conversations} conversations, "
+                       f"{stats.total_messages} messages in {stats.duration_seconds:.1f}s")
+            return stats
+
+        except Exception as e:
+            logger.error(f"Two-phase sync failed: {e}")
+            self._sync_errors.append({
+                "timestamp": datetime.now(),
+                "error": str(e),
+                "operation": f"two_phase_sync_{start_date}_{end_date}"
+            })
+            raise
+        finally:
+            self._sync_active = False
+            self._current_operation = None
 
     async def sync_period_enhanced(self, start_date: datetime, end_date: datetime,
                                  is_background: bool = False,
@@ -362,9 +423,9 @@ class EnhancedSyncService:
         now = datetime.now()
         start_date = now - timedelta(days=days_back)
 
-        logger.info(f"Starting enhanced initial sync: {days_back} days of history")
-        return await self.sync_period_enhanced(start_date, now,
-                                             force_full_threads=force_full_threads)
+        logger.info(f"Starting initial sync with two-phase approach: {days_back} days of history")
+        return await self.sync_period_two_phase(start_date, now,
+                                               force_refetch=force_full_threads)
 
     def get_status(self) -> dict[str, Any]:
         """Get current enhanced sync service status."""
@@ -375,13 +436,16 @@ class EnhancedSyncService:
             'last_sync_stats': self._sync_stats,
             'app_id': self.app_id,
             'recent_errors': self._sync_errors[-5:],  # Last 5 errors
-            'strategies_available': ['full_thread', 'incremental', 'smart'],
+            'strategies_available': ['full_thread', 'incremental', 'smart', 'two_phase'],
+            'two_phase_status': self.two_phase_coordinator.get_operation_status(),
             'enhanced_features': [
+                'two_phase_sync_orchestration',
                 'full_conversation_threads',
                 'message_deduplication',
                 'progress_tracking',
                 'error_recovery',
-                'smart_strategy_selection'
+                'smart_strategy_selection',
+                'configurable_batch_processing'
             ]
         }
 

@@ -9,6 +9,7 @@ from typing import Any
 from .database import DatabaseManager
 from .intercom_client import IntercomClient
 from .models import SyncStateException, SyncStats
+from .sync.coordinator import TwoPhaseConfig, TwoPhaseSyncCoordinator
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +36,10 @@ class SyncService:
         self.max_sync_age_minutes = 5  # Trigger sync if data is older than this
         self.background_sync_interval_minutes = 10  # Check for sync needs every 10 minutes
 
+        # Two-phase coordinator for advanced operations
+        self.two_phase_coordinator = TwoPhaseSyncCoordinator(
+            intercom_client, database_manager, TwoPhaseConfig()
+        )
     async def start_background_sync(self):
         """Start the background sync service."""
         if self._background_task and not self._background_task.done():
@@ -247,6 +252,33 @@ class SyncService:
             self._sync_stats = stats.__dict__
 
             logger.info(f"Incremental sync completed: {stats.total_conversations} conversations")
+            return stats
+
+        finally:
+            self._sync_active = False
+            self._current_operation = None
+
+    async def sync_period_two_phase(self, start_date: datetime, end_date: datetime,
+                                   is_background: bool = False) -> SyncStats:
+        """Two-phase sync: search for conversations, then fetch complete threads."""
+        if self._sync_active and not is_background:
+            raise Exception("Sync already in progress")
+
+        self._sync_active = True
+        self._current_operation = f"Two-phase sync {start_date.strftime('%m/%d')} to {end_date.strftime('%m/%d')}"
+
+        try:
+            logger.info(f"Starting two-phase sync: {start_date} to {end_date}")
+
+            # Use two-phase coordinator
+            stats = await self.two_phase_coordinator.sync_period_two_phase(
+                start_date, end_date, force_refetch=False
+            )
+
+            self._last_sync_time = datetime.now()
+            self._sync_stats = stats.__dict__
+
+            logger.info(f"Two-phase sync completed: {stats.total_conversations} conversations")
             return stats
 
         finally:
