@@ -25,7 +25,9 @@ class BackgroundSyncService:
 
         self.running = True
         self.sync_task = asyncio.create_task(self._sync_loop())
-        logger.info(f"Background sync started with {self.sync_interval.total_seconds()/60} minute interval")
+        logger.info(
+            f"Background sync started with {self.sync_interval.total_seconds()/60} minute interval"
+        )
 
     async def stop(self):
         """Stop the background sync service."""
@@ -66,21 +68,32 @@ class BackgroundSyncService:
             with sqlite3.connect(self.db.db_path) as conn:
                 cursor = conn.execute("""
                     INSERT INTO sync_metadata 
-                    (sync_started_at, sync_status, sync_type, coverage_start_date, coverage_end_date)
+                    (sync_started_at, sync_status, sync_type, coverage_start_date, 
+                     coverage_end_date)
                     VALUES (?, 'in_progress', 'background', ?, ?)
-                """, [start_time.isoformat(), start_date.date().isoformat(), end_date.date().isoformat()])
+                """, [
+                    start_time.isoformat(), 
+                    start_date.date().isoformat(), 
+                    end_date.date().isoformat()
+                ])
                 sync_id = cursor.lastrowid
                 conn.commit()
 
             try:
-                logger.info(f"Starting background sync for {start_date.date()} to {end_date.date()}")
+                logger.info(
+                    f"Starting background sync for {start_date.date()} to {end_date.date()}"
+                )
 
                 # Use IntercomClient directly to avoid sync service conflicts
-                conversations = await self.intercom_client.fetch_conversations_for_period(start_date, end_date)
+                conversations = await self.intercom_client.fetch_conversations_for_period(
+                    start_date, end_date
+                )
                 stored_count = self.db.store_conversations(conversations)
 
                 # Record sync period
-                self.db.record_sync_period(start_date, end_date, len(conversations), stored_count, 0)
+                self.db.record_sync_period(
+                    start_date, end_date, len(conversations), stored_count, 0
+                )
 
                 total_convos = len(conversations)
                 total_msgs = sum(len(conv.messages) for conv in conversations)
@@ -97,10 +110,15 @@ class BackgroundSyncService:
                     """, [datetime.now().isoformat(), total_convos, total_msgs, sync_id])
                     conn.commit()
 
-                logger.info(f"Background sync completed: {total_convos} conversations, {total_msgs} messages")
+                logger.info(
+                    f"Background sync completed: "
+                    f"{total_convos} conversations, {total_msgs} messages"
+                )
 
             except Exception as e:
-                logger.error(f"Background sync failed for {start_date.date()} to {end_date.date()}: {e}")
+                logger.error(
+                    f"Background sync failed for {start_date.date()} to {end_date.date()}: {e}"
+                )
 
                 # Update metadata on failure
                 with sqlite3.connect(self.db.db_path) as conn:
@@ -145,7 +163,8 @@ class BackgroundSyncService:
         try:
             from .config import Config
             config = Config.load()
-            return config.initial_sync_days if config.initial_sync_days > 0 else 365  # Default to 1 year if ALL
+            # Default to 1 year if ALL
+            return config.initial_sync_days if config.initial_sync_days > 0 else 365
         except Exception:
             return 30  # Fallback default
 

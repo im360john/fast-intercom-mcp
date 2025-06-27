@@ -75,7 +75,7 @@ class IntercomClient:
                                     cache_ttl: int = None, priority: str = "normal") -> Any:
         """Make an optimized API request with rate limiting and caching."""
         # Apply intelligent rate limiting
-        delay = await self.rate_limiter.acquire(priority)
+        await self.rate_limiter.acquire(priority)
 
         try:
             # Use optimized request
@@ -130,7 +130,7 @@ class IntercomClient:
         conversations = []
         api_calls = 0
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
+        async with httpx.AsyncClient(timeout=self.timeout):
             # Build search filters
             search_filters = [
                 {

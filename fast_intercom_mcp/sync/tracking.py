@@ -250,7 +250,7 @@ class SyncStateManager:
 
         try:
             # Get current state
-            state = self.sync_tracker.get_conversation_sync_state(conversation_id)
+            self.sync_tracker.get_conversation_sync_state(conversation_id)
 
             # Fetch current conversation
             current_conversation = await self.intercom.fetch_individual_conversation(conversation_id)

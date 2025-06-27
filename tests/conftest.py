@@ -1,15 +1,29 @@
-"""Shared test configuration and fixtures."""
+"""Test configuration and fixtures for fast-intercom-mcp."""
 
+import asyncio
+import os
 import shutil
 import tempfile
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import AsyncMock, Mock
 
 import pytest
 
 from fast_intercom_mcp.database import DatabaseManager
+from fast_intercom_mcp.intercom_client import IntercomClient
 from fast_intercom_mcp.mcp_server import FastIntercomMCPServer
+from fast_intercom_mcp.models import Conversation, Message, SyncStats
+from fast_intercom_mcp.sync.service import EnhancedSyncService
 from fast_intercom_mcp.sync_service import SyncService
+
+
+@pytest.fixture
+def event_loop():
+    """Create an instance of the default event loop for the test session."""
+    loop = asyncio.get_event_loop_policy().new_event_loop()
+    yield loop
+    loop.close()
 
 
 @pytest.fixture
@@ -18,6 +32,20 @@ def temp_dir():
     temp_path = tempfile.mkdtemp()
     yield Path(temp_path)
     shutil.rmtree(temp_path)
+
+
+@pytest.fixture
+def temp_db():
+    """Provide a temporary database for testing."""
+    with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as f:
+        db_path = f.name
+
+    try:
+        yield db_path
+    finally:
+        # Cleanup
+        if os.path.exists(db_path):
+            os.unlink(db_path)
 
 
 @pytest.fixture
@@ -73,13 +101,159 @@ def test_server(mock_database_manager, mock_sync_service, mock_intercom_client):
     )
 
 
-@pytest.fixture(scope="session")
-def event_loop():
-    """Create an event loop for the test session."""
-    import asyncio
-    loop = asyncio.new_event_loop()
-    yield loop
-    loop.close()
+@pytest.fixture
+def database_manager(temp_db):
+    """Provide a real database manager for integration tests."""
+    return DatabaseManager(db_path=temp_db)
+
+
+@pytest.fixture
+def intercom_client():
+    """Provide a mock Intercom client for testing."""
+    client = Mock(spec=IntercomClient)
+    client.access_token = "test_token"
+    client.test_connection = AsyncMock(return_value=True)
+    return client
+
+
+@pytest.fixture
+def sync_service(database_manager, intercom_client):
+    """Provide a sync service for testing."""
+    return SyncService(database_manager, intercom_client)
+
+
+@pytest.fixture
+def enhanced_sync_service(database_manager, intercom_client):
+    """Provide an enhanced sync service for testing."""
+    return EnhancedSyncService(database_manager, intercom_client)
+
+
+@pytest.fixture
+def test_conversations():
+    """Provide test conversation data."""
+    now = datetime.now(UTC)
+    
+    # Create multiple conversations with different characteristics
+    conversations = []
+    
+    # Conversation 1: Simple conversation with 2 messages
+    conv1 = Conversation(
+        id="conv_1",
+        created_at=now - timedelta(days=2),
+        updated_at=now - timedelta(days=1),
+        customer_email="user1@example.com",
+        tags=["support", "urgent"],
+        messages=[
+            Message(
+                id="msg_1_1",
+                author_type="user",
+                body="I need help with my account",
+                created_at=now - timedelta(days=2),
+                part_type="comment"
+            ),
+            Message(
+                id="msg_1_2",
+                author_type="admin",
+                body="Sure, I can help you with that",
+                created_at=now - timedelta(days=1),
+                part_type="comment"
+            )
+        ]
+    )
+    conversations.append(conv1)
+    
+    # Conversation 2: Longer conversation with 5 messages
+    conv2_messages = []
+    for i in range(5):
+        conv2_messages.append(Message(
+            id=f"msg_2_{i+1}",
+            author_type="user" if i % 2 == 0 else "admin",
+            body=f"Message {i+1} in conversation 2",
+            created_at=now - timedelta(hours=48-i*2),
+            part_type="comment"
+        ))
+    
+    conv2 = Conversation(
+        id="conv_2",
+        created_at=now - timedelta(days=3),
+        updated_at=now - timedelta(hours=40),
+        customer_email="user2@example.com",
+        tags=["billing"],
+        messages=conv2_messages
+    )
+    conversations.append(conv2)
+    
+    # Conversation 3: Very long conversation (10+ messages)
+    conv3_messages = []
+    for i in range(15):
+        conv3_messages.append(Message(
+            id=f"msg_3_{i+1}",
+            author_type="user" if i % 3 == 0 else "admin",
+            body=f"Extended conversation message {i+1}",
+            created_at=now - timedelta(hours=72-i),
+            part_type="comment"
+        ))
+    
+    conv3 = Conversation(
+        id="conv_3",
+        created_at=now - timedelta(days=4),
+        updated_at=now - timedelta(hours=58),
+        customer_email="user3@example.com",
+        tags=["technical", "resolved"],
+        messages=conv3_messages
+    )
+    conversations.append(conv3)
+    
+    # Conversation 4: Recent conversation (created today)
+    conv4 = Conversation(
+        id="conv_4",
+        created_at=now - timedelta(hours=2),
+        updated_at=now - timedelta(minutes=30),
+        customer_email="user4@example.com",
+        tags=["new"],
+        messages=[
+            Message(
+                id="msg_4_1",
+                author_type="user",
+                body="Just started using your service",
+                created_at=now - timedelta(hours=2),
+                part_type="comment"
+            )
+        ]
+    )
+    conversations.append(conv4)
+    
+    # Conversation 5: No messages (edge case)
+    conv5 = Conversation(
+        id="conv_5",
+        created_at=now - timedelta(days=1),
+        updated_at=now - timedelta(days=1),
+        customer_email="user5@example.com",
+        tags=[],
+        messages=[]
+    )
+    conversations.append(conv5)
+    
+    return conversations
+
+
+@pytest.fixture
+def mock_sync_stats():
+    """Provide mock sync statistics."""
+    return SyncStats(
+        total_conversations=10,
+        new_conversations=5,
+        updated_conversations=3,
+        total_messages=25,
+        api_calls=8,
+        duration_seconds=2.5
+    )
+
+
+@pytest.fixture
+def mock_progress_callback():
+    """Provide a mock progress callback for testing."""
+    return Mock()
 
 
 # Test configuration

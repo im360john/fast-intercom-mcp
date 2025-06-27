@@ -50,7 +50,13 @@ class Config:
 
         for key, value in env_overrides.items():
             if value is not None:
-                if key in ['max_sync_age_minutes', 'background_sync_interval_minutes', 'initial_sync_days', 'connection_pool_size', 'api_timeout_seconds']:
+                if key in [
+                    'max_sync_age_minutes',
+                    'background_sync_interval_minutes',
+                    'initial_sync_days',
+                    'connection_pool_size',
+                    'api_timeout_seconds',
+                ]:
                     config_data[key] = int(value)
                 else:
                     config_data[key] = value
