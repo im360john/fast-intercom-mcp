@@ -51,7 +51,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e .
-          pip install pytest pytest-asyncio pytest-cov
+          pip install pytest pytest-asyncio pytest-cov httpx[http2]
 
       - name: Verify package installation
         run: |
@@ -138,7 +138,7 @@ jobs:
               db = DatabaseManager('./test_integration.db')
               
               client = IntercomClient(os.getenv('INTERCOM_ACCESS_TOKEN'))
-              sync_service = SyncService(client, db)
+              sync_service = SyncService(db, client)
               
               status = sync_service.get_status()
               print(f'✅ Sync service status: {status}')
@@ -165,7 +165,7 @@ jobs:
               db = DatabaseManager('./test_integration.db')
               
               client = IntercomClient(os.getenv('INTERCOM_ACCESS_TOKEN'))
-              sync_service = SyncService(client, db)
+              sync_service = SyncService(db, client)
               
               # Set sync period
               sync_days = int('$SYNC_DAYS')
