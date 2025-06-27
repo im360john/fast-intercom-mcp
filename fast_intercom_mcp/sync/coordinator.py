@@ -25,7 +25,7 @@ class TwoPhaseConfig:
         fetch_timeout: int = 600,
         max_concurrent_fetches: int = 5,
         retry_attempts: int = 3,
-        retry_delay: float = 1.0
+        retry_delay: float = 1.0,
     ):
         self.search_batch_size = search_batch_size
         self.fetch_batch_size = fetch_batch_size
@@ -46,7 +46,7 @@ class SyncPhaseResult:
         items_processed: int,
         duration_seconds: float,
         api_calls: int,
-        errors: list[str] = None
+        errors: list[str] = None,
     ):
         self.phase_name = phase_name
         self.success = success
@@ -63,7 +63,7 @@ class TwoPhaseSyncCoordinator:
         self,
         intercom_client: IntercomClient,
         database_manager: DatabaseManager,
-        config: TwoPhaseConfig | None = None
+        config: TwoPhaseConfig | None = None,
     ):
         self.intercom = intercom_client
         self.db = database_manager
@@ -95,21 +95,18 @@ class TwoPhaseSyncCoordinator:
                 logger.warning(f"Progress callback failed: {e}")
 
     async def sync_period_two_phase(
-        self,
-        start_date: datetime,
-        end_date: datetime,
-        force_refetch: bool = False
+        self, start_date: datetime, end_date: datetime, force_refetch: bool = False
     ) -> SyncStats:
         """Execute two-phase sync for a time period.
-        
+
         Phase 1: Search for conversations in the time period
         Phase 2: Fetch individual complete conversation threads
-        
+
         Args:
             start_date: Start of time period
-            end_date: End of time period  
+            end_date: End of time period
             force_refetch: Force refetch of conversations already in database
-            
+
         Returns:
             Combined sync statistics
         """
@@ -122,7 +119,9 @@ class TwoPhaseSyncCoordinator:
 
         try:
             logger.info(f"Starting two-phase sync: {start_date} to {end_date}")
-            await self._notify_progress(f"Starting two-phase sync for {start_date.date()} to {end_date.date()}")
+            await self._notify_progress(
+                f"Starting two-phase sync for {start_date.date()} to {end_date.date()}"
+            )
 
             # Phase 1: Discovery (Search)
             discovery_result = await self._execute_discovery_phase(start_date, end_date)
@@ -144,22 +143,24 @@ class TwoPhaseSyncCoordinator:
                 return self._create_summary_stats(
                     total_conversations=len(self._discovered_conversations),
                     fetched_conversations=0,
-                    total_duration=total_duration
+                    total_duration=total_duration,
                 )
 
             # Phase 2: Detail Fetching
-            fetch_result = await self._execute_fetch_phase(conversations_to_fetch)
+            await self._execute_fetch_phase(conversations_to_fetch)
 
             # Create comprehensive statistics
             total_duration = time.time() - operation_start
             stats = self._create_summary_stats(
                 total_conversations=len(self._discovered_conversations),
                 fetched_conversations=len(self._fetched_conversations),
-                total_duration=total_duration
+                total_duration=total_duration,
             )
 
-            logger.info(f"Two-phase sync completed: {stats.total_conversations} discovered, "
-                       f"{stats.new_conversations} fetched in {stats.duration_seconds:.1f}s")
+            logger.info(
+                f"Two-phase sync completed: {stats.total_conversations} discovered, "
+                f"{stats.new_conversations} fetched in {stats.duration_seconds:.1f}s"
+            )
 
             return stats
 
@@ -170,9 +171,7 @@ class TwoPhaseSyncCoordinator:
             self._active_operation = None
 
     async def _execute_discovery_phase(
-        self,
-        start_date: datetime,
-        end_date: datetime
+        self, start_date: datetime, end_date: datetime
     ) -> SyncPhaseResult:
         """Execute Phase 1: Discover conversations via search API."""
         phase_start = time.time()
@@ -193,7 +192,7 @@ class TwoPhaseSyncCoordinator:
                 self._discovered_conversations.add(conv.id)
 
             # Store basic conversation data from search
-            stored_count = self.db.store_conversations(conversations)
+            self.db.store_conversations(conversations)
             api_calls = len(conversations) // self.config.search_batch_size + 1
 
             duration = time.time() - phase_start
@@ -203,12 +202,16 @@ class TwoPhaseSyncCoordinator:
                 items_processed=len(conversations),
                 duration_seconds=duration,
                 api_calls=api_calls,
-                errors=errors
+                errors=errors,
             )
 
             self._phase_results.append(result)
-            logger.info(f"Discovery phase completed: {len(conversations)} conversations found in {duration:.1f}s")
-            await self._notify_progress(f"Phase 1 complete: Found {len(conversations)} conversations")
+            logger.info(
+                f"Discovery phase completed: {len(conversations)} conversations found in {duration:.1f}s"
+            )
+            await self._notify_progress(
+                f"Phase 1 complete: Found {len(conversations)} conversations"
+            )
 
             return result
 
@@ -224,19 +227,19 @@ class TwoPhaseSyncCoordinator:
                 items_processed=0,
                 duration_seconds=duration,
                 api_calls=api_calls,
-                errors=errors
+                errors=errors,
             )
             self._phase_results.append(result)
             return result
 
     async def _filter_conversations_for_fetch(
-        self,
-        conversation_ids: list[str],
-        force_refetch: bool
+        self, conversation_ids: list[str], force_refetch: bool
     ) -> list[str]:
         """Filter conversations to determine which need detailed fetching."""
         if force_refetch:
-            logger.info(f"Force refetch enabled - will fetch all {len(conversation_ids)} conversations")
+            logger.info(
+                f"Force refetch enabled - will fetch all {len(conversation_ids)} conversations"
+            )
             return conversation_ids
 
         # Check database for conversations that already have complete threads
@@ -254,8 +257,12 @@ class TwoPhaseSyncCoordinator:
                 conversations_needing_fetch.append(conv_id)
             # else: conversation has complete thread data, skip
 
-        logger.info(f"Filtered conversations: {len(conversations_needing_fetch)} of {len(conversation_ids)} need fetching")
-        await self._notify_progress(f"Identified {len(conversations_needing_fetch)} conversations needing complete threads")
+        logger.info(
+            f"Filtered conversations: {len(conversations_needing_fetch)} of {len(conversation_ids)} need fetching"
+        )
+        await self._notify_progress(
+            f"Identified {len(conversations_needing_fetch)} conversations needing complete threads"
+        )
 
         return conversations_needing_fetch
 
@@ -266,8 +273,12 @@ class TwoPhaseSyncCoordinator:
         errors = []
 
         try:
-            logger.info(f"Phase 2: Fetching complete threads for {len(conversation_ids)} conversations")
-            await self._notify_progress(f"Phase 2: Fetching {len(conversation_ids)} complete conversation threads...")
+            logger.info(
+                f"Phase 2: Fetching complete threads for {len(conversation_ids)} conversations"
+            )
+            await self._notify_progress(
+                f"Phase 2: Fetching {len(conversation_ids)} complete conversation threads..."
+            )
 
             # Process in batches with concurrency control
             semaphore = asyncio.Semaphore(self.config.max_concurrent_fetches)
@@ -281,7 +292,7 @@ class TwoPhaseSyncCoordinator:
             # Split into batches
             all_conversations = []
             for i in range(0, len(conversation_ids), self.config.fetch_batch_size):
-                batch = conversation_ids[i:i + self.config.fetch_batch_size]
+                batch = conversation_ids[i : i + self.config.fetch_batch_size]
 
                 try:
                     batch_conversations = await fetch_batch(batch)
@@ -320,12 +331,16 @@ class TwoPhaseSyncCoordinator:
                 items_processed=len(all_conversations),
                 duration_seconds=duration,
                 api_calls=api_calls,
-                errors=errors
+                errors=errors,
             )
 
             self._phase_results.append(result)
-            logger.info(f"Fetch phase completed: {len(all_conversations)} threads fetched in {duration:.1f}s")
-            await self._notify_progress(f"Phase 2 complete: Fetched {len(all_conversations)} complete threads")
+            logger.info(
+                f"Fetch phase completed: {len(all_conversations)} threads fetched in {duration:.1f}s"
+            )
+            await self._notify_progress(
+                f"Phase 2 complete: Fetched {len(all_conversations)} complete threads"
+            )
 
             return result
 
@@ -341,16 +356,13 @@ class TwoPhaseSyncCoordinator:
                 items_processed=0,
                 duration_seconds=duration,
                 api_calls=api_calls,
-                errors=errors
+                errors=errors,
             )
             self._phase_results.append(result)
             return result
 
     def _create_summary_stats(
-        self,
-        total_conversations: int,
-        fetched_conversations: int,
-        total_duration: float
+        self, total_conversations: int, fetched_conversations: int, total_duration: float
     ) -> SyncStats:
         """Create comprehensive sync statistics from phase results."""
         total_api_calls = sum(result.api_calls for result in self._phase_results)
@@ -367,30 +379,30 @@ class TwoPhaseSyncCoordinator:
             api_calls_made=total_api_calls,
             sync_type="two_phase",
             period_start=None,  # Set by caller if needed
-            period_end=None     # Set by caller if needed
+            period_end=None,  # Set by caller if needed
         )
 
     def get_operation_status(self) -> dict[str, Any]:
         """Get current operation status and phase results."""
         return {
-            'active_operation': self._active_operation,
-            'phase_results': [
+            "active_operation": self._active_operation,
+            "phase_results": [
                 {
-                    'phase': result.phase_name,
-                    'success': result.success,
-                    'items_processed': result.items_processed,
-                    'duration_seconds': result.duration_seconds,
-                    'api_calls': result.api_calls,
-                    'errors': result.errors
+                    "phase": result.phase_name,
+                    "success": result.success,
+                    "items_processed": result.items_processed,
+                    "duration_seconds": result.duration_seconds,
+                    "api_calls": result.api_calls,
+                    "errors": result.errors,
                 }
                 for result in self._phase_results
             ],
-            'discovered_conversations': len(self._discovered_conversations),
-            'fetched_conversations': len(self._fetched_conversations),
-            'failed_fetches': len(self._failed_fetches),
-            'config': {
-                'search_batch_size': self.config.search_batch_size,
-                'fetch_batch_size': self.config.fetch_batch_size,
-                'max_concurrent_fetches': self.config.max_concurrent_fetches
-            }
+            "discovered_conversations": len(self._discovered_conversations),
+            "fetched_conversations": len(self._fetched_conversations),
+            "failed_fetches": len(self._failed_fetches),
+            "config": {
+                "search_batch_size": self.config.search_batch_size,
+                "fetch_batch_size": self.config.fetch_batch_size,
+                "max_concurrent_fetches": self.config.max_concurrent_fetches,
+            },
         }

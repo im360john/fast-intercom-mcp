@@ -26,7 +26,7 @@ def event_loop():
 @pytest.fixture
 def temp_db():
     """Provide a temporary database for testing."""
-    with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as f:
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
         db_path = f.name
 
     try:
@@ -58,23 +58,23 @@ def test_conversations():
                     author_type="user",
                     body="I need help with my account",
                     created_at=datetime.now(UTC) - timedelta(hours=2),
-                    part_type="comment"
+                    part_type="comment",
                 ),
                 Message(
                     id="msg_2",
                     author_type="admin",
                     body="I'd be happy to help you with that",
                     created_at=datetime.now(UTC) - timedelta(hours=2, minutes=5),
-                    part_type="comment"
+                    part_type="comment",
                 ),
                 Message(
                     id="msg_3",
                     author_type="user",
                     body="Thank you for the quick response",
                     created_at=datetime.now(UTC) - timedelta(hours=1),
-                    part_type="comment"
-                )
-            ]
+                    part_type="comment",
+                ),
+            ],
         ),
         Conversation(
             id="test_conv_2",
@@ -88,16 +88,16 @@ def test_conversations():
                     author_type="user",
                     body="Question about my invoice",
                     created_at=datetime.now(UTC) - timedelta(hours=3),
-                    part_type="comment"
+                    part_type="comment",
                 ),
                 Message(
                     id="msg_5",
                     author_type="admin",
                     body="Let me look into that for you",
                     created_at=datetime.now(UTC) - timedelta(hours=3, minutes=2),
-                    part_type="comment"
-                )
-            ]
+                    part_type="comment",
+                ),
+            ],
         ),
         Conversation(
             id="test_conv_3_long",
@@ -110,12 +110,12 @@ def test_conversations():
                     id=f"msg_{i}",
                     author_type="user" if i % 2 == 0 else "admin",
                     body=f"Message {i} content",
-                    created_at=datetime.now(UTC) - timedelta(hours=4, minutes=i*5),
-                    part_type="comment"
+                    created_at=datetime.now(UTC) - timedelta(hours=4, minutes=i * 5),
+                    part_type="comment",
                 )
                 for i in range(25)  # Long conversation with 25 messages
-            ]
-        )
+            ],
+        ),
     ]
 
 
@@ -126,14 +126,16 @@ def mock_intercom_client(test_conversations):
 
     # Use AsyncMock for proper assertion support
     client.fetch_conversations_for_period = AsyncMock(return_value=test_conversations)
-    client.fetch_conversations_incremental = AsyncMock(return_value=SyncStats(
-        total_conversations=1,
-        new_conversations=1,
-        updated_conversations=0,
-        total_messages=2,
-        duration_seconds=1.0,
-        api_calls_made=1
-    ))
+    client.fetch_conversations_incremental = AsyncMock(
+        return_value=SyncStats(
+            total_conversations=1,
+            new_conversations=1,
+            updated_conversations=0,
+            total_messages=2,
+            duration_seconds=1.0,
+            api_calls_made=1,
+        )
+    )
     client.fetch_complete_conversation_thread = AsyncMock()
     client.fetch_individual_conversations = AsyncMock(return_value=test_conversations)
     client.get_app_id = AsyncMock(return_value="test_app_123")
@@ -162,7 +164,7 @@ def test_sync_stats():
         updated_conversations=1,
         total_messages=30,
         duration_seconds=5.5,
-        api_calls_made=3
+        api_calls_made=3,
     )
 
 
@@ -170,4 +172,3 @@ def test_sync_stats():
 def mock_progress_callback():
     """Provide a mock progress callback for testing."""
     return Mock()
-

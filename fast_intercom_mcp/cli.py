@@ -1,6 +1,7 @@
 """Command line interface for FastIntercom MCP server."""
 
 import asyncio
+import contextlib
 import logging
 import os
 import signal
@@ -23,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 def _daemonize():
     """Daemonize the current process (Unix/Linux only)."""
-    if os.name != 'posix':
+    if os.name != "posix":
         click.echo("⚠️  Daemon mode only supported on Unix/Linux systems")
         return
 
@@ -53,19 +54,19 @@ def _daemonize():
     # Redirect standard file descriptors to avoid blocking
     sys.stdout.flush()
     sys.stderr.flush()
-    devnull = '/dev/null'
+    devnull = "/dev/null"
     if hasattr(os, "devnull"):
         devnull = os.devnull
 
-    with open(devnull) as si, open(devnull, 'a+') as so, open(devnull, 'a+') as se:
+    with open(devnull) as si, open(devnull, "a+") as so, open(devnull, "a+") as se:
         os.dup2(si.fileno(), sys.stdin.fileno())
         os.dup2(so.fileno(), sys.stdout.fileno())
         os.dup2(se.fileno(), sys.stderr.fileno())
 
 
 @click.group()
-@click.option('--config', '-c', help='Configuration file path')
-@click.option('--verbose', '-v', is_flag=True, help='Enable verbose logging')
+@click.option("--config", "-c", help="Configuration file path")
+@click.option("--verbose", "-v", is_flag=True, help="Enable verbose logging")
 @click.pass_context
 def cli(ctx, config, verbose):
     """FastIntercom MCP Server - Local Intercom conversation access."""
@@ -77,21 +78,26 @@ def cli(ctx, config, verbose):
 
     # Load configuration
     try:
-        ctx.obj['config'] = Config.load(config)
+        ctx.obj["config"] = Config.load(config)
         if verbose:
-            ctx.obj['config'].log_level = "DEBUG"
+            ctx.obj["config"].log_level = "DEBUG"
     except Exception as e:
         click.echo(f"Error loading configuration: {e}", err=True)
         sys.exit(1)
 
 
 @cli.command()
-@click.option('--token', prompt='Intercom Access Token', hide_input=True,
-              help='Your Intercom access token')
-@click.option('--sync-days', default=7, type=int,
-              help='Number of days of history to sync initially (0 for ALL history)')
+@click.option(
+    "--token", prompt="Intercom Access Token", hide_input=True, help="Your Intercom access token"
+)
+@click.option(
+    "--sync-days",
+    default=7,
+    type=int,
+    help="Number of days of history to sync initially (0 for ALL history)",
+)
 @click.pass_context
-def init(ctx, token, sync_days):
+def init(_ctx, token, sync_days):
     """Initialize FastIntercom with your Intercom credentials."""
     click.echo("🚀 Initializing FastIntercom MCP Server...")
 
@@ -100,10 +106,7 @@ def init(ctx, token, sync_days):
         sync_days = 7  # Default to 7 if negative
 
     # Save configuration
-    config = Config(
-        intercom_token=token,
-        initial_sync_days=sync_days
-    )
+    config = Config(intercom_token=token, initial_sync_days=sync_days)
     config.save()
 
     click.echo(f"✅ Configuration saved to {Config.get_default_config_path()}")
@@ -159,14 +162,16 @@ def init(ctx, token, sync_days):
 
 
 @cli.command()
-@click.option('--daemon', '-d', is_flag=True, help='Run as daemon (background process)')
-@click.option('--port', default=None, type=int, help='Port for HTTP MCP server (default: stdio mode)')
-@click.option('--host', default="0.0.0.0", help='Host for HTTP server (default: 0.0.0.0)')
-@click.option('--api-key', help='API key for HTTP authentication (auto-generated if not provided)')
+@click.option("--daemon", "-d", is_flag=True, help="Run as daemon (background process)")
+@click.option(
+    "--port", default=None, type=int, help="Port for HTTP MCP server (default: stdio mode)"
+)
+@click.option("--host", default="0.0.0.0", help="Host for HTTP server (default: 0.0.0.0)")
+@click.option("--api-key", help="API key for HTTP authentication (auto-generated if not provided)")
 @click.pass_context
 def start(ctx, daemon, port, host, api_key):
     """Start the FastIntercom MCP server."""
-    config = ctx.obj['config']
+    config = ctx.obj["config"]
 
     if daemon:
         click.echo("🚀 Starting FastIntercom MCP Server in daemon mode...")
@@ -193,13 +198,13 @@ def start(ctx, daemon, port, host, api_key):
             intercom_client,
             api_key=api_key,
             host=host,
-            port=port
+            port=port,
         )
     else:
         server = FastIntercomMCPServer(db, sync_manager.get_sync_service(), intercom_client)
 
     # Setup signal handlers for graceful shutdown
-    def signal_handler(signum, frame):
+    def signal_handler(_signum, _frame):
         click.echo("\n🛑 Shutting down gracefully...")
         if transport_mode == "http":
             sync_manager.stop()
@@ -242,10 +247,8 @@ def start(ctx, daemon, port, host, api_key):
             click.echo("📡 MCP server listening for requests...")
             click.echo("   (Press Ctrl+C to stop)")
 
-            try:
+            with contextlib.suppress(KeyboardInterrupt):
                 await server.run()
-            except KeyboardInterrupt:
-                pass
 
         return True
 
@@ -255,22 +258,19 @@ def start(ctx, daemon, port, host, api_key):
         # Handle Ctrl+C gracefully without error message
         pass
     except Exception as e:
-        try:
+        with contextlib.suppress(Exception):
             click.echo(f"❌ Server error: {e}")
-        except Exception:
-            # If click.echo fails (closed stdout), just exit
-            pass
         sys.exit(1)
 
 
 @cli.command()
-@click.option('--port', default=8000, type=int, help='Port for HTTP server')
-@click.option('--host', default="0.0.0.0", help='Host for HTTP server')
-@click.option('--api-key', help='API key for authentication (auto-generated if not provided)')
+@click.option("--port", default=8000, type=int, help="Port for HTTP server")
+@click.option("--host", default="0.0.0.0", help="Host for HTTP server")
+@click.option("--api-key", help="API key for authentication (auto-generated if not provided)")
 @click.pass_context
 def serve(ctx, port, host, api_key):
     """Start the FastIntercom HTTP MCP server."""
-    config = ctx.obj['config']
+    config = ctx.obj["config"]
 
     click.echo(f"🌐 Starting FastIntercom HTTP MCP Server on {host}:{port}...")
 
@@ -280,16 +280,11 @@ def serve(ctx, port, host, api_key):
     sync_manager = SyncManager(db, intercom_client)
 
     server = FastIntercomHTTPServer(
-        db,
-        sync_manager.get_sync_service(),
-        intercom_client,
-        api_key=api_key,
-        host=host,
-        port=port
+        db, sync_manager.get_sync_service(), intercom_client, api_key=api_key, host=host, port=port
     )
 
     # Setup signal handlers for graceful shutdown
-    def signal_handler(signum, frame):
+    def signal_handler(_signum, _frame):
         click.echo("\n🛑 Shutting down gracefully...")
         sync_manager.stop()
         sys.exit(0)
@@ -340,7 +335,7 @@ def serve(ctx, port, host, api_key):
 @click.pass_context
 def mcp(ctx):
     """Start the FastIntercom MCP server in stdio mode (for MCP clients)."""
-    config = ctx.obj['config']
+    config = ctx.obj["config"]
 
     # Initialize components
     db = DatabaseManager(config.database_path, config.connection_pool_size)
@@ -368,7 +363,7 @@ def mcp(ctx):
 @click.pass_context
 def status(ctx):
     """Show server status and statistics."""
-    config = ctx.obj['config']
+    config = ctx.obj["config"]
 
     # Check if database exists
     db_path = config.database_path or (Path.home() / ".fastintercom" / "data.db")
@@ -385,8 +380,8 @@ def status(ctx):
     click.echo(f"💬 Conversations: {status['total_conversations']:,}")
     click.echo(f"✉️  Messages: {status['total_messages']:,}")
 
-    if status['last_sync']:
-        last_sync = datetime.fromisoformat(status['last_sync'])
+    if status["last_sync"]:
+        last_sync = datetime.fromisoformat(status["last_sync"])
         time_diff = datetime.now() - last_sync
         if time_diff.total_seconds() < 60:
             time_str = "just now"
@@ -401,22 +396,24 @@ def status(ctx):
     click.echo(f"📁 Database: {status['database_path']}")
 
     # Recent sync activity
-    if status['recent_syncs']:
+    if status["recent_syncs"]:
         click.echo("\n📈 Recent Sync Activity:")
-        for sync in status['recent_syncs'][:5]:
-            sync_time = datetime.fromisoformat(sync['last_synced'])
-            click.echo(f"  {sync_time.strftime('%m/%d %H:%M')}: "
-                      f"{sync['conversation_count']} conversations "
-                      f"({sync.get('new_conversations', 0)} new)")
+        for sync in status["recent_syncs"][:5]:
+            sync_time = datetime.fromisoformat(sync["last_synced"])
+            click.echo(
+                f"  {sync_time.strftime('%m/%d %H:%M')}: "
+                f"{sync['conversation_count']} conversations "
+                f"({sync.get('new_conversations', 0)} new)"
+            )
 
 
 @cli.command()
-@click.option('--force', '-f', is_flag=True, help='Force full sync of recent data')
-@click.option('--days', '-d', default=1, type=int, help='Number of days to sync (for force mode)')
+@click.option("--force", "-f", is_flag=True, help="Force full sync of recent data")
+@click.option("--days", "-d", default=1, type=int, help="Number of days to sync (for force mode)")
 @click.pass_context
 def sync(ctx, force, days):
     """Manually trigger conversation sync."""
-    config = ctx.obj['config']
+    config = ctx.obj["config"]
 
     click.echo("🔄 Starting manual sync...")
 
@@ -458,7 +455,7 @@ def sync(ctx, force, days):
 
 @cli.command()
 @click.pass_context
-def logs(ctx):
+def logs(_ctx):
     """Show recent log entries."""
     log_file = Path.home() / ".fastintercom" / "logs" / "fastintercom.log"
 
@@ -477,14 +474,15 @@ def logs(ctx):
 
 
 @cli.command()
-@click.confirmation_option(prompt='Are you sure you want to reset all data?')
+@click.confirmation_option(prompt="Are you sure you want to reset all data?")
 @click.pass_context
-def reset(ctx):
+def reset(_ctx):
     """Reset all data (database and configuration)."""
     config_dir = Path.home() / ".fastintercom"
 
     if config_dir.exists():
         import shutil
+
         shutil.rmtree(config_dir)
         click.echo("✅ All FastIntercom data has been reset.")
     else:

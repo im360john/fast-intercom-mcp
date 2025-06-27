@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 class SyncStatus(Enum):
     """Sync status enumeration."""
+
     PENDING = "pending"
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
@@ -23,6 +24,7 @@ class SyncStatus(Enum):
 
 class SyncType(Enum):
     """Sync type enumeration."""
+
     FULL = "full"
     INCREMENTAL = "incremental"
     THREAD_ONLY = "thread_only"
@@ -32,6 +34,7 @@ class SyncType(Enum):
 @dataclass
 class ConversationSyncState:
     """Represents the sync state for a single conversation."""
+
     conversation_id: str
     last_full_sync: datetime | None = None
     last_incremental_sync: datetime | None = None
@@ -130,11 +133,21 @@ class ConversationSyncTracker:
             """)
 
             # Create indexes for efficient queries
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_sync_state_last_full ON conversation_sync_state (last_full_sync)")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_sync_state_last_incremental ON conversation_sync_state (last_incremental_sync)")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_sync_state_status ON conversation_sync_state (sync_status)")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_sync_attempts_conversation ON conversation_sync_attempts (conversation_id)")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_sync_attempts_started ON conversation_sync_attempts (started_at)")
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_sync_state_last_full ON conversation_sync_state (last_full_sync)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_sync_state_last_incremental ON conversation_sync_state (last_incremental_sync)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_sync_state_status ON conversation_sync_state (sync_status)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_sync_attempts_conversation ON conversation_sync_attempts (conversation_id)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_sync_attempts_started ON conversation_sync_attempts (started_at)"
+            )
 
             conn.commit()
 
@@ -143,10 +156,13 @@ class ConversationSyncTracker:
         with sqlite3.connect(self.db.db_path) as conn:
             conn.row_factory = sqlite3.Row
 
-            cursor = conn.execute("""
-                SELECT * FROM conversation_sync_state 
+            cursor = conn.execute(
+                """
+                SELECT * FROM conversation_sync_state
                 WHERE conversation_id = ?
-            """, (conversation_id,))
+            """,
+                (conversation_id,),
+            )
 
             row = cursor.fetchone()
 
@@ -164,37 +180,51 @@ class ConversationSyncTracker:
             # Convert metadata to JSON
             metadata_json = json.dumps(state.metadata) if state.metadata else "{}"
 
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT OR REPLACE INTO conversation_sync_state (
                     conversation_id, last_full_sync, last_incremental_sync,
                     last_sync_attempt, sync_status, sync_type, message_count_synced,
                     last_message_timestamp, error_count, last_error, last_error_timestamp,
                     sync_completion_percentage, metadata, updated_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-            """, (
-                state.conversation_id,
-                state.last_full_sync.isoformat() if state.last_full_sync else None,
-                state.last_incremental_sync.isoformat() if state.last_incremental_sync else None,
-                state.last_sync_attempt.isoformat() if state.last_sync_attempt else None,
-                state.sync_status.value,
-                state.sync_type.value if state.sync_type else None,
-                state.message_count_synced,
-                state.last_message_timestamp.isoformat() if state.last_message_timestamp else None,
-                state.error_count,
-                state.last_error,
-                state.last_error_timestamp.isoformat() if state.last_error_timestamp else None,
-                state.sync_completion_percentage,
-                metadata_json
-            ))
+            """,
+                (
+                    state.conversation_id,
+                    state.last_full_sync.isoformat() if state.last_full_sync else None,
+                    state.last_incremental_sync.isoformat()
+                    if state.last_incremental_sync
+                    else None,
+                    state.last_sync_attempt.isoformat() if state.last_sync_attempt else None,
+                    state.sync_status.value,
+                    state.sync_type.value if state.sync_type else None,
+                    state.message_count_synced,
+                    state.last_message_timestamp.isoformat()
+                    if state.last_message_timestamp
+                    else None,
+                    state.error_count,
+                    state.last_error,
+                    state.last_error_timestamp.isoformat() if state.last_error_timestamp else None,
+                    state.sync_completion_percentage,
+                    metadata_json,
+                ),
+            )
 
             conn.commit()
 
-    def log_sync_attempt(self, conversation_id: str, sync_type: SyncType,
-                        sync_status: SyncStatus, started_at: datetime,
-                        completed_at: datetime | None = None,
-                        messages_before: int = 0, messages_after: int = 0,
-                        api_calls_made: int = 0, error_message: str | None = None,
-                        metadata: dict[str, Any] | None = None) -> int:
+    def log_sync_attempt(
+        self,
+        conversation_id: str,
+        sync_type: SyncType,
+        sync_status: SyncStatus,
+        started_at: datetime,
+        completed_at: datetime | None = None,
+        messages_before: int = 0,
+        messages_after: int = 0,
+        api_calls_made: int = 0,
+        error_message: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> int:
         """Log a sync attempt for detailed tracking."""
         import json
 
@@ -205,64 +235,81 @@ class ConversationSyncTracker:
         metadata_json = json.dumps(metadata or {})
 
         with sqlite3.connect(self.db.db_path) as conn:
-            cursor = conn.execute("""
+            cursor = conn.execute(
+                """
                 INSERT INTO conversation_sync_attempts (
                     conversation_id, sync_type, sync_status, started_at, completed_at,
                     duration_seconds, messages_before, messages_after, api_calls_made,
                     error_message, metadata
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                conversation_id, sync_type.value, sync_status.value,
-                started_at.isoformat(),
-                completed_at.isoformat() if completed_at else None,
-                duration_seconds, messages_before, messages_after, api_calls_made,
-                error_message, metadata_json
-            ))
+            """,
+                (
+                    conversation_id,
+                    sync_type.value,
+                    sync_status.value,
+                    started_at.isoformat(),
+                    completed_at.isoformat() if completed_at else None,
+                    duration_seconds,
+                    messages_before,
+                    messages_after,
+                    api_calls_made,
+                    error_message,
+                    metadata_json,
+                ),
+            )
 
             conn.commit()
             return cursor.lastrowid
 
-    def get_conversations_needing_full_sync(self, staleness_threshold_hours: int = 24,
-                                          limit: int = 100) -> list[str]:
+    def get_conversations_needing_full_sync(
+        self, staleness_threshold_hours: int = 24, limit: int = 100
+    ) -> list[str]:
         """Get conversations that need a full sync."""
         threshold = datetime.now() - timedelta(hours=staleness_threshold_hours)
         threshold_iso = threshold.isoformat()
 
         with sqlite3.connect(self.db.db_path) as conn:
-            cursor = conn.execute("""
-                SELECT c.id 
+            cursor = conn.execute(
+                """
+                SELECT c.id
                 FROM conversations c
                 LEFT JOIN conversation_sync_state css ON c.id = css.conversation_id
-                WHERE css.last_full_sync IS NULL 
+                WHERE css.last_full_sync IS NULL
                    OR css.last_full_sync < ?
                    OR css.sync_status = 'failed'
-                ORDER BY 
+                ORDER BY
                     CASE WHEN css.last_full_sync IS NULL THEN 0 ELSE 1 END,
                     css.last_full_sync ASC
                 LIMIT ?
-            """, (threshold_iso, limit))
+            """,
+                (threshold_iso, limit),
+            )
 
             return [row[0] for row in cursor.fetchall()]
 
-    def get_conversations_needing_incremental_sync(self, staleness_threshold_minutes: int = 30,
-                                                 limit: int = 200) -> list[str]:
+    def get_conversations_needing_incremental_sync(
+        self, staleness_threshold_minutes: int = 30, limit: int = 200
+    ) -> list[str]:
         """Get conversations that need an incremental sync."""
         threshold = datetime.now() - timedelta(minutes=staleness_threshold_minutes)
         threshold_iso = threshold.isoformat()
 
         with sqlite3.connect(self.db.db_path) as conn:
-            cursor = conn.execute("""
-                SELECT c.id 
+            cursor = conn.execute(
+                """
+                SELECT c.id
                 FROM conversations c
                 LEFT JOIN conversation_sync_state css ON c.id = css.conversation_id
                 WHERE (css.last_incremental_sync IS NULL OR css.last_incremental_sync < ?)
                   AND css.sync_status != 'in_progress'
                   AND (css.error_count = 0 OR css.error_count IS NULL OR css.last_error_timestamp < ?)
-                ORDER BY 
+                ORDER BY
                     c.updated_at DESC,
                     css.last_incremental_sync ASC
                 LIMIT ?
-            """, (threshold_iso, threshold_iso, limit))
+            """,
+                (threshold_iso, threshold_iso, limit),
+            )
 
             return [row[0] for row in cursor.fetchall()]
 
@@ -273,7 +320,7 @@ class ConversationSyncTracker:
 
             # Basic counts
             cursor = conn.execute("""
-                SELECT 
+                SELECT
                     COUNT(*) as total_conversations,
                     COUNT(css.conversation_id) as conversations_with_sync_state,
                     COUNT(CASE WHEN css.last_full_sync IS NOT NULL THEN 1 END) as full_synced,
@@ -288,22 +335,25 @@ class ConversationSyncTracker:
 
             # Recent sync activity
             recent_threshold = datetime.now() - timedelta(hours=24)
-            cursor = conn.execute("""
-                SELECT 
+            cursor = conn.execute(
+                """
+                SELECT
                     COUNT(*) as recent_full_syncs,
                     COUNT(CASE WHEN sync_type = 'incremental' THEN 1 END) as recent_incremental_syncs,
                     COUNT(CASE WHEN sync_status = 'failed' THEN 1 END) as recent_failures,
                     AVG(duration_seconds) as avg_duration_seconds
                 FROM conversation_sync_attempts
                 WHERE started_at > ?
-            """, (recent_threshold.isoformat(),))
+            """,
+                (recent_threshold.isoformat(),),
+            )
 
             recent_stats = dict(cursor.fetchone())
             stats.update(recent_stats)
 
             # Error analysis
             cursor = conn.execute("""
-                SELECT 
+                SELECT
                     COUNT(DISTINCT conversation_id) as conversations_with_errors,
                     COUNT(*) as total_errors,
                     MAX(last_error_timestamp) as latest_error_time
@@ -323,8 +373,9 @@ class ConversationSyncTracker:
         with sqlite3.connect(self.db.db_path) as conn:
             conn.row_factory = sqlite3.Row
 
-            cursor = conn.execute("""
-                SELECT 
+            cursor = conn.execute(
+                """
+                SELECT
                     css.conversation_id,
                     css.error_count,
                     css.last_error,
@@ -336,22 +387,30 @@ class ConversationSyncTracker:
                 JOIN conversations c ON css.conversation_id = c.id
                 WHERE css.last_error_timestamp > ?
                 ORDER BY css.last_error_timestamp DESC
-            """, (threshold.isoformat(),))
+            """,
+                (threshold.isoformat(),),
+            )
 
             return [dict(row) for row in cursor.fetchall()]
 
     def reset_conversation_sync_state(self, conversation_id: str):
         """Reset sync state for a conversation (useful for troubleshooting)."""
         with sqlite3.connect(self.db.db_path) as conn:
-            conn.execute("""
-                DELETE FROM conversation_sync_state 
+            conn.execute(
+                """
+                DELETE FROM conversation_sync_state
                 WHERE conversation_id = ?
-            """, (conversation_id,))
+            """,
+                (conversation_id,),
+            )
 
-            conn.execute("""
-                DELETE FROM conversation_sync_attempts 
+            conn.execute(
+                """
+                DELETE FROM conversation_sync_attempts
                 WHERE conversation_id = ?
-            """, (conversation_id,))
+            """,
+                (conversation_id,),
+            )
 
             conn.commit()
 
@@ -371,9 +430,15 @@ class ConversationSyncTracker:
 
         return started_at
 
-    def mark_sync_completed(self, conversation_id: str, sync_type: SyncType,
-                          started_at: datetime, message_count: int = 0,
-                          api_calls_made: int = 0, metadata: dict[str, Any] | None = None):
+    def mark_sync_completed(
+        self,
+        conversation_id: str,
+        sync_type: SyncType,
+        started_at: datetime,
+        message_count: int = 0,
+        api_calls_made: int = 0,
+        metadata: dict[str, Any] | None = None,
+    ):
         """Mark a sync as completed for a conversation."""
         completed_at = datetime.now()
 
@@ -393,13 +458,25 @@ class ConversationSyncTracker:
 
         # Log completed attempt
         self.log_sync_attempt(
-            conversation_id, sync_type, SyncStatus.COMPLETED, started_at, completed_at,
-            messages_after=message_count, api_calls_made=api_calls_made, metadata=metadata
+            conversation_id,
+            sync_type,
+            SyncStatus.COMPLETED,
+            started_at,
+            completed_at,
+            messages_after=message_count,
+            api_calls_made=api_calls_made,
+            metadata=metadata,
         )
 
-    def mark_sync_failed(self, conversation_id: str, sync_type: SyncType,
-                        started_at: datetime, error_message: str,
-                        api_calls_made: int = 0, metadata: dict[str, Any] | None = None):
+    def mark_sync_failed(
+        self,
+        conversation_id: str,
+        sync_type: SyncType,
+        started_at: datetime,
+        error_message: str,
+        api_calls_made: int = 0,
+        metadata: dict[str, Any] | None = None,
+    ):
         """Mark a sync as failed for a conversation."""
         failed_at = datetime.now()
 
@@ -415,8 +492,14 @@ class ConversationSyncTracker:
 
         # Log failed attempt
         self.log_sync_attempt(
-            conversation_id, sync_type, SyncStatus.FAILED, started_at, failed_at,
-            api_calls_made=api_calls_made, error_message=error_message, metadata=metadata
+            conversation_id,
+            sync_type,
+            SyncStatus.FAILED,
+            started_at,
+            failed_at,
+            api_calls_made=api_calls_made,
+            error_message=error_message,
+            metadata=metadata,
         )
 
     def _row_to_sync_state(self, row: sqlite3.Row) -> ConversationSyncState:
@@ -424,17 +507,27 @@ class ConversationSyncTracker:
         import json
 
         return ConversationSyncState(
-            conversation_id=row['conversation_id'],
-            last_full_sync=datetime.fromisoformat(row['last_full_sync']) if row['last_full_sync'] else None,
-            last_incremental_sync=datetime.fromisoformat(row['last_incremental_sync']) if row['last_incremental_sync'] else None,
-            last_sync_attempt=datetime.fromisoformat(row['last_sync_attempt']) if row['last_sync_attempt'] else None,
-            sync_status=SyncStatus(row['sync_status']),
-            sync_type=SyncType(row['sync_type']) if row['sync_type'] else None,
-            message_count_synced=row['message_count_synced'] or 0,
-            last_message_timestamp=datetime.fromisoformat(row['last_message_timestamp']) if row['last_message_timestamp'] else None,
-            error_count=row['error_count'] or 0,
-            last_error=row['last_error'],
-            last_error_timestamp=datetime.fromisoformat(row['last_error_timestamp']) if row['last_error_timestamp'] else None,
-            sync_completion_percentage=row['sync_completion_percentage'] or 0.0,
-            metadata=json.loads(row['metadata']) if row['metadata'] else {}
+            conversation_id=row["conversation_id"],
+            last_full_sync=datetime.fromisoformat(row["last_full_sync"])
+            if row["last_full_sync"]
+            else None,
+            last_incremental_sync=datetime.fromisoformat(row["last_incremental_sync"])
+            if row["last_incremental_sync"]
+            else None,
+            last_sync_attempt=datetime.fromisoformat(row["last_sync_attempt"])
+            if row["last_sync_attempt"]
+            else None,
+            sync_status=SyncStatus(row["sync_status"]),
+            sync_type=SyncType(row["sync_type"]) if row["sync_type"] else None,
+            message_count_synced=row["message_count_synced"] or 0,
+            last_message_timestamp=datetime.fromisoformat(row["last_message_timestamp"])
+            if row["last_message_timestamp"]
+            else None,
+            error_count=row["error_count"] or 0,
+            last_error=row["last_error"],
+            last_error_timestamp=datetime.fromisoformat(row["last_error_timestamp"])
+            if row["last_error_timestamp"]
+            else None,
+            sync_completion_percentage=row["sync_completion_percentage"] or 0.0,
+            metadata=json.loads(row["metadata"]) if row["metadata"] else {},
         )
