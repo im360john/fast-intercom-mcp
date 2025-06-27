@@ -100,7 +100,6 @@ jobs:
           
           async def test_db():
               db = DatabaseManager('./test_integration.db')
-              await db.initialize()
               print('✅ Database initialized successfully')
               
           asyncio.run(test_db())
@@ -137,7 +136,6 @@ jobs:
           
           async def test_sync_service():
               db = DatabaseManager('./test_integration.db')
-              await db.initialize()
               
               client = IntercomClient(os.getenv('INTERCOM_ACCESS_TOKEN'))
               sync_service = SyncService(client, db)
@@ -165,7 +163,6 @@ jobs:
           async def run_integration_test():
               # Initialize components
               db = DatabaseManager('./test_integration.db')
-              await db.initialize()
               
               client = IntercomClient(os.getenv('INTERCOM_ACCESS_TOKEN'))
               sync_service = SyncService(client, db)
