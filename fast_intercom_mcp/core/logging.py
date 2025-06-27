@@ -35,7 +35,9 @@ class JSONFormatter(logging.Formatter):
         return json.dumps(log_data)
 
 
-def setup_enhanced_logging(log_dir: str, log_level: str, enable_json: bool = False) -> dict[str, Any]:
+def setup_enhanced_logging(
+    log_dir: str, log_level: str, enable_json: bool = False
+) -> dict[str, Any]:
     """
     Setup enhanced logging with 3-file structure and optional JSON formatting.
 
@@ -95,7 +97,10 @@ def setup_enhanced_logging(log_dir: str, log_level: str, enable_json: bool = Fal
         'formatters': {
             'json' if enable_json else 'standard': {
                 '()': JSONFormatter if enable_json else logging.Formatter,
-                'format': '%(asctime)s [%(levelname)s] %(name)s:%(funcName)s:%(lineno)d - %(message)s'
+                "format": (
+                    "%(asctime)s [%(levelname)s] "
+                    "%(name)s:%(funcName)s:%(lineno)d - %(message)s"
+                )
             }
         },
         'handlers': {

@@ -130,11 +130,21 @@ class ConversationSyncTracker:
             """)
 
             # Create indexes for efficient queries
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_sync_state_last_full ON conversation_sync_state (last_full_sync)")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_sync_state_last_incremental ON conversation_sync_state (last_incremental_sync)")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_sync_state_status ON conversation_sync_state (sync_status)")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_sync_attempts_conversation ON conversation_sync_attempts (conversation_id)")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_sync_attempts_started ON conversation_sync_attempts (started_at)")
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_sync_state_last_full ON conversation_sync_state (last_full_sync)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_sync_state_last_incremental ON conversation_sync_state (last_incremental_sync)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_sync_state_status ON conversation_sync_state (sync_status)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_sync_attempts_conversation ON conversation_sync_attempts (conversation_id)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_sync_attempts_started ON conversation_sync_attempts (started_at)"
+            )
 
             conn.commit()
 

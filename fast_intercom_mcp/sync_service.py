@@ -41,7 +41,6 @@ class SyncService:
         self.two_phase_coordinator = TwoPhaseSyncCoordinator(
             intercom_client, database_manager, TwoPhaseConfig()
         )
-
     async def start_background_sync(self):
         """Start the background sync service."""
         if self._background_task and not self._background_task.done():

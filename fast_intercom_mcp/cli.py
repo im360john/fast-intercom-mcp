@@ -12,7 +12,7 @@ from pathlib import Path
 import click
 
 from .config import Config
-from .core.logging import setup_enhanced_logging
+from .core.config import setup_logging
 from .database import DatabaseManager
 from .http_server import FastIntercomHTTPServer
 from .intercom_client import IntercomClient
@@ -161,7 +161,8 @@ def init(ctx, token, sync_days):
 
 @cli.command()
 @click.option('--daemon', '-d', is_flag=True, help='Run as daemon (background process)')
-@click.option('--port', default=None, type=int, help='Port for HTTP MCP server (default: stdio mode)')
+@click.option('--port', default=None, type=int, 
+              help='Port for HTTP MCP server (default: stdio mode)')
 @click.option('--host', default="0.0.0.0", help='Host for HTTP server (default: 0.0.0.0)')
 @click.option('--api-key', help='API key for HTTP authentication (auto-generated if not provided)')
 @click.pass_context

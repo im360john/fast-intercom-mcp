@@ -1,0 +1,4 @@
+[lint]
+select = ["E", "F"]
+ignore = ["E501"]  # Ignore line length for now
+exclude = ["venv", "__pycache__"]
