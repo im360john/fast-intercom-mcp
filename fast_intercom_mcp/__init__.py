@@ -4,22 +4,22 @@ __version__ = "0.2.0"
 __author__ = "evolsb"
 __description__ = "High-performance MCP server for Intercom conversation analytics"
 
+from .config import Config
 from .database import DatabaseManager
 from .intercom_client import IntercomClient
 from .mcp_server import FastIntercomMCPServer
-from .sync_service import SyncService, SyncManager
-from .config import Config
-from .models import Conversation, Message, ConversationFilters, SyncStateException
+from .models import Conversation, ConversationFilters, Message, SyncStateException
+from .sync_service import SyncManager, SyncService
 
 __all__ = [
     "DatabaseManager",
-    "IntercomClient", 
+    "IntercomClient",
     "FastIntercomMCPServer",
     "SyncService",
     "SyncManager",
     "Config",
     "Conversation",
-    "Message", 
+    "Message",
     "ConversationFilters",
     "SyncStateException",
 ]

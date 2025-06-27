@@ -1,14 +1,15 @@
 """Shared test configuration and fixtures."""
 
-import pytest
-import tempfile
 import shutil
+import tempfile
 from pathlib import Path
-from unittest.mock import Mock, AsyncMock
+from unittest.mock import AsyncMock, Mock
+
+import pytest
 
 from fast_intercom_mcp.database import DatabaseManager
-from fast_intercom_mcp.sync_service import SyncService
 from fast_intercom_mcp.mcp_server import FastIntercomMCPServer
+from fast_intercom_mcp.sync_service import SyncService
 
 
 @pytest.fixture

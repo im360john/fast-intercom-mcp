@@ -1,12 +1,12 @@
 """MCP protocol compliance and functionality tests."""
 
 import json
-import pytest
-from unittest.mock import Mock, AsyncMock, patch
-from typing import Dict, Any
+from unittest.mock import AsyncMock, Mock, patch
 
-from fast_intercom_mcp.mcp_server import FastIntercomMCPServer
+import pytest
+
 from fast_intercom_mcp.database import DatabaseManager
+from fast_intercom_mcp.mcp_server import FastIntercomMCPServer
 from fast_intercom_mcp.sync_service import SyncService
 
 
@@ -64,10 +64,10 @@ class TestMCPProtocol:
     async def test_tool_discovery(self, server):
         """Test that tools can be discovered through MCP protocol."""
         tools = await server._list_tools()
-        
+
         assert isinstance(tools, list)
         assert len(tools) > 0
-        
+
         # Verify each tool has required MCP Tool properties
         for tool in tools:
             assert hasattr(tool, 'name')
@@ -81,18 +81,18 @@ class TestMCPProtocol:
     async def test_tool_input_schemas(self, server):
         """Test that all tools have valid JSON Schema input definitions."""
         tools = await server._list_tools()
-        
+
         for tool in tools:
             schema = tool.inputSchema
-            
+
             # Must be a valid JSON Schema object
             assert 'type' in schema
             assert schema['type'] == 'object'
-            
+
             # Should have properties defined
             assert 'properties' in schema
             assert isinstance(schema['properties'], dict)
-            
+
             # Validate specific tools
             if tool.name == 'search_conversations':
                 props = schema['properties']
@@ -100,7 +100,7 @@ class TestMCPProtocol:
                 assert 'timeframe' in props
                 assert 'customer_email' in props
                 assert 'limit' in props
-                
+
             elif tool.name == 'get_conversation':
                 props = schema['properties']
                 assert 'conversation_id' in props
@@ -112,10 +112,10 @@ class TestMCPProtocol:
         """Test basic tool execution functionality."""
         # Test each registered tool
         tools = await server._list_tools()
-        
+
         for tool in tools:
             tool_name = tool.name
-            
+
             # Create minimal valid arguments based on schema
             args = {}
             if 'required' in tool.inputSchema:
@@ -128,14 +128,14 @@ class TestMCPProtocol:
                         args[required_field] = '2023-01-02'
                     else:
                         args[required_field] = 'test_value'
-            
+
             # Execute tool
             result = await server._call_tool(tool_name, args)
-            
+
             # Verify result format
             assert isinstance(result, list)
             assert len(result) > 0
-            
+
             for content in result:
                 assert hasattr(content, 'type')
                 assert hasattr(content, 'text')
@@ -146,12 +146,12 @@ class TestMCPProtocol:
     async def test_json_response_format(self, server):
         """Test that tools returning JSON data have valid format."""
         json_tools = ['get_data_info', 'get_sync_status', 'check_coverage']
-        
+
         for tool_name in json_tools:
             args = {}
             if tool_name == 'check_coverage':
                 args = {'start_date': '2023-01-01', 'end_date': '2023-01-02'}
-            
+
             with patch('sqlite3.connect') as mock_connect:
                 # Mock database connection for tools that need it
                 mock_conn = Mock()
@@ -159,12 +159,12 @@ class TestMCPProtocol:
                 mock_cursor.fetchone.return_value = None
                 mock_conn.execute.return_value = mock_cursor
                 mock_connect.return_value.__enter__.return_value = mock_conn
-                
+
                 result = await server._call_tool(tool_name, args)
-                
+
                 assert isinstance(result, list)
                 assert len(result) > 0
-                
+
                 # Try to parse as JSON
                 try:
                     json_data = json.loads(result[0].text)
@@ -186,7 +186,7 @@ class TestMCPProtocol:
         """Test that errors are returned in proper MCP format."""
         # Test with invalid tool name
         result = await server._call_tool('nonexistent_tool', {})
-        
+
         assert isinstance(result, list)
         assert len(result) > 0
         assert result[0].type == 'text'
@@ -198,7 +198,7 @@ class TestMCPProtocol:
         # Mock database to raise an exception
         with patch('sqlite3.connect', side_effect=Exception("Database error")):
             result = await server._call_tool('get_data_info', {})
-            
+
             assert isinstance(result, list)
             assert len(result) > 0
             assert result[0].type == 'text'
@@ -216,7 +216,7 @@ class TestMCPProtocol:
             {'limit': 10},  # Limit only
             {'query': 'test', 'timeframe': 'last 7 days', 'limit': 5},  # Multiple params
         ]
-        
+
         for args in test_cases:
             result = await server._call_tool('search_conversations', args)
             assert isinstance(result, list)
@@ -229,7 +229,7 @@ class TestMCPProtocol:
         # Test the same tool multiple times
         for _ in range(3):
             result = await server._call_tool('get_server_status', {})
-            
+
             assert isinstance(result, list)
             assert len(result) == 1  # Should always return exactly one TextContent
             assert result[0].type == 'text'
@@ -239,7 +239,7 @@ class TestMCPProtocol:
     async def test_concurrent_tool_calls(self, server):
         """Test that server can handle concurrent tool calls."""
         import asyncio
-        
+
         # Create multiple concurrent tool calls
         tasks = []
         for i in range(5):
@@ -247,10 +247,10 @@ class TestMCPProtocol:
                 server._call_tool('get_server_status', {})
             )
             tasks.append(task)
-        
+
         # Wait for all to complete
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        
+
         # Verify all succeeded
         for result in results:
             assert not isinstance(result, Exception)
@@ -261,13 +261,13 @@ class TestMCPProtocol:
     async def test_tool_descriptions_are_helpful(self, server):
         """Test that tool descriptions provide useful information."""
         tools = await server._list_tools()
-        
+
         for tool in tools:
             # Description should be descriptive
             assert len(tool.description) > 20
             assert not tool.description.startswith('TODO')
             assert not tool.description.lower().startswith('test')
-            
+
             # Should contain relevant keywords for the tool functionality
             desc_lower = tool.description.lower()
             if 'search' in tool.name:
@@ -283,23 +283,23 @@ class TestMCPProtocol:
         assert server.db is not None
         assert server.sync_service is not None
         assert server.server is not None
-        
+
         # Server should have a name
         assert hasattr(server.server, 'name')
         assert server.server.name == 'fastintercom'
 
-    @pytest.mark.asyncio 
+    @pytest.mark.asyncio
     async def test_tool_schema_completeness(self, server):
         """Test that tool schemas are complete and valid."""
         tools = await server._list_tools()
-        
+
         for tool in tools:
             schema = tool.inputSchema
-            
+
             # Check for standard JSON Schema fields
             assert 'type' in schema
             assert 'properties' in schema
-            
+
             # Check property definitions are complete
             for prop_name, prop_def in schema['properties'].items():
                 assert 'type' in prop_def

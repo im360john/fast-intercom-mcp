@@ -1,12 +1,12 @@
 """Server startup and health check tests."""
 
-import pytest
 import asyncio
-from unittest.mock import Mock, AsyncMock, patch
-from pathlib import Path
+from unittest.mock import AsyncMock, Mock, patch
 
-from fast_intercom_mcp.mcp_server import FastIntercomMCPServer
+import pytest
+
 from fast_intercom_mcp.database import DatabaseManager
+from fast_intercom_mcp.mcp_server import FastIntercomMCPServer
 from fast_intercom_mcp.sync_service import SyncService
 
 
@@ -84,12 +84,12 @@ class TestServerHealth:
         """Test that tools are properly registered."""
         tools = await server._list_tools()
         assert isinstance(tools, list)
-        
+
         # Check that expected tools are present
         tool_names = [tool.name for tool in tools]
         expected_tools = [
             'search_conversations',
-            'get_conversation', 
+            'get_conversation',
             'get_server_status',
             'sync_conversations',
             'get_data_info',
@@ -97,7 +97,7 @@ class TestServerHealth:
             'get_sync_status',
             'force_sync'
         ]
-        
+
         for expected_tool in expected_tools:
             assert expected_tool in tool_names, f"Missing tool: {expected_tool}"
 
@@ -120,7 +120,7 @@ class TestServerHealth:
             mock_cursor.fetchone.return_value = None
             mock_conn.execute.return_value = mock_cursor
             mock_connect.return_value.__enter__.return_value = mock_conn
-            
+
             result = await server._call_tool('get_sync_status', {})
             assert isinstance(result, list)
             assert len(result) > 0
@@ -137,7 +137,7 @@ class TestServerHealth:
             mock_cursor.fetchone.return_value = None
             mock_conn.execute.return_value = mock_cursor
             mock_connect.return_value.__enter__.return_value = mock_conn
-            
+
             result = await server._call_tool('get_data_info', {})
             assert isinstance(result, list)
             assert len(result) > 0
@@ -169,7 +169,7 @@ class TestServerHealth:
         """Test that server handles exceptions in tool calls gracefully."""
         # Mock the sync_service to raise an exception
         server.sync_service.sync_if_needed.side_effect = Exception("Test error")
-        
+
         result = await server._call_tool('search_conversations', {
             'query': 'test'
         })
@@ -184,7 +184,7 @@ class TestServerHealth:
         # Test various timeframe formats
         test_cases = [
             "last 24 hours",
-            "today", 
+            "today",
             "last 7 days",
             "this week",
             "last 30 days",
@@ -192,7 +192,7 @@ class TestServerHealth:
             "last week",
             "yesterday"
         ]
-        
+
         for timeframe in test_cases:
             start_date, end_date = server._parse_timeframe(timeframe)
             if timeframe not in [None, ""]:
@@ -212,16 +212,16 @@ class TestServerHealth:
         """Test that periodic sync handles exceptions gracefully."""
         # Mock sync_service to raise an exception
         server.sync_service.sync_period = AsyncMock(side_effect=Exception("Sync error"))
-        
+
         # Start periodic sync task
         task = asyncio.create_task(server._periodic_sync())
-        
+
         # Let it run briefly
         await asyncio.sleep(0.1)
-        
+
         # Cancel the task
         task.cancel()
-        
+
         # Should not raise an exception
         try:
             await task
