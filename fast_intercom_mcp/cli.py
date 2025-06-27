@@ -10,7 +10,8 @@ from pathlib import Path
 
 import click
 
-from .config import Config, setup_logging
+from .config import Config
+from .core.config import setup_logging
 from .database import DatabaseManager
 from .http_server import FastIntercomHTTPServer
 from .intercom_client import IntercomClient
