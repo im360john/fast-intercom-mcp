@@ -28,9 +28,13 @@ class DatabaseManager:
 
         self.pool_size = pool_size
         if db_path is None:
-            # Default to user's home directory
-            home_dir = Path.home()
-            self.db_dir = home_dir / ".fastintercom"
+            # Default to config directory if set, otherwise user's home directory
+            config_dir = os.getenv("FASTINTERCOM_CONFIG_DIR")
+            if config_dir:
+                self.db_dir = Path(config_dir)
+            else:
+                home_dir = Path.home()
+                self.db_dir = home_dir / ".fastintercom"
             self.db_dir.mkdir(exist_ok=True)
             self.db_path = self.db_dir / "data.db"
         else:

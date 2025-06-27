@@ -355,6 +355,7 @@ class APIOptimizer:
         cache_key: str = None,
         cache_ttl: int = None,
         priority: str = "normal",
+        timeout: float = None,
     ) -> Any:
         """Make an optimized API request with caching, deduplication, etc.
 
@@ -405,6 +406,9 @@ class APIOptimizer:
                     request_kwargs["json"] = data
                 else:
                     request_kwargs["params"] = data
+            
+            if timeout is not None:
+                request_kwargs["timeout"] = timeout
 
             response = await client.request(**request_kwargs)
             response.raise_for_status()

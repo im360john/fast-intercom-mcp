@@ -40,7 +40,7 @@ log_success() {
 }
 
 log_warning() {
-    echo -e "${YELLOW}   $1${NC}"
+    echo -e "${YELLOW}ï¿½  $1${NC}"
 }
 
 log_error() {
@@ -198,12 +198,28 @@ setup_test_environment() {
     
     log_info "Test workspace: $TEST_WORKSPACE"
     
-    # Verify API token
+    # Verify API token - check env var first, then .env file
     if [[ -z "$INTERCOM_ACCESS_TOKEN" ]]; then
-        log_error "INTERCOM_ACCESS_TOKEN environment variable not set"
-        log_info "Please set your Intercom access token:"
-        log_info "export INTERCOM_ACCESS_TOKEN=your_token_here"
-        exit 5
+        # Try to load from .env file
+        if [[ -f ".env" ]]; then
+            export INTERCOM_ACCESS_TOKEN=$(grep "^INTERCOM_ACCESS_TOKEN=" .env | cut -d'=' -f2-)
+        elif [[ -f "../.env" ]]; then
+            export INTERCOM_ACCESS_TOKEN=$(grep "^INTERCOM_ACCESS_TOKEN=" ../.env | cut -d'=' -f2-)
+        elif [[ -f "../../.env" ]]; then
+            export INTERCOM_ACCESS_TOKEN=$(grep "^INTERCOM_ACCESS_TOKEN=" ../../.env | cut -d'=' -f2-)
+        elif [[ -f "../../fast-intercom-mcp/.env" ]]; then
+            export INTERCOM_ACCESS_TOKEN=$(grep "^INTERCOM_ACCESS_TOKEN=" ../../fast-intercom-mcp/.env | cut -d'=' -f2-)
+        fi
+        
+        if [[ -z "$INTERCOM_ACCESS_TOKEN" ]]; then
+            log_error "INTERCOM_ACCESS_TOKEN not found in environment or .env file"
+            log_info "Please set your Intercom access token:"
+            log_info "export INTERCOM_ACCESS_TOKEN=your_token_here"
+            log_info "or add it to .env file"
+            exit 5
+        else
+            log_info "Loaded token from .env file"
+        fi
     fi
     
     # Test API connectivity
@@ -266,8 +282,16 @@ except:
 test_database_initialization() {
     log_section "Testing Database Initialization"
     
-    # Initialize FastIntercom database
-    if fast-intercom-mcp init --force > /dev/null 2>&1; then
+    # Initialize FastIntercom database (answer 'n' to sync prompt)
+    local init_output
+    init_output=$(echo "n" | fast-intercom-mcp init --token "$INTERCOM_ACCESS_TOKEN" --sync-days 0 2>&1)
+    local init_result=$?
+    
+    if [[ $VERBOSE == true ]]; then
+        log_info "Init output: $init_output"
+    fi
+    
+    if [[ $init_result -eq 0 ]]; then
         log_success "Database initialized successfully"
         
         # Verify database file exists and has correct schema
