@@ -19,7 +19,9 @@ logger = logging.getLogger(__name__)
 class FastIntercomMCPServer:
     """MCP server for Intercom conversation access."""
 
-    def __init__(self, database_manager: DatabaseManager, sync_service: SyncService, intercom_client=None):
+    def __init__(
+        self, database_manager: DatabaseManager, sync_service: SyncService, intercom_client=None
+    ):
         self.db = database_manager
         self.sync_service = sync_service
         self.intercom_client = intercom_client
@@ -46,23 +48,23 @@ class FastIntercomMCPServer:
                         "properties": {
                             "query": {
                                 "type": "string",
-                                "description": "Text to search for in conversation messages"
+                                "description": "Text to search for in conversation messages",
                             },
                             "timeframe": {
                                 "type": "string",
-                                "description": "Time period like 'last 7 days', 'this month', 'last week'"
+                                "description": "Time period like 'last 7 days', 'this month', 'last week'",
                             },
                             "customer_email": {
                                 "type": "string",
-                                "description": "Filter by specific customer email address"
+                                "description": "Filter by specific customer email address",
                             },
                             "limit": {
                                 "type": "integer",
                                 "description": "Maximum number of conversations to return (default: 50)",
-                                "default": 50
-                            }
-                        }
-                    }
+                                "default": 50,
+                            },
+                        },
+                    },
                 ),
                 Tool(
                     name="get_conversation",
@@ -72,19 +74,16 @@ class FastIntercomMCPServer:
                         "properties": {
                             "conversation_id": {
                                 "type": "string",
-                                "description": "The Intercom conversation ID"
+                                "description": "The Intercom conversation ID",
                             }
                         },
-                        "required": ["conversation_id"]
-                    }
+                        "required": ["conversation_id"],
+                    },
                 ),
                 Tool(
                     name="get_server_status",
                     description="Get FastIntercom server status and statistics",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {}
-                    }
+                    inputSchema={"type": "object", "properties": {}},
                 ),
                 Tool(
                     name="sync_conversations",
@@ -95,19 +94,15 @@ class FastIntercomMCPServer:
                             "force": {
                                 "type": "boolean",
                                 "description": "Force full sync even if recent data exists",
-                                "default": False
+                                "default": False,
                             }
-                        }
-                    }
+                        },
+                    },
                 ),
                 Tool(
                     name="get_data_info",
                     description="Get information about cached data freshness and coverage",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {},
-                        "required": []
-                    }
+                    inputSchema={"type": "object", "properties": {}, "required": []},
                 ),
                 Tool(
                     name="check_coverage",
@@ -117,34 +112,26 @@ class FastIntercomMCPServer:
                         "properties": {
                             "start_date": {
                                 "type": "string",
-                                "description": "Start date in ISO format (YYYY-MM-DD or full ISO timestamp)"
+                                "description": "Start date in ISO format (YYYY-MM-DD or full ISO timestamp)",
                             },
                             "end_date": {
                                 "type": "string",
-                                "description": "End date in ISO format (YYYY-MM-DD or full ISO timestamp)"
-                            }
+                                "description": "End date in ISO format (YYYY-MM-DD or full ISO timestamp)",
+                            },
                         },
-                        "required": ["start_date", "end_date"]
-                    }
+                        "required": ["start_date", "end_date"],
+                    },
                 ),
                 Tool(
                     name="get_sync_status",
                     description="Check if a sync is currently in progress",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {},
-                        "required": []
-                    }
+                    inputSchema={"type": "object", "properties": {}, "required": []},
                 ),
                 Tool(
                     name="force_sync",
                     description="Force an immediate sync operation",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {},
-                        "required": []
-                    }
-                )
+                    inputSchema={"type": "object", "properties": {}, "required": []},
+                ),
             ]
 
         @self.server.call_tool()
@@ -167,16 +154,10 @@ class FastIntercomMCPServer:
                     return await self._get_sync_status_tool(arguments)
                 if name == "force_sync":
                     return await self._force_sync_tool(arguments)
-                return [TextContent(
-                    type="text",
-                    text=f"Unknown tool: {name}"
-                )]
+                return [TextContent(type="text", text=f"Unknown tool: {name}")]
             except Exception as e:
                 logger.error(f"Tool call error for {name}: {e}")
-                return [TextContent(
-                    type="text",
-                    text=f"Error executing {name}: {str(e)}"
-                )]
+                return [TextContent(type="text", text=f"Error executing {name}: {str(e)}")]
 
     async def _get_data_info(self, args: dict[str, Any]) -> list[TextContent]:
         """Get information about cached data freshness and coverage."""
@@ -203,12 +184,9 @@ class FastIntercomMCPServer:
                 """).fetchone()
 
                 if not result:
-                    response = {
-                        "has_data": False,
-                        "message": "No successful sync found"
-                    }
+                    response = {"has_data": False, "message": "No successful sync found"}
                 else:
-                    last_sync = datetime.fromisoformat(result['sync_completed_at'])
+                    last_sync = datetime.fromisoformat(result["sync_completed_at"])
                     data_age_minutes = int((datetime.now() - last_sync).total_seconds() / 60)
 
                     # Get database size
@@ -219,22 +197,19 @@ class FastIntercomMCPServer:
                         "has_data": True,
                         "last_sync": last_sync.isoformat(),
                         "data_age_minutes": data_age_minutes,
-                        "coverage_start": result['coverage_start_date'],
-                        "coverage_end": result['coverage_end_date'],
-                        "total_conversations": result['total_conversations'],
-                        "total_messages": result['total_messages'],
-                        "sync_type": result['sync_type'],
-                        "database_size_mb": db_size_mb
+                        "coverage_start": result["coverage_start_date"],
+                        "coverage_end": result["coverage_end_date"],
+                        "total_conversations": result["total_conversations"],
+                        "total_messages": result["total_messages"],
+                        "sync_type": result["sync_type"],
+                        "database_size_mb": db_size_mb,
                     }
 
                 return [TextContent(type="text", text=json.dumps(response, indent=2))]
 
         except Exception as e:
             logger.error(f"Error getting data info: {e}")
-            response = {
-                "has_data": False,
-                "error": str(e)
-            }
+            response = {"has_data": False, "error": str(e)}
             return [TextContent(type="text", text=json.dumps(response, indent=2))]
 
     async def _check_coverage(self, args: dict[str, Any]) -> list[TextContent]:
@@ -246,7 +221,7 @@ class FastIntercomMCPServer:
             if not start_date_str or not end_date_str:
                 response = {
                     "has_coverage": False,
-                    "error": "Both start_date and end_date are required"
+                    "error": "Both start_date and end_date are required",
                 }
                 return [TextContent(type="text", text=json.dumps(response, indent=2))]
 
@@ -254,6 +229,7 @@ class FastIntercomMCPServer:
             query_end = datetime.fromisoformat(end_date_str).date()
 
             import sqlite3
+
             with sqlite3.connect(self.db.db_path) as conn:
                 conn.row_factory = sqlite3.Row
 
@@ -273,15 +249,20 @@ class FastIntercomMCPServer:
                     response = {
                         "has_coverage": False,
                         "reason": "No data available",
-                        "coverage_gaps": [(start_date_str, end_date_str)]
+                        "coverage_gaps": [(start_date_str, end_date_str)],
                     }
                 else:
-                    coverage_start = datetime.fromisoformat(result['coverage_start_date']).date()
-                    coverage_end = datetime.fromisoformat(result['coverage_end_date']).date()
-                    data_age_minutes = int((datetime.now() - datetime.fromisoformat(result['sync_completed_at'])).total_seconds() / 60)
+                    coverage_start = datetime.fromisoformat(result["coverage_start_date"]).date()
+                    coverage_end = datetime.fromisoformat(result["coverage_end_date"]).date()
+                    data_age_minutes = int(
+                        (
+                            datetime.now() - datetime.fromisoformat(result["sync_completed_at"])
+                        ).total_seconds()
+                        / 60
+                    )
 
                     # Check if query range is within coverage
-                    has_full_coverage = (query_start >= coverage_start and query_end <= coverage_end)
+                    has_full_coverage = query_start >= coverage_start and query_end <= coverage_end
 
                     # Calculate gaps if any
                     coverage_gaps = []
@@ -292,30 +273,32 @@ class FastIntercomMCPServer:
 
                     response = {
                         "has_coverage": has_full_coverage,
-                        "partial_coverage": len(coverage_gaps) > 0 and query_start <= coverage_end and query_end >= coverage_start,
+                        "partial_coverage": len(coverage_gaps) > 0
+                        and query_start <= coverage_end
+                        and query_end >= coverage_start,
                         "coverage_gaps": coverage_gaps,
                         "cached_range": {
                             "start": coverage_start.isoformat(),
-                            "end": coverage_end.isoformat()
+                            "end": coverage_end.isoformat(),
                         },
                         "data_age_minutes": data_age_minutes,
-                        "reason": "Full coverage" if has_full_coverage else f"Missing data for {len(coverage_gaps)} date ranges"
+                        "reason": "Full coverage"
+                        if has_full_coverage
+                        else f"Missing data for {len(coverage_gaps)} date ranges",
                     }
 
                 return [TextContent(type="text", text=json.dumps(response, indent=2))]
 
         except Exception as e:
             logger.error(f"Error checking coverage: {e}")
-            response = {
-                "has_coverage": False,
-                "error": str(e)
-            }
+            response = {"has_coverage": False, "error": str(e)}
             return [TextContent(type="text", text=json.dumps(response, indent=2))]
 
     async def _get_sync_status_tool(self, args: dict[str, Any]) -> list[TextContent]:
         """Check if a sync is currently in progress."""
         try:
             import sqlite3
+
             with sqlite3.connect(self.db.db_path) as conn:
                 conn.row_factory = sqlite3.Row
 
@@ -329,28 +312,28 @@ class FastIntercomMCPServer:
                 """).fetchone()
 
                 if in_progress:
-                    duration_minutes = int((datetime.now() - datetime.fromisoformat(in_progress['sync_started_at'])).total_seconds() / 60)
+                    duration_minutes = int(
+                        (
+                            datetime.now() - datetime.fromisoformat(in_progress["sync_started_at"])
+                        ).total_seconds()
+                        / 60
+                    )
                     response = {
                         "is_syncing": True,
-                        "sync_started_at": in_progress['sync_started_at'],
+                        "sync_started_at": in_progress["sync_started_at"],
                         "duration_minutes": duration_minutes,
                         "coverage_dates": {
-                            "start": in_progress['coverage_start_date'],
-                            "end": in_progress['coverage_end_date']
-                        }
+                            "start": in_progress["coverage_start_date"],
+                            "end": in_progress["coverage_end_date"],
+                        },
                     }
                 else:
-                    response = {
-                        "is_syncing": False
-                    }
+                    response = {"is_syncing": False}
 
                 return [TextContent(type="text", text=json.dumps(response, indent=2))]
 
         except Exception as e:
-            response = {
-                "is_syncing": False,
-                "error": str(e)
-            }
+            response = {"is_syncing": False, "error": str(e)}
             return [TextContent(type="text", text=json.dumps(response, indent=2))]
 
     async def _force_sync_tool(self, args: dict[str, Any]) -> list[TextContent]:
@@ -360,19 +343,13 @@ class FastIntercomMCPServer:
                 success = await self.background_sync.force_sync()
                 response = {
                     "success": success,
-                    "message": "Sync completed successfully" if success else "Sync failed"
+                    "message": "Sync completed successfully" if success else "Sync failed",
                 }
             else:
-                response = {
-                    "success": False,
-                    "error": "Background sync service not available"
-                }
+                response = {"success": False, "error": "Background sync service not available"}
             return [TextContent(type="text", text=json.dumps(response, indent=2))]
         except Exception as e:
-            response = {
-                "success": False,
-                "error": str(e)
-            }
+            response = {"success": False, "error": str(e)}
             return [TextContent(type="text", text=json.dumps(response, indent=2))]
 
     async def _search_conversations(self, args: dict[str, Any]) -> list[TextContent]:
@@ -395,7 +372,7 @@ class FastIntercomMCPServer:
             sync_info = {
                 "sync_state": "error",
                 "message": f"Sync failed: {str(e)}",
-                "data_complete": False
+                "data_complete": False,
             }
 
         # Record this request pattern for future optimization
@@ -407,7 +384,7 @@ class FastIntercomMCPServer:
             start_date or datetime.now() - timedelta(hours=1),
             end_date or datetime.now(),
             data_freshness_seconds,
-            sync_info.get("sync_state") == "fresh" if sync_info else False
+            sync_info.get("sync_state") == "fresh" if sync_info else False,
         )
 
         # Search conversations
@@ -416,14 +393,11 @@ class FastIntercomMCPServer:
             start_date=start_date,
             end_date=end_date,
             customer_email=customer_email,
-            limit=limit
+            limit=limit,
         )
 
         if not conversations:
-            return [TextContent(
-                type="text",
-                text="No conversations found matching the criteria."
-            )]
+            return [TextContent(type="text", text="No conversations found matching the criteria.")]
 
         # Format results
         result_text = f"Found {len(conversations)} conversations:\n\n"
@@ -482,10 +456,7 @@ class FastIntercomMCPServer:
         conversation_id = args.get("conversation_id")
 
         if not conversation_id:
-            return [TextContent(
-                type="text",
-                text="Error: conversation_id is required"
-            )]
+            return [TextContent(type="text", text="Error: conversation_id is required")]
 
         # Search for the specific conversation
         conversations = self.db.search_conversations(limit=1)
@@ -497,16 +468,19 @@ class FastIntercomMCPServer:
                 break
 
         if not conversation:
-            return [TextContent(
-                type="text",
-                text=f"Conversation {conversation_id} not found in local database."
-            )]
+            return [
+                TextContent(
+                    type="text", text=f"Conversation {conversation_id} not found in local database."
+                )
+            ]
 
         # Format full conversation
         result_text = f"# Conversation {conversation.id}\n\n"
         result_text += f"**Customer:** {conversation.customer_email or 'Unknown'}\n"
         result_text += f"**Created:** {conversation.created_at.strftime('%Y-%m-%d %H:%M UTC')}\n"
-        result_text += f"**Last Updated:** {conversation.updated_at.strftime('%Y-%m-%d %H:%M UTC')}\n"
+        result_text += (
+            f"**Last Updated:** {conversation.updated_at.strftime('%Y-%m-%d %H:%M UTC')}\n"
+        )
 
         if conversation.tags:
             result_text += f"**Tags:** {', '.join(conversation.tags)}\n"
@@ -519,7 +493,7 @@ class FastIntercomMCPServer:
 
         for i, message in enumerate(conversation.messages, 1):
             author = "👤 Customer" if message.author_type == "user" else "🎧 Support"
-            timestamp = message.created_at.strftime('%m/%d %H:%M')
+            timestamp = message.created_at.strftime("%m/%d %H:%M")
 
             result_text += f"### {i}. {author} ({timestamp})\n\n"
             result_text += f"{message.body}\n\n"
@@ -536,25 +510,27 @@ class FastIntercomMCPServer:
         result_text += f"💬 **Conversations:** {status['total_conversations']:,}\n"
         result_text += f"✉️ **Messages:** {status['total_messages']:,}\n"
 
-        if status['last_sync']:
-            last_sync = datetime.fromisoformat(status['last_sync'])
+        if status["last_sync"]:
+            last_sync = datetime.fromisoformat(status["last_sync"])
             minutes_ago = int((datetime.now() - last_sync).total_seconds() / 60)
             result_text += f"🕒 **Last Sync:** {minutes_ago} minutes ago\n"
         else:
             result_text += "🕒 **Last Sync:** Never\n"
 
-        result_text += f"🔄 **Background Sync:** {'Active' if sync_status['active'] else 'Inactive'}\n"
+        result_text += (
+            f"🔄 **Background Sync:** {'Active' if sync_status['active'] else 'Inactive'}\n"
+        )
 
-        if sync_status.get('current_operation'):
+        if sync_status.get("current_operation"):
             result_text += f"⚡ **Current Operation:** {sync_status['current_operation']}\n"
 
         result_text += f"\n📁 **Database:** `{status['database_path']}`\n"
 
         # Recent sync activity
-        if status['recent_syncs']:
+        if status["recent_syncs"]:
             result_text += "\n## Recent Sync Activity\n\n"
-            for sync in status['recent_syncs'][:3]:
-                sync_time = datetime.fromisoformat(sync['last_synced'])
+            for sync in status["recent_syncs"][:3]:
+                sync_time = datetime.fromisoformat(sync["last_synced"])
                 result_text += f"- {sync_time.strftime('%m/%d %H:%M')}: "
                 result_text += f"{sync['conversation_count']} conversations "
                 result_text += f"({sync.get('new_conversations', 0)} new)\n"
@@ -649,7 +625,7 @@ class FastIntercomMCPServer:
     async def _get_app_id(self) -> str | None:
         """Get Intercom app ID for URL generation."""
         # This would normally come from the sync service or be cached
-        return getattr(self.sync_service, 'app_id', None)
+        return getattr(self.sync_service, "app_id", None)
 
     async def start_background_sync(self):
         """Start the background sync service."""
@@ -819,9 +795,7 @@ class FastIntercomMCPServer:
             async with stdio_server() as (read_stream, write_stream):
                 logger.info("MCP server listening for requests...")
                 await self.server.run(
-                    read_stream,
-                    write_stream,
-                    self.server.create_initialization_options()
+                    read_stream, write_stream, self.server.create_initialization_options()
                 )
         except KeyboardInterrupt:
             logger.info("MCP server shutdown requested")
@@ -844,6 +818,7 @@ class FastIntercomMCPServer:
                 # Perform a simple recent sync
                 if self.intercom_client:
                     from datetime import datetime, timedelta
+
                     end_date = datetime.now()
                     start_date = end_date - timedelta(hours=1)  # Just sync last hour
 

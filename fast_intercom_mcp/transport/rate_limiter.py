@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 class BackoffStrategy(Enum):
     """Backoff strategy types."""
+
     LINEAR = "linear"
     EXPONENTIAL = "exponential"
     FIBONACCI = "fibonacci"
@@ -24,6 +25,7 @@ class BackoffStrategy(Enum):
 @dataclass
 class RateLimitConfig:
     """Configuration for rate limiting."""
+
     max_requests_per_window: int = 80  # Conservative limit for Intercom
     window_seconds: int = 10
     burst_limit: int = 20  # Allow bursts up to this many requests
@@ -39,6 +41,7 @@ class RateLimitConfig:
 @dataclass
 class RateLimitMetrics:
     """Metrics for rate limiting performance."""
+
     total_requests: int = 0
     requests_delayed: int = 0
     total_delay_seconds: float = 0.0
@@ -145,8 +148,10 @@ class AdaptiveRateLimiter:
             # Increase backoff
             self._increase_backoff(retry_after_seconds)
 
-            logger.warning(f"Rate limit hit (#{self._consecutive_rate_limits}), "
-                         f"backing off to {self._current_backoff_seconds:.2f}s")
+            logger.warning(
+                f"Rate limit hit (#{self._consecutive_rate_limits}), "
+                f"backing off to {self._current_backoff_seconds:.2f}s"
+            )
 
     def report_successful_request(self, response_time_seconds: float = 0.0):
         """Report a successful request to help with adaptive learning.
@@ -170,7 +175,8 @@ class AdaptiveRateLimiter:
                 # Keep only recent intervals
                 cutoff_time = now - 600  # 10 minutes
                 self._successful_request_intervals = [
-                    interval for i, interval in enumerate(self._successful_request_intervals)
+                    interval
+                    for i, interval in enumerate(self._successful_request_intervals)
                     if now - (i * interval) > cutoff_time
                 ]
 
@@ -207,16 +213,19 @@ class AdaptiveRateLimiter:
                 return base_delay + self._add_jitter(base_delay * 0.1)
 
         # Check if we're in backoff period
-        if (self._consecutive_rate_limits > 0 and self._last_rate_limit_time and
-            now - self._last_rate_limit_time < self._current_backoff_seconds):
+        if (
+            self._consecutive_rate_limits > 0
+            and self._last_rate_limit_time
+            and now - self._last_rate_limit_time < self._current_backoff_seconds
+        ):
             remaining_backoff = self._current_backoff_seconds - (now - self._last_rate_limit_time)
             return max(0, remaining_backoff)
 
         # Priority-based minimum intervals
         min_intervals = {
-            "high": 0.05,    # 20 req/sec max for high priority
-            "normal": 0.1,   # 10 req/sec max for normal
-            "low": 0.2       # 5 req/sec max for low priority
+            "high": 0.05,  # 20 req/sec max for high priority
+            "normal": 0.1,  # 10 req/sec max for normal
+            "low": 0.2,  # 5 req/sec max for low priority
         }
 
         min_interval = min_intervals.get(priority, 0.1)
@@ -231,25 +240,27 @@ class AdaptiveRateLimiter:
         """Increase backoff delay using configured strategy."""
         if server_suggested_delay:
             # Use server suggestion if available
-            self._current_backoff_seconds = min(server_suggested_delay, self.config.max_backoff_seconds)
+            self._current_backoff_seconds = min(
+                server_suggested_delay, self.config.max_backoff_seconds
+            )
         else:
             # Apply backoff strategy
             if self.config.backoff_strategy == BackoffStrategy.LINEAR:
                 self._current_backoff_seconds = min(
                     self._current_backoff_seconds + self.config.min_backoff_seconds,
-                    self.config.max_backoff_seconds
+                    self.config.max_backoff_seconds,
                 )
             elif self.config.backoff_strategy == BackoffStrategy.EXPONENTIAL:
                 self._current_backoff_seconds = min(
                     self._current_backoff_seconds * self.config.backoff_multiplier,
-                    self.config.max_backoff_seconds
+                    self.config.max_backoff_seconds,
                 )
             elif self.config.backoff_strategy == BackoffStrategy.FIBONACCI:
                 # Simplified Fibonacci-like progression
                 prev_backoff = self._current_backoff_seconds
                 self._current_backoff_seconds = min(
                     prev_backoff + (prev_backoff * 0.618),  # Golden ratio approximation
-                    self.config.max_backoff_seconds
+                    self.config.max_backoff_seconds,
                 )
 
         self.metrics.backoff_events += 1
@@ -260,12 +271,15 @@ class AdaptiveRateLimiter:
             return 0.0
 
         import random
+
         return random.uniform(0, base_delay)
 
     def _should_adapt(self) -> bool:
         """Check if we should perform adaptive adjustment."""
-        return (self.config.adaptive_enabled and
-                time.time() - self._last_adaptive_adjustment > self._adaptive_adjustment_interval)
+        return (
+            self.config.adaptive_enabled
+            and time.time() - self._last_adaptive_adjustment > self._adaptive_adjustment_interval
+        )
 
     def _adapt_rate_limits(self):
         """Adapt rate limits based on observed performance."""
@@ -273,7 +287,9 @@ class AdaptiveRateLimiter:
 
         # Analyze successful request intervals
         if len(self._successful_request_intervals) >= 10:
-            avg_interval = sum(self._successful_request_intervals) / len(self._successful_request_intervals)
+            avg_interval = sum(self._successful_request_intervals) / len(
+                self._successful_request_intervals
+            )
 
             # If we're consistently able to make requests faster than our limit,
             # we might be able to increase the rate
@@ -284,18 +300,22 @@ class AdaptiveRateLimiter:
                 # Increase rate limit cautiously
                 new_max = min(
                     self.config.max_requests_per_window + 5,
-                    100  # Never exceed 100 requests per window
+                    100,  # Never exceed 100 requests per window
                 )
-                logger.info(f"Adaptive rate limit increase: {self.config.max_requests_per_window} -> {new_max}")
+                logger.info(
+                    f"Adaptive rate limit increase: {self.config.max_requests_per_window} -> {new_max}"
+                )
                 self.config.max_requests_per_window = new_max
 
             elif self._consecutive_rate_limits > 3:
                 # Decrease rate limit if we're hitting limits frequently
                 new_max = max(
                     self.config.max_requests_per_window - 5,
-                    20  # Never go below 20 requests per window
+                    20,  # Never go below 20 requests per window
                 )
-                logger.info(f"Adaptive rate limit decrease: {self.config.max_requests_per_window} -> {new_max}")
+                logger.info(
+                    f"Adaptive rate limit decrease: {self.config.max_requests_per_window} -> {new_max}"
+                )
                 self.config.max_requests_per_window = new_max
 
         self._last_adaptive_adjustment = now
@@ -312,7 +332,7 @@ class AdaptiveRateLimiter:
         if len(self._request_times) >= 2:
             intervals = []
             for i in range(1, len(self._request_times)):
-                intervals.append(self._request_times[i] - self._request_times[i-1])
+                intervals.append(self._request_times[i] - self._request_times[i - 1])
             self.metrics.avg_request_interval = sum(intervals) / len(intervals)
 
     def get_stats(self) -> dict[str, Any]:
@@ -331,28 +351,28 @@ class AdaptiveRateLimiter:
                 avg_delay = self.metrics.total_delay_seconds / self.metrics.requests_delayed
 
             return {
-                'config': {
-                    'max_requests_per_window': self.config.max_requests_per_window,
-                    'window_seconds': self.config.window_seconds,
-                    'burst_limit': self.config.burst_limit,
-                    'backoff_strategy': self.config.backoff_strategy.value
+                "config": {
+                    "max_requests_per_window": self.config.max_requests_per_window,
+                    "window_seconds": self.config.window_seconds,
+                    "burst_limit": self.config.burst_limit,
+                    "backoff_strategy": self.config.backoff_strategy.value,
                 },
-                'current_state': {
-                    'requests_in_window': len(self._request_times),
-                    'requests_in_burst_window': len(self._burst_request_times),
-                    'consecutive_rate_limits': self._consecutive_rate_limits,
-                    'current_backoff_seconds': self._current_backoff_seconds,
-                    'current_rate_per_second': round(self.metrics.current_rate_per_second, 2)
+                "current_state": {
+                    "requests_in_window": len(self._request_times),
+                    "requests_in_burst_window": len(self._burst_request_times),
+                    "consecutive_rate_limits": self._consecutive_rate_limits,
+                    "current_backoff_seconds": self._current_backoff_seconds,
+                    "current_rate_per_second": round(self.metrics.current_rate_per_second, 2),
                 },
-                'performance': {
-                    'total_requests': self.metrics.total_requests,
-                    'requests_delayed': self.metrics.requests_delayed,
-                    'efficiency_percentage': round(efficiency * 100, 1),
-                    'avg_delay_seconds': round(avg_delay, 3),
-                    'rate_limit_hits': self.metrics.rate_limit_hits,
-                    'backoff_events': self.metrics.backoff_events
+                "performance": {
+                    "total_requests": self.metrics.total_requests,
+                    "requests_delayed": self.metrics.requests_delayed,
+                    "efficiency_percentage": round(efficiency * 100, 1),
+                    "avg_delay_seconds": round(avg_delay, 3),
+                    "rate_limit_hits": self.metrics.rate_limit_hits,
+                    "backoff_events": self.metrics.backoff_events,
                 },
-                'recommendations': self._generate_recommendations()
+                "recommendations": self._generate_recommendations(),
             }
 
     def _generate_recommendations(self) -> list[str]:

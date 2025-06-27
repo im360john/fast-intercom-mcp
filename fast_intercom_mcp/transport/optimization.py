@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class CacheEntry:
     """Cache entry with expiration and metadata."""
+
     data: Any
     expires_at: datetime
     created_at: datetime
@@ -31,6 +32,7 @@ class CacheEntry:
 @dataclass
 class OptimizationConfig:
     """Configuration for API optimization features."""
+
     # Connection pooling
     max_connections: int = 10
     max_keepalive_connections: int = 5
@@ -48,7 +50,7 @@ class OptimizationConfig:
     cache_enabled: bool = True
     cache_max_size_mb: int = 50
     cache_default_ttl_seconds: int = 300  # 5 minutes
-    cache_max_age_seconds: int = 3600     # 1 hour
+    cache_max_age_seconds: int = 3600  # 1 hour
 
     # Request optimization
     compression_enabled: bool = True
@@ -63,13 +65,14 @@ class OptimizationConfig:
 @dataclass
 class PerformanceMetrics:
     """Performance metrics for optimization tracking."""
+
     total_requests: int = 0
     cached_responses: int = 0
     batched_requests: int = 0
     deduplicated_requests: int = 0
     total_response_time_seconds: float = 0.0
     slowest_request_seconds: float = 0.0
-    fastest_request_seconds: float = float('inf')
+    fastest_request_seconds: float = float("inf")
     avg_response_time_seconds: float = 0.0
     cache_hit_ratio: float = 0.0
     batch_efficiency: float = 0.0
@@ -121,14 +124,16 @@ class APICache:
         # Estimate size
         try:
             data_json = json.dumps(data, default=str)
-            size_bytes = len(data_json.encode('utf-8'))
+            size_bytes = len(data_json.encode("utf-8"))
         except Exception:
             size_bytes = 1024  # Fallback estimate
 
         with self._lock:
             # Check if we need to make space
-            while (self._current_size_bytes + size_bytes > self._max_size_bytes and
-                   len(self._cache) > 0):
+            while (
+                self._current_size_bytes + size_bytes > self._max_size_bytes
+                and len(self._cache) > 0
+            ):
                 self._evict_lru()
 
             # Add/update entry
@@ -137,10 +142,7 @@ class APICache:
                 self._current_size_bytes -= old_entry.size_bytes
 
             entry = CacheEntry(
-                data=data,
-                expires_at=expires_at,
-                created_at=datetime.now(),
-                size_bytes=size_bytes
+                data=data, expires_at=expires_at, created_at=datetime.now(), size_bytes=size_bytes
             )
 
             self._cache[key] = entry
@@ -178,12 +180,16 @@ class APICache:
             total_entries = len(self._cache)
 
             return {
-                'entries_count': total_entries,
-                'size_bytes': self._current_size_bytes,
-                'size_mb': round(self._current_size_bytes / (1024 * 1024), 2),
-                'utilization_percentage': round((self._current_size_bytes / self._max_size_bytes) * 100, 1),
-                'total_hits': total_hits,
-                'avg_hits_per_entry': round(total_hits / total_entries, 1) if total_entries > 0 else 0
+                "entries_count": total_entries,
+                "size_bytes": self._current_size_bytes,
+                "size_mb": round(self._current_size_bytes / (1024 * 1024), 2),
+                "utilization_percentage": round(
+                    (self._current_size_bytes / self._max_size_bytes) * 100, 1
+                ),
+                "total_hits": total_hits,
+                "avg_hits_per_entry": round(total_hits / total_entries, 1)
+                if total_entries > 0
+                else 0,
             }
 
 
@@ -196,8 +202,9 @@ class RequestBatcher:
         self._batch_timers: dict[str, asyncio.Task] = {}
         self._lock = asyncio.Lock()
 
-    async def add_request(self, batch_key: str, request_data: Any,
-                         callback: Callable[[list], Any]) -> Any:
+    async def add_request(
+        self, batch_key: str, request_data: Any, callback: Callable[[list], Any]
+    ) -> Any:
         """Add request to batch and return result when batch executes."""
         if not self.config.batch_enabled:
             # Execute immediately if batching disabled
@@ -221,6 +228,7 @@ class RequestBatcher:
 
     def _schedule_batch_execution(self, batch_key: str, callback: Callable):
         """Schedule batch execution after timeout."""
+
         async def execute_after_timeout():
             await asyncio.sleep(self.config.batch_timeout_seconds)
             async with self._lock:
@@ -288,7 +296,7 @@ class ConnectionPool:
         limits = httpx.Limits(
             max_connections=self.config.max_connections,
             max_keepalive_connections=self.config.max_keepalive_connections,
-            keepalive_expiry=self.config.keepalive_expiry
+            keepalive_expiry=self.config.keepalive_expiry,
         )
 
         # Timeouts
@@ -296,7 +304,7 @@ class ConnectionPool:
             connect=self.config.connection_timeout,
             read=self.config.read_timeout,
             write=10.0,
-            pool=5.0
+            pool=5.0,
         )
 
         # Create client
@@ -304,7 +312,7 @@ class ConnectionPool:
             limits=limits,
             timeout=timeout,
             http2=True,  # Enable HTTP/2 for better performance
-            verify=True
+            verify=True,
         )
 
         logger.info("Created optimized HTTP client with connection pooling")
@@ -338,9 +346,16 @@ class APIOptimizer:
         self._request_times: list[float] = []
         self._metrics_lock = threading.Lock()
 
-    async def make_request(self, method: str, url: str, headers: dict[str, str] = None,
-                          data: Any = None, cache_key: str = None,
-                          cache_ttl: int = None, priority: str = "normal") -> Any:
+    async def make_request(
+        self,
+        method: str,
+        url: str,
+        headers: dict[str, str] = None,
+        data: Any = None,
+        cache_key: str = None,
+        cache_ttl: int = None,
+        priority: str = "normal",
+    ) -> Any:
         """Make an optimized API request with caching, deduplication, etc.
 
         Args:
@@ -358,7 +373,7 @@ class APIOptimizer:
         start_time = time.time()
 
         # Check cache first
-        if cache_key and method.upper() == 'GET':
+        if cache_key and method.upper() == "GET":
             cached_result = self.cache.get(cache_key)
             if cached_result is not None:
                 self._update_metrics(start_time, cached=True)
@@ -366,7 +381,7 @@ class APIOptimizer:
                 return cached_result
 
         # Request deduplication
-        if self.config.request_deduplication and method.upper() == 'GET':
+        if self.config.request_deduplication and method.upper() == "GET":
             dedup_key = self._create_dedup_key(method, url, headers, data)
 
             async with self._dedup_lock:
@@ -383,17 +398,13 @@ class APIOptimizer:
             # Make the actual request
             client = await self.connection_pool.get_client()
 
-            request_kwargs = {
-                'method': method,
-                'url': url,
-                'headers': headers or {}
-            }
+            request_kwargs = {"method": method, "url": url, "headers": headers or {}}
 
             if data is not None:
-                if method.upper() in ['POST', 'PUT', 'PATCH']:
-                    request_kwargs['json'] = data
+                if method.upper() in ["POST", "PUT", "PATCH"]:
+                    request_kwargs["json"] = data
                 else:
-                    request_kwargs['params'] = data
+                    request_kwargs["params"] = data
 
             response = await client.request(**request_kwargs)
             response.raise_for_status()
@@ -401,14 +412,14 @@ class APIOptimizer:
             result = response.json()
 
             # Cache the result if requested
-            if cache_key and method.upper() == 'GET':
+            if cache_key and method.upper() == "GET":
                 self.cache.put(cache_key, result, cache_ttl)
 
             # Update metrics
             self._update_metrics(start_time, cached=False)
 
             # Complete deduplication future
-            if self.config.request_deduplication and method.upper() == 'GET':
+            if self.config.request_deduplication and method.upper() == "GET":
                 async with self._dedup_lock:
                     if dedup_key in self._in_flight_requests:
                         future = self._in_flight_requests.pop(dedup_key)
@@ -419,7 +430,7 @@ class APIOptimizer:
 
         except Exception as e:
             # Handle deduplication future on error
-            if self.config.request_deduplication and method.upper() == 'GET':
+            if self.config.request_deduplication and method.upper() == "GET":
                 async with self._dedup_lock:
                     if dedup_key in self._in_flight_requests:
                         future = self._in_flight_requests.pop(dedup_key)
@@ -427,22 +438,26 @@ class APIOptimizer:
                             future.set_exception(e)
             raise
 
-    def _create_dedup_key(self, method: str, url: str,
-                         headers: dict[str, str] = None, data: Any = None) -> str:
+    def _create_dedup_key(
+        self, method: str, url: str, headers: dict[str, str] = None, data: Any = None
+    ) -> str:
         """Create a key for request deduplication."""
         key_parts = [method.upper(), url]
 
         if headers:
             # Include relevant headers (excluding auth tokens, timestamps, etc.)
-            relevant_headers = {k: v for k, v in headers.items()
-                              if k.lower() not in ['authorization', 'user-agent', 'x-request-id']}
+            relevant_headers = {
+                k: v
+                for k, v in headers.items()
+                if k.lower() not in ["authorization", "user-agent", "x-request-id"]
+            }
             if relevant_headers:
                 key_parts.append(json.dumps(relevant_headers, sort_keys=True))
 
         if data:
             key_parts.append(json.dumps(data, sort_keys=True, default=str))
 
-        key_string = '|'.join(key_parts)
+        key_string = "|".join(key_parts)
         return hashlib.md5(key_string.encode()).hexdigest()
 
     def _update_metrics(self, start_time: float, cached: bool = False):
@@ -471,8 +486,10 @@ class APIOptimizer:
                 )
 
             self.metrics.cache_hit_ratio = (
-                self.metrics.cached_responses / self.metrics.total_requests
-            ) if self.metrics.total_requests > 0 else 0.0
+                (self.metrics.cached_responses / self.metrics.total_requests)
+                if self.metrics.total_requests > 0
+                else 0.0
+            )
 
             self.metrics.last_updated = datetime.now()
 
@@ -481,26 +498,28 @@ class APIOptimizer:
         cache_stats = self.cache.get_stats()
 
         return {
-            'requests': {
-                'total': self.metrics.total_requests,
-                'cached': self.metrics.cached_responses,
-                'batched': self.metrics.batched_requests,
-                'deduplicated': self.metrics.deduplicated_requests
+            "requests": {
+                "total": self.metrics.total_requests,
+                "cached": self.metrics.cached_responses,
+                "batched": self.metrics.batched_requests,
+                "deduplicated": self.metrics.deduplicated_requests,
             },
-            'performance': {
-                'avg_response_time_seconds': round(self.metrics.avg_response_time_seconds, 3),
-                'fastest_request_seconds': round(self.metrics.fastest_request_seconds, 3) if self.metrics.fastest_request_seconds != float('inf') else 0,
-                'slowest_request_seconds': round(self.metrics.slowest_request_seconds, 3),
-                'cache_hit_ratio': round(self.metrics.cache_hit_ratio, 3)
+            "performance": {
+                "avg_response_time_seconds": round(self.metrics.avg_response_time_seconds, 3),
+                "fastest_request_seconds": round(self.metrics.fastest_request_seconds, 3)
+                if self.metrics.fastest_request_seconds != float("inf")
+                else 0,
+                "slowest_request_seconds": round(self.metrics.slowest_request_seconds, 3),
+                "cache_hit_ratio": round(self.metrics.cache_hit_ratio, 3),
             },
-            'cache': cache_stats,
-            'optimizations': {
-                'connection_pooling': self.config.persistent_connections,
-                'request_batching': self.config.batch_enabled,
-                'request_deduplication': self.config.request_deduplication,
-                'compression': self.config.compression_enabled
+            "cache": cache_stats,
+            "optimizations": {
+                "connection_pooling": self.config.persistent_connections,
+                "request_batching": self.config.batch_enabled,
+                "request_deduplication": self.config.request_deduplication,
+                "compression": self.config.compression_enabled,
             },
-            'recommendations': self._generate_performance_recommendations()
+            "recommendations": self._generate_performance_recommendations(),
         }
 
     def _generate_performance_recommendations(self) -> list[str]:
@@ -517,7 +536,7 @@ class APIOptimizer:
             recommendations.append("High request deduplication - consider request optimization")
 
         cache_stats = self.cache.get_stats()
-        if cache_stats['utilization_percentage'] > 90:
+        if cache_stats["utilization_percentage"] > 90:
             recommendations.append("Cache near capacity - consider increasing cache size")
 
         return recommendations

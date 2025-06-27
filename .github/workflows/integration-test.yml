@@ -1,0 +1,335 @@
+name: Integration Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      sync_days:
+        description: 'Days of history to sync (default: 30)'
+        required: false
+        default: '30'
+        type: string
+      run_full_test:
+        description: 'Run full integration test with all verifications'
+        required: false
+        default: true
+        type: boolean
+  schedule:
+    # Weekly run on Monday at 6AM UTC
+    - cron: '0 6 * * 1'
+  push:
+    tags:
+      - 'v*'  # Pre-release trigger for version tags
+
+env:
+  PYTHONPATH: ${{ github.workspace }}
+  FORCE_COLOR: 1
+
+jobs:
+  integration-test:
+    name: Real API Integration Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for better context
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y sqlite3
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install pytest pytest-asyncio pytest-cov
+
+      - name: Verify package installation
+        run: |
+          python -c "import fast_intercom_mcp; print(f'✅ Package imported successfully: {fast_intercom_mcp.__version__ if hasattr(fast_intercom_mcp, \"__version__\") else \"dev\"}')"
+          python -m fast_intercom_mcp --help
+
+      - name: Create test environment
+        run: |
+          mkdir -p integration_test_data
+          cd integration_test_data
+          
+          # Create minimal .env file for testing
+          cat > .env << EOF
+          INTERCOM_ACCESS_TOKEN=${{ secrets.INTERCOM_ACCESS_TOKEN }}
+          DATABASE_PATH=./test_integration.db
+          LOG_LEVEL=INFO
+          API_RATE_LIMIT=10
+          EOF
+          
+          echo "✅ Test environment created"
+
+      - name: Run integration test
+        working-directory: integration_test_data
+        env:
+          INTERCOM_ACCESS_TOKEN: ${{ secrets.INTERCOM_ACCESS_TOKEN }}
+        run: |
+          set -e
+          
+          echo "🚀 Starting Integration Test"
+          echo "Test environment: $(python --version)"
+          echo "Sync days: ${{ github.event.inputs.sync_days || '30' }}"
+          echo "Full test: ${{ github.event.inputs.run_full_test || 'true' }}"
+          
+          # Initialize test start time
+          TEST_START_TIME=$(date +%s)
+          
+          # Test 1: Package import and CLI availability
+          echo "📦 Testing package import and CLI..."
+          python -c "import fast_intercom_mcp.cli; print('✅ CLI module imported')"
+          
+          # Test 2: Database initialization
+          echo "🗄️ Testing database initialization..."
+          python -c "
+          import asyncio
+          from fast_intercom_mcp.database import DatabaseManager
+          
+          async def test_db():
+              db = DatabaseManager('./test_integration.db')
+              await db.initialize()
+              print('✅ Database initialized successfully')
+              
+          asyncio.run(test_db())
+          "
+          
+          # Test 3: API connection test
+          echo "🔌 Testing Intercom API connection..."
+          python -c "
+          import asyncio
+          import os
+          from fast_intercom_mcp.intercom_client import IntercomClient
+          
+          async def test_connection():
+              client = IntercomClient(os.getenv('INTERCOM_ACCESS_TOKEN'))
+              try:
+                  result = await client.test_connection()
+                  print(f'✅ API connection test: {result}')
+                  return result
+              except Exception as e:
+                  print(f'❌ API connection failed: {e}')
+                  raise
+          
+          asyncio.run(test_connection())
+          "
+          
+          # Test 4: Sync service initialization and status
+          echo "⚙️ Testing sync service initialization..."
+          python -c "
+          import asyncio
+          import os
+          from fast_intercom_mcp.sync_service import SyncService
+          from fast_intercom_mcp.database import DatabaseManager
+          from fast_intercom_mcp.intercom_client import IntercomClient
+          
+          async def test_sync_service():
+              db = DatabaseManager('./test_integration.db')
+              await db.initialize()
+              
+              client = IntercomClient(os.getenv('INTERCOM_ACCESS_TOKEN'))
+              sync_service = SyncService(client, db)
+              
+              status = sync_service.get_status()
+              print(f'✅ Sync service status: {status}')
+              
+          asyncio.run(test_sync_service())
+          "
+          
+          # Test 5: Actual sync test with real API data
+          echo "🔄 Running real API sync test..."
+          SYNC_DAYS=${{ github.event.inputs.sync_days || '30' }}
+          
+          python -c "
+          import asyncio
+          import os
+          import json
+          import time
+          from datetime import datetime, timedelta, UTC
+          from fast_intercom_mcp.sync_service import SyncService
+          from fast_intercom_mcp.database import DatabaseManager
+          from fast_intercom_mcp.intercom_client import IntercomClient
+          
+          async def run_integration_test():
+              # Initialize components
+              db = DatabaseManager('./test_integration.db')
+              await db.initialize()
+              
+              client = IntercomClient(os.getenv('INTERCOM_ACCESS_TOKEN'))
+              sync_service = SyncService(client, db)
+              
+              # Set sync period
+              sync_days = int('$SYNC_DAYS')
+              end_date = datetime.now(UTC)
+              start_date = end_date - timedelta(days=sync_days)
+              
+              print(f'📅 Syncing data from {start_date.isoformat()} to {end_date.isoformat()} ({sync_days} days)')
+              
+              # Run sync and measure performance
+              sync_start = time.time()
+              try:
+                  stats = await sync_service.sync_period(start_date, end_date)
+                  sync_duration = time.time() - sync_start
+                  
+                  # Collect performance metrics
+                  metrics = {
+                      'test_timestamp': datetime.now(UTC).isoformat(),
+                      'sync_period_days': sync_days,
+                      'total_conversations': stats.total_conversations,
+                      'new_conversations': stats.new_conversations,
+                      'updated_conversations': stats.updated_conversations,
+                      'total_messages': stats.total_messages,
+                      'api_calls_made': stats.api_calls_made,
+                      'sync_duration_seconds': round(sync_duration, 2),
+                      'conversations_per_second': round(stats.total_conversations / max(sync_duration, 0.1), 2) if stats.total_conversations > 0 else 0,
+                      'messages_per_second': round(stats.total_messages / max(sync_duration, 0.1), 2) if stats.total_messages > 0 else 0,
+                      'avg_response_time_ms': round(sync_duration * 1000 / max(stats.api_calls_made, 1), 2) if stats.api_calls_made > 0 else 0
+                  }
+                  
+                  # Save metrics for artifacts
+                  with open('performance_metrics.json', 'w') as f:
+                      json.dump(metrics, f, indent=2)
+                  
+                  # Print formatted results
+                  print()
+                  print('📊 Integration Test Results')
+                  print('=' * 50)
+                  print(f'✅ Test completed successfully')
+                  print(f'✅ Conversations synced: {stats.total_conversations:,} ({sync_days} days)')
+                  print(f'✅ Messages synced: {stats.total_messages:,}')
+                  print(f'✅ New conversations: {stats.new_conversations:,}')
+                  print(f'✅ Updated conversations: {stats.updated_conversations:,}')
+                  print(f'✅ API calls made: {stats.api_calls_made:,}')
+                  print(f'✅ Sync speed: {metrics[\"conversations_per_second\"]} conv/sec')
+                  print(f'✅ Message speed: {metrics[\"messages_per_second\"]} msg/sec')
+                  print(f'✅ Average response time: {metrics[\"avg_response_time_ms\"]}ms')
+                  print(f'⏱️  Total test time: {sync_duration:.1f}s')
+                  
+                  # Verify data integrity
+                  import sqlite3
+                  with sqlite3.connect('./test_integration.db') as conn:
+                      cursor = conn.execute('SELECT COUNT(*) FROM conversations')
+                      conv_count = cursor.fetchone()[0]
+                      
+                      cursor = conn.execute('SELECT COUNT(*) FROM messages')
+                      msg_count = cursor.fetchone()[0]
+                      
+                      print(f'✅ Database integrity: {conv_count:,} conversations, {msg_count:,} messages')
+              
+              except Exception as e:
+                  print(f'❌ Sync failed: {e}')
+                  # Save error info for debugging
+                  with open('error_report.json', 'w') as f:
+                      json.dump({
+                          'error': str(e),
+                          'error_type': type(e).__name__,
+                          'timestamp': datetime.now(UTC).isoformat(),
+                          'sync_days': sync_days
+                      }, f, indent=2)
+                  raise
+          
+          asyncio.run(run_integration_test())
+          "
+          
+          # Calculate total test time
+          TEST_END_TIME=$(date +%s)
+          TOTAL_TEST_TIME=$((TEST_END_TIME - TEST_START_TIME))
+          
+          echo ""
+          echo "🎉 Integration test completed successfully!"
+          echo "Total test execution time: ${TOTAL_TEST_TIME}s"
+
+      - name: Generate test summary
+        if: always()
+        working-directory: integration_test_data
+        run: |
+          echo "## Integration Test Summary" > test_summary.md
+          echo "" >> test_summary.md
+          echo "**Timestamp:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> test_summary.md
+          echo "**Workflow:** ${{ github.workflow }}" >> test_summary.md
+          echo "**Run ID:** ${{ github.run_id }}" >> test_summary.md
+          echo "**Commit:** ${{ github.sha }}" >> test_summary.md
+          echo "" >> test_summary.md
+          
+          if [ -f performance_metrics.json ]; then
+            echo "**Test Result:** ✅ SUCCESS" >> test_summary.md
+            echo "" >> test_summary.md
+            echo "### Performance Metrics" >> test_summary.md
+            echo '```json' >> test_summary.md
+            cat performance_metrics.json >> test_summary.md
+            echo '```' >> test_summary.md
+          else
+            echo "**Test Result:** ❌ FAILED" >> test_summary.md
+            if [ -f error_report.json ]; then
+              echo "" >> test_summary.md
+              echo "### Error Report" >> test_summary.md
+              echo '```json' >> test_summary.md
+              cat error_report.json >> test_summary.md
+              echo '```' >> test_summary.md
+            fi
+          fi
+          
+          # Display summary
+          echo ""
+          echo "📋 TEST SUMMARY"
+          echo "==============="
+          cat test_summary.md
+
+      - name: Create database snapshot
+        if: failure()
+        working-directory: integration_test_data
+        run: |
+          if [ -f test_integration.db ]; then
+            echo "📸 Creating database snapshot for debugging..."
+            sqlite3 test_integration.db ".dump" > database_snapshot.sql
+            echo "Database snapshot created: database_snapshot.sql"
+          fi
+
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-results-${{ github.run_id }}
+          path: |
+            integration_test_data/performance_metrics.json
+            integration_test_data/error_report.json
+            integration_test_data/test_summary.md
+            integration_test_data/database_snapshot.sql
+            integration_test_data/test_integration.db
+          retention-days: 30
+
+      - name: Comment on PR (if applicable)
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            try {
+              const summary = fs.readFileSync('integration_test_data/test_summary.md', 'utf8');
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: `## 🧪 Integration Test Results\n\n${summary}`
+              });
+            } catch (error) {
+              console.log('Could not post PR comment:', error.message);
+            }
+
+      - name: Fail job on test failure
+        if: failure()
+        run: |
+          echo "❌ Integration test failed. Check the artifacts for detailed error information."
+          exit 1

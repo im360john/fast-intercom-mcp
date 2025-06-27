@@ -107,7 +107,7 @@ class EnhancedSyncService:
                 try:
                     await asyncio.wait_for(
                         self._shutdown_event.wait(),
-                        timeout=self.background_sync_interval_minutes * 60
+                        timeout=self.background_sync_interval_minutes * 60,
                     )
                     break  # Shutdown requested
                 except TimeoutError:
@@ -115,11 +115,9 @@ class EnhancedSyncService:
 
             except Exception as e:
                 logger.error(f"Background sync error: {e}")
-                self._sync_errors.append({
-                    "timestamp": datetime.now(),
-                    "error": str(e),
-                    "operation": "background_sync"
-                })
+                self._sync_errors.append(
+                    {"timestamp": datetime.now(), "error": str(e), "operation": "background_sync"}
+                )
                 # Wait a bit before retrying
                 try:
                     await asyncio.wait_for(self._shutdown_event.wait(), timeout=60)
@@ -137,14 +135,18 @@ class EnhancedSyncService:
         stale_request_timeframes = self.db.get_stale_timeframes(self.max_sync_age_minutes)
 
         if stale_request_timeframes:
-            logger.info(f"Found {len(stale_request_timeframes)} request-triggered timeframes needing sync")
+            logger.info(
+                f"Found {len(stale_request_timeframes)} request-triggered timeframes needing sync"
+            )
             for start, end in stale_request_timeframes[:2]:  # Limit to 2 to avoid overwhelming API
                 await self.sync_period_two_phase(start, end, is_background=True)
 
         # Priority 2: Check legacy period-based syncing
         stale_periods = self.db.get_periods_needing_sync(self.max_sync_age_minutes)
 
-        if stale_periods and not stale_request_timeframes:  # Only if no request-triggered syncs needed
+        if (
+            stale_periods and not stale_request_timeframes
+        ):  # Only if no request-triggered syncs needed
             logger.info(f"Found {len(stale_periods)} stale periods, triggering background sync")
             for start, end in stale_periods[:2]:  # Limit to 2 periods
                 await self.sync_period_two_phase(start, end, is_background=True)
@@ -189,8 +191,8 @@ class EnhancedSyncService:
                     raise SyncStateException(
                         f"Data is stale and two-phase sync failed: {str(e)}",
                         sync_state="stale",
-                        last_sync=sync_info.get("last_sync")
-                    )
+                        last_sync=sync_info.get("last_sync"),
+                    ) from e
 
         elif sync_state == "partial":
             # State 2: Partial data - proceed but log warning
@@ -208,9 +210,13 @@ class EnhancedSyncService:
         since = now - timedelta(hours=6)  # Last 6 hours
         return await self.sync_incremental_enhanced(since)
 
-    async def sync_period_two_phase(self, start_date: datetime, end_date: datetime,
-                                   is_background: bool = False,
-                                   force_refetch: bool = False) -> SyncStats:
+    async def sync_period_two_phase(
+        self,
+        start_date: datetime,
+        end_date: datetime,
+        is_background: bool = False,
+        force_refetch: bool = False,
+    ) -> SyncStats:
         """Two-phase sync: search for conversations, then fetch complete threads.
 
         Args:
@@ -226,7 +232,9 @@ class EnhancedSyncService:
             raise Exception("Sync already in progress")
 
         self._sync_active = True
-        self._current_operation = f"Two-phase sync {start_date.strftime('%m/%d')} to {end_date.strftime('%m/%d')}"
+        self._current_operation = (
+            f"Two-phase sync {start_date.strftime('%m/%d')} to {end_date.strftime('%m/%d')}"
+        )
 
         try:
             logger.info(f"Starting two-phase sync: {start_date} to {end_date}")
@@ -238,33 +246,44 @@ class EnhancedSyncService:
 
             # Record sync period in database
             self.db.record_sync_period(
-                start_date, end_date, stats.total_conversations,
-                stats.new_conversations, stats.updated_conversations
+                start_date,
+                end_date,
+                stats.total_conversations,
+                stats.new_conversations,
+                stats.updated_conversations,
             )
 
             # Update internal state
             self._last_sync_time = datetime.now()
             self._sync_stats = stats.__dict__
 
-            logger.info(f"Two-phase sync completed: {stats.total_conversations} conversations, "
-                       f"{stats.total_messages} messages in {stats.duration_seconds:.1f}s")
+            logger.info(
+                f"Two-phase sync completed: {stats.total_conversations} conversations, "
+                f"{stats.total_messages} messages in {stats.duration_seconds:.1f}s"
+            )
             return stats
 
         except Exception as e:
             logger.error(f"Two-phase sync failed: {e}")
-            self._sync_errors.append({
-                "timestamp": datetime.now(),
-                "error": str(e),
-                "operation": f"two_phase_sync_{start_date}_{end_date}"
-            })
+            self._sync_errors.append(
+                {
+                    "timestamp": datetime.now(),
+                    "error": str(e),
+                    "operation": f"two_phase_sync_{start_date}_{end_date}",
+                }
+            )
             raise
         finally:
             self._sync_active = False
             self._current_operation = None
 
-    async def sync_period_enhanced(self, start_date: datetime, end_date: datetime,
-                                 is_background: bool = False,
-                                 force_full_threads: bool = False) -> SyncStats:
+    async def sync_period_enhanced(
+        self,
+        start_date: datetime,
+        end_date: datetime,
+        is_background: bool = False,
+        force_full_threads: bool = False,
+    ) -> SyncStats:
         """Enhanced period sync with full conversation thread support.
 
         Args:
@@ -280,7 +299,9 @@ class EnhancedSyncService:
             raise Exception("Sync already in progress")
 
         self._sync_active = True
-        self._current_operation = f"Enhanced sync {start_date.strftime('%m/%d')} to {end_date.strftime('%m/%d')}"
+        self._current_operation = (
+            f"Enhanced sync {start_date.strftime('%m/%d')} to {end_date.strftime('%m/%d')}"
+        )
 
         try:
             logger.info(f"Starting enhanced period sync: {start_date} to {end_date}")
@@ -298,32 +319,40 @@ class EnhancedSyncService:
 
             # Record sync period in database
             self.db.record_sync_period(
-                start_date, end_date, stats.total_conversations,
-                stats.new_conversations, stats.updated_conversations
+                start_date,
+                end_date,
+                stats.total_conversations,
+                stats.new_conversations,
+                stats.updated_conversations,
             )
 
             # Update internal state
             self._last_sync_time = datetime.now()
             self._sync_stats = stats.__dict__
 
-            logger.info(f"Enhanced period sync completed: {stats.total_conversations} conversations, "
-                       f"{stats.total_messages} messages in {stats.duration_seconds:.1f}s")
+            logger.info(
+                f"Enhanced period sync completed: {stats.total_conversations} conversations, "
+                f"{stats.total_messages} messages in {stats.duration_seconds:.1f}s"
+            )
             return stats
 
         except Exception as e:
             logger.error(f"Enhanced sync failed: {e}")
-            self._sync_errors.append({
-                "timestamp": datetime.now(),
-                "error": str(e),
-                "operation": f"period_sync_{start_date}_{end_date}"
-            })
+            self._sync_errors.append(
+                {
+                    "timestamp": datetime.now(),
+                    "error": str(e),
+                    "operation": f"period_sync_{start_date}_{end_date}",
+                }
+            )
             raise
         finally:
             self._sync_active = False
             self._current_operation = None
 
-    async def sync_incremental_enhanced(self, since: datetime,
-                                      until: datetime | None = None) -> SyncStats:
+    async def sync_incremental_enhanced(
+        self, since: datetime, until: datetime | None = None
+    ) -> SyncStats:
         """Enhanced incremental sync with full thread support."""
         if self._sync_active:
             raise Exception("Sync already in progress")
@@ -340,16 +369,20 @@ class EnhancedSyncService:
             self._last_sync_time = datetime.now()
             self._sync_stats = stats.__dict__
 
-            logger.info(f"Enhanced incremental sync completed: {stats.total_conversations} conversations")
+            logger.info(
+                f"Enhanced incremental sync completed: {stats.total_conversations} conversations"
+            )
             return stats
 
         except Exception as e:
             logger.error(f"Enhanced incremental sync failed: {e}")
-            self._sync_errors.append({
-                "timestamp": datetime.now(),
-                "error": str(e),
-                "operation": f"incremental_sync_{since}"
-            })
+            self._sync_errors.append(
+                {
+                    "timestamp": datetime.now(),
+                    "error": str(e),
+                    "operation": f"incremental_sync_{since}",
+                }
+            )
             raise
         finally:
             self._sync_active = False
@@ -390,7 +423,7 @@ class EnhancedSyncService:
                 updated_conversations=0,  # Simplified
                 total_messages=sum(len(conv.messages) for conv in complete_conversations),
                 duration_seconds=duration,
-                api_calls_made=len(conversation_ids)
+                api_calls_made=len(conversation_ids),
             )
 
             self._last_sync_time = datetime.now()
@@ -401,11 +434,13 @@ class EnhancedSyncService:
 
         except Exception as e:
             logger.error(f"Full thread sync failed: {e}")
-            self._sync_errors.append({
-                "timestamp": datetime.now(),
-                "error": str(e),
-                "operation": f"full_threads_{len(conversation_ids)}"
-            })
+            self._sync_errors.append(
+                {
+                    "timestamp": datetime.now(),
+                    "error": str(e),
+                    "operation": f"full_threads_{len(conversation_ids)}",
+                }
+            )
             raise
         finally:
             self._sync_active = False
@@ -425,29 +460,28 @@ class EnhancedSyncService:
         start_date = now - timedelta(days=days_back)
 
         logger.info(f"Starting initial sync with two-phase approach: {days_back} days of history")
-        return await self.sync_period_two_phase(start_date, now,
-                                               force_refetch=force_full_threads)
+        return await self.sync_period_two_phase(start_date, now, force_refetch=force_full_threads)
 
     def get_status(self) -> dict[str, Any]:
         """Get current enhanced sync service status."""
         return {
-            'active': self._sync_active,
-            'current_operation': self._current_operation,
-            'last_sync_time': self._last_sync_time.isoformat() if self._last_sync_time else None,
-            'last_sync_stats': self._sync_stats,
-            'app_id': self.app_id,
-            'recent_errors': self._sync_errors[-5:],  # Last 5 errors
-            'strategies_available': ['full_thread', 'incremental', 'smart', 'two_phase'],
-            'two_phase_status': self.two_phase_coordinator.get_operation_status(),
-            'enhanced_features': [
-                'two_phase_sync_orchestration',
-                'full_conversation_threads',
-                'message_deduplication',
-                'progress_tracking',
-                'error_recovery',
-                'smart_strategy_selection',
-                'configurable_batch_processing'
-            ]
+            "active": self._sync_active,
+            "current_operation": self._current_operation,
+            "last_sync_time": self._last_sync_time.isoformat() if self._last_sync_time else None,
+            "last_sync_stats": self._sync_stats,
+            "app_id": self.app_id,
+            "recent_errors": self._sync_errors[-5:],  # Last 5 errors
+            "strategies_available": ["full_thread", "incremental", "smart", "two_phase"],
+            "two_phase_status": self.two_phase_coordinator.get_operation_status(),
+            "enhanced_features": [
+                "two_phase_sync_orchestration",
+                "full_conversation_threads",
+                "message_deduplication",
+                "progress_tracking",
+                "error_recovery",
+                "smart_strategy_selection",
+                "configurable_batch_processing",
+            ],
         }
 
     async def test_connection(self) -> bool:
@@ -492,8 +526,7 @@ class EnhancedSyncManager:
         try:
             # Schedule stop on the event loop and wait for completion
             future = asyncio.run_coroutine_threadsafe(
-                self.sync_service.stop_background_sync(),
-                self._loop
+                self.sync_service.stop_background_sync(), self._loop
             )
             future.result(timeout=5)  # Wait up to 5 seconds
         except Exception as e:

@@ -124,16 +124,42 @@ FastIntercom uses a sophisticated caching strategy:
 
 ### Testing
 
+#### Quick Tests
 ```bash
-# Run basic functionality tests
-python test_basic.py
+# Unit tests
+pytest tests/
 
-# Run integration tests
-python test_integration.py
+# Integration test (requires API key)
+./scripts/run_integration_test.sh
 
-# Test with real API data
-python test_mcp_real.py
+# Docker test
+./scripts/test_docker_install.sh
 ```
+
+#### Comprehensive Testing
+```bash
+# Full unit test suite with coverage
+pytest tests/ --cov=fast_intercom_mcp
+
+# Integration test with performance report
+./scripts/run_integration_test.sh --performance-report
+
+# Docker clean install test
+./scripts/test_docker_install.sh --with-api-test
+
+# Performance benchmarking
+./scripts/run_performance_test.sh
+```
+
+#### CI/CD Integration
+- **Fast Check**: Runs on every PR (unit tests, linting, imports)
+- **Integration Test**: Manual/weekly trigger with real API data
+- **Docker Test**: On releases and deployment validation
+
+For detailed testing procedures, see:
+- [`docs/TESTING.md`](docs/TESTING.md) - Complete testing guide
+- [`docs/INTEGRATION_TESTING.md`](docs/INTEGRATION_TESTING.md) - Integration test procedures
+- [`scripts/README.md`](scripts/README.md) - Test script documentation
 
 ### Local Development
 

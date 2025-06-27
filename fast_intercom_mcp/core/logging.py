@@ -15,21 +15,21 @@ class JSONFormatter(logging.Formatter):
     def format(self, record):
         """Format log record as JSON."""
         log_data = {
-            'timestamp': datetime.fromtimestamp(record.created).isoformat(),
-            'level': record.levelname,
-            'logger': record.name,
-            'module': record.module,
-            'function': record.funcName,
-            'line': record.lineno,
-            'message': record.getMessage()
+            "timestamp": datetime.fromtimestamp(record.created).isoformat(),
+            "level": record.levelname,
+            "logger": record.name,
+            "module": record.module,
+            "function": record.funcName,
+            "line": record.lineno,
+            "message": record.getMessage(),
         }
 
         # Add exception info if present
         if record.exc_info:
-            log_data['exception'] = self.formatException(record.exc_info)
+            log_data["exception"] = self.formatException(record.exc_info)
 
         # Add extra fields
-        if hasattr(record, 'extra_data'):
+        if hasattr(record, "extra_data"):
             log_data.update(record.extra_data)
 
         return json.dumps(log_data)
@@ -62,21 +62,21 @@ def setup_enhanced_logging(
         formatter = JSONFormatter()
     else:
         formatter = logging.Formatter(
-            '%(asctime)s [%(levelname)s] %(name)s:%(funcName)s:%(lineno)d - %(message)s'
+            "%(asctime)s [%(levelname)s] %(name)s:%(funcName)s:%(lineno)d - %(message)s"
         )
 
     # Create handlers
     handlers = {
-        'console': logging.StreamHandler(),
-        'main_file': logging.handlers.RotatingFileHandler(
-            main_log, maxBytes=10*1024*1024, backupCount=5
+        "console": logging.StreamHandler(),
+        "main_file": logging.handlers.RotatingFileHandler(
+            main_log, maxBytes=10 * 1024 * 1024, backupCount=5
         ),
-        'sync_file': logging.handlers.RotatingFileHandler(
-            sync_log, maxBytes=10*1024*1024, backupCount=5
+        "sync_file": logging.handlers.RotatingFileHandler(
+            sync_log, maxBytes=10 * 1024 * 1024, backupCount=5
         ),
-        'error_file': logging.handlers.RotatingFileHandler(
-            errors_log, maxBytes=10*1024*1024, backupCount=5
-        )
+        "error_file": logging.handlers.RotatingFileHandler(
+            errors_log, maxBytes=10 * 1024 * 1024, backupCount=5
+        ),
     }
 
     # Set formatters
@@ -85,72 +85,69 @@ def setup_enhanced_logging(
 
     # Set levels
     level = getattr(logging, log_level.upper())
-    handlers['console'].setLevel(level)
-    handlers['main_file'].setLevel(level)
-    handlers['sync_file'].setLevel(level)
-    handlers['error_file'].setLevel(logging.ERROR)
+    handlers["console"].setLevel(level)
+    handlers["main_file"].setLevel(level)
+    handlers["sync_file"].setLevel(level)
+    handlers["error_file"].setLevel(logging.ERROR)
 
     # Configure loggers
     logging_config = {
-        'version': 1,
-        'disable_existing_loggers': False,
-        'formatters': {
-            'json' if enable_json else 'standard': {
-                '()': JSONFormatter if enable_json else logging.Formatter,
-                "format": (
-                    "%(asctime)s [%(levelname)s] "
-                    "%(name)s:%(funcName)s:%(lineno)d - %(message)s"
-                )
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {
+            "json" if enable_json else "standard": {
+                "()": JSONFormatter if enable_json else logging.Formatter,
+                "format": "%(asctime)s [%(levelname)s] %(name)s:%(funcName)s:%(lineno)d - %(message)s",
             }
         },
-        'handlers': {
-            'console': {
-                'class': 'logging.StreamHandler',
-                'level': log_level.upper(),
-                'formatter': 'json' if enable_json else 'standard'
+        "handlers": {
+            "console": {
+                "class": "logging.StreamHandler",
+                "level": log_level.upper(),
+                "formatter": "json" if enable_json else "standard",
             },
-            'main_file': {
-                'class': 'logging.handlers.RotatingFileHandler',
-                'filename': str(main_log),
-                'maxBytes': 10*1024*1024,
-                'backupCount': 5,
-                'level': log_level.upper(),
-                'formatter': 'json' if enable_json else 'standard'
+            "main_file": {
+                "class": "logging.handlers.RotatingFileHandler",
+                "filename": str(main_log),
+                "maxBytes": 10 * 1024 * 1024,
+                "backupCount": 5,
+                "level": log_level.upper(),
+                "formatter": "json" if enable_json else "standard",
             },
-            'sync_file': {
-                'class': 'logging.handlers.RotatingFileHandler',
-                'filename': str(sync_log),
-                'maxBytes': 10*1024*1024,
-                'backupCount': 5,
-                'level': log_level.upper(),
-                'formatter': 'json' if enable_json else 'standard'
+            "sync_file": {
+                "class": "logging.handlers.RotatingFileHandler",
+                "filename": str(sync_log),
+                "maxBytes": 10 * 1024 * 1024,
+                "backupCount": 5,
+                "level": log_level.upper(),
+                "formatter": "json" if enable_json else "standard",
             },
-            'error_file': {
-                'class': 'logging.handlers.RotatingFileHandler',
-                'filename': str(errors_log),
-                'maxBytes': 10*1024*1024,
-                'backupCount': 5,
-                'level': 'ERROR',
-                'formatter': 'json' if enable_json else 'standard'
-            }
+            "error_file": {
+                "class": "logging.handlers.RotatingFileHandler",
+                "filename": str(errors_log),
+                "maxBytes": 10 * 1024 * 1024,
+                "backupCount": 5,
+                "level": "ERROR",
+                "formatter": "json" if enable_json else "standard",
+            },
         },
-        'loggers': {
-            '': {  # Root logger
-                'handlers': ['console', 'main_file', 'error_file'],
-                'level': log_level.upper(),
-                'propagate': False
+        "loggers": {
+            "": {  # Root logger
+                "handlers": ["console", "main_file", "error_file"],
+                "level": log_level.upper(),
+                "propagate": False,
             },
-            'fast_intercom_mcp.sync_service': {
-                'handlers': ['console', 'sync_file', 'error_file'],
-                'level': log_level.upper(),
-                'propagate': False
+            "fast_intercom_mcp.sync_service": {
+                "handlers": ["console", "sync_file", "error_file"],
+                "level": log_level.upper(),
+                "propagate": False,
             },
-            'fast_intercom_mcp.background_sync': {
-                'handlers': ['console', 'sync_file', 'error_file'],
-                'level': log_level.upper(),
-                'propagate': False
-            }
-        }
+            "fast_intercom_mcp.background_sync": {
+                "handlers": ["console", "sync_file", "error_file"],
+                "level": log_level.upper(),
+                "propagate": False,
+            },
+        },
     }
 
     # Apply configuration
@@ -160,10 +157,10 @@ def setup_enhanced_logging(
     logging.getLogger("httpx").setLevel(logging.WARNING)
 
     return {
-        'log_dir': log_dir,
-        'main_log': str(main_log),
-        'sync_log': str(sync_log),
-        'errors_log': str(errors_log),
-        'json_enabled': enable_json,
-        'level': log_level
+        "log_dir": log_dir,
+        "main_log": str(main_log),
+        "sync_log": str(sync_log),
+        "errors_log": str(errors_log),
+        "json_enabled": enable_json,
+        "level": log_level,
     }
