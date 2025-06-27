@@ -51,7 +51,7 @@ class TestDatabaseInitialization:
         with sqlite3.connect(test_db_manager.db_path) as conn:
             # Get all table names
             cursor = conn.execute("""
-                SELECT name FROM sqlite_master 
+                SELECT name FROM sqlite_master
                 WHERE type='table' AND name NOT LIKE 'sqlite_%'
                 ORDER BY name
             """)
@@ -77,7 +77,7 @@ class TestDatabaseInitialization:
         with sqlite3.connect(test_db_manager.db_path) as conn:
             # Get all index names
             cursor = conn.execute("""
-                SELECT name FROM sqlite_master 
+                SELECT name FROM sqlite_master
                 WHERE type='index' AND name NOT LIKE 'sqlite_%'
             """)
             indexes = [row[0] for row in cursor.fetchall()]
@@ -98,7 +98,7 @@ class TestDatabaseInitialization:
         with sqlite3.connect(test_db_manager.db_path) as conn:
             # Get all view names
             cursor = conn.execute("""
-                SELECT name FROM sqlite_master 
+                SELECT name FROM sqlite_master
                 WHERE type='view'
             """)
             views = [row[0] for row in cursor.fetchall()]
@@ -145,19 +145,18 @@ class TestDatabaseInitialization:
 
     def test_default_database_path(self):
         """Test that default database path is created correctly."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            with patch('pathlib.Path.home') as mock_home:
-                mock_home.return_value = Path(temp_dir)
+        with tempfile.TemporaryDirectory() as temp_dir, patch('pathlib.Path.home') as mock_home:
+            mock_home.return_value = Path(temp_dir)
 
-                # Create the database manager with default path
-                db_manager = DatabaseManager()
+            # Create the database manager with default path
+            db_manager = DatabaseManager()
 
-                expected_path = Path(temp_dir) / '.fastintercom' / 'data.db'
-                assert db_manager.db_path == expected_path
+            expected_path = Path(temp_dir) / '.fastintercom' / 'data.db'
+            assert db_manager.db_path == expected_path
 
-                # Verify the directory and file were created
-                assert expected_path.parent.exists(), "Database directory should be created"
-                assert expected_path.exists(), "Database file should be created"
+            # Verify the directory and file were created
+            assert expected_path.parent.exists(), "Database directory should be created"
+            assert expected_path.exists(), "Database file should be created"
 
 
 class TestDatabaseOperations:
