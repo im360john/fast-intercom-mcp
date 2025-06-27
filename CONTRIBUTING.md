@@ -27,44 +27,161 @@ cp .env.example .env
 # Edit .env with your Intercom access token
 ```
 
-### Testing
+### Testing Requirements
 
+All contributions must include appropriate testing. Follow these testing requirements:
+
+#### Required Tests for Pull Requests
+
+**Unit Tests** (Required for all changes):
 ```bash
-# Run basic functionality tests
-python -c "
-import asyncio
-from fast_intercom_mcp import DatabaseManager, Config
+# Run unit tests
+pytest tests/
 
-def test_basic():
-    print('Testing database...')
-    db = DatabaseManager(':memory:')  # In-memory test
-    print('✅ Database working')
-    
-    print('Testing config...')
-    config = Config.load()
-    print(f'✅ Config loaded: {config.intercom_token[:10] if config.intercom_token else \"No token\"}...')
+# Ensure adequate coverage
+pytest tests/ --cov=fast_intercom_mcp --cov-report=term-missing
 
-test_basic()
-"
-
-# Test with real API
-python -c "
-import asyncio
-from fast_intercom_mcp import IntercomClient, Config
-
-async def test_api():
-    config = Config.load()
-    if not config.intercom_token:
-        print('❌ No Intercom token found')
-        return
-    
-    client = IntercomClient(config.intercom_token)
-    connected = await client.test_connection()
-    print(f'API Connection: {\"✅ Connected\" if connected else \"❌ Failed\"}')
-
-asyncio.run(test_api())
-"
+# All tests must pass with no warnings
 ```
+
+**Integration Tests** (Required for major changes):
+```bash
+# Quick integration test
+export INTERCOM_ACCESS_TOKEN=your_token_here
+./scripts/run_integration_test.sh --quick
+
+# Full integration test for significant changes
+./scripts/run_integration_test.sh --performance-report
+```
+
+**Code Quality Checks** (Required for all PRs):
+```bash
+# Linting (must pass)
+ruff check . --exclude venv
+
+# Type checking (must pass)
+mypy fast_intercom_mcp/
+
+# Import verification (must pass)
+python3 -c "import fast_intercom_mcp; print('✅ Import successful')"
+```
+
+#### Testing Guidelines by Change Type
+
+**Database Changes**:
+- Unit tests for new database operations
+- Database integrity verification
+- Migration testing (if schema changes)
+- Performance impact assessment
+
+**API Integration Changes**:
+- Mock tests for API client methods
+- Integration tests with real API data
+- Rate limiting and error handling tests
+- Performance regression testing
+
+**MCP Protocol Changes**:
+- MCP tool functionality tests
+- Protocol compliance verification
+- Client compatibility testing
+- Response format validation
+
+**Performance Changes**:
+- Benchmark tests before and after
+- Memory usage monitoring
+- Performance regression testing
+- Load testing for significant changes
+
+#### Test Environment Setup
+
+**Local Testing Environment**:
+```bash
+# Set up test environment
+export INTERCOM_ACCESS_TOKEN=your_test_token
+export FASTINTERCOM_TEST_LOG_LEVEL=DEBUG
+export FASTINTERCOM_CONFIG_DIR=~/.fast-intercom-mcp-test
+
+# Verify environment
+./scripts/verify_test_environment.sh
+```
+
+**Docker Testing** (for deployment changes):
+```bash
+# Test Docker build and functionality
+./scripts/test_docker_install.sh
+
+# Test with API integration
+./scripts/test_docker_install.sh --with-api-test
+```
+
+#### Test Data Requirements
+
+**Mock Data**: Use consistent mock data for unit tests
+- Location: `tests/fixtures/`
+- Format: JSON files with realistic structure
+- Coverage: All major data scenarios
+
+**Integration Data**: Use controlled real data for integration tests
+- Scope: Last 7 days (default) or configurable
+- Limits: Reasonable conversation counts (<1000 for quick tests)
+- Cleanup: Automatic cleanup of test data
+
+#### Performance Testing Requirements
+
+**Performance Targets** (must be met):
+- Sync Speed: >10 conversations/second
+- Query Response: <100ms for cached data
+- Memory Usage: <100MB during normal operations
+- Storage Efficiency: ~2KB per conversation
+
+**Performance Testing**:
+```bash
+# Run performance benchmarks
+./scripts/run_performance_test.sh
+
+# Monitor performance during development
+./scripts/monitor_performance.sh &
+# ... run tests ...
+pkill -f monitor_performance
+```
+
+#### Testing Before Submission
+
+**Pre-commit Checklist**:
+```bash
+# 1. Unit tests pass
+pytest tests/ -x --tb=short
+
+# 2. Code quality checks pass
+ruff check . --exclude venv
+python3 -c "import fast_intercom_mcp"
+
+# 3. Quick integration test (if API token available)
+./scripts/run_integration_test.sh --quick
+
+# 4. Documentation updated (if needed)
+# 5. Performance impact assessed (if applicable)
+```
+
+**CI/CD Requirements**:
+- All GitHub Actions workflows must pass
+- Fast Check workflow (automatic on PR)
+- Integration tests (manual trigger recommended)
+- No regression in performance metrics
+
+#### Test Documentation
+
+**Test Documentation Requirements**:
+- Document new test scenarios in commit messages
+- Update test documentation for new features
+- Include testing instructions in PR descriptions
+- Reference related issues and test coverage
+
+**Test Maintenance**:
+- Update test data when API responses change
+- Maintain performance baselines
+- Clean up obsolete tests
+- Document test environment requirements
 
 ### Code Quality
 
