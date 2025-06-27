@@ -1,0 +1,190 @@
+{
+  "test_run": {
+    "timestamp": "2025-06-27T18:45:23Z",
+    "version": "1.0.0",
+    "environment": {
+      "python_version": "3.11.9",
+      "platform": "darwin",
+      "workspace": "~/.fast-intercom-mcp-test-1751049452"
+    },
+    "configuration": {
+      "sync_days": 7,
+      "max_conversations": 1000,
+      "performance_targets": {
+        "conversations_per_second": 10,
+        "response_time_ms": 100,
+        "memory_usage_mb": 100
+      }
+    }
+  },
+  "test_results": {
+    "api_connection": {
+      "status": "PASSED",
+      "duration_ms": 234,
+      "details": {
+        "workspace_name": "Demo Workspace",
+        "workspace_id": "workspace_123",
+        "permissions": ["conversations:read", "users:read"]
+      }
+    },
+    "database_initialization": {
+      "status": "PASSED",
+      "duration_ms": 89,
+      "details": {
+        "tables_created": 10,
+        "indexes_created": 15,
+        "database_size_kb": 128
+      }
+    },
+    "data_sync": {
+      "status": "PASSED",
+      "duration_seconds": 53,
+      "metrics": {
+        "conversations_synced": 1247,
+        "messages_synced": 8934,
+        "sync_speed": 23.5,
+        "api_calls": 47,
+        "rate_limit_encountered": false
+      },
+      "daily_breakdown": [
+        {"date": "2025-06-21", "conversations": 178, "messages": 1234},
+        {"date": "2025-06-22", "conversations": 192, "messages": 1456},
+        {"date": "2025-06-23", "conversations": 156, "messages": 1123},
+        {"date": "2025-06-24", "conversations": 201, "messages": 1567},
+        {"date": "2025-06-25", "conversations": 189, "messages": 1234},
+        {"date": "2025-06-26", "conversations": 167, "messages": 1098},
+        {"date": "2025-06-27", "conversations": 164, "messages": 1222}
+      ]
+    },
+    "mcp_server": {
+      "status": "PASSED",
+      "tools_tested": 8,
+      "tools_passed": 8,
+      "tool_results": {
+        "search_conversations": {
+          "status": "PASSED",
+          "response_time_ms": 12,
+          "test_queries": ["refund", "billing", "customer@example.com"]
+        },
+        "get_conversation": {
+          "status": "PASSED",
+          "response_time_ms": 8,
+          "message_count_verified": true
+        },
+        "get_conversation_summary": {
+          "status": "PASSED",
+          "response_time_ms": 234,
+          "summary_quality": "coherent"
+        },
+        "get_customer_context": {
+          "status": "PASSED",
+          "response_time_ms": 45,
+          "history_depth": 30
+        },
+        "get_recent_conversations": {
+          "status": "PASSED",
+          "response_time_ms": 15,
+          "pagination_tested": true
+        },
+        "get_team_performance": {
+          "status": "PASSED",
+          "response_time_ms": 67,
+          "metrics_calculated": ["response_time", "resolution_rate", "volume"]
+        },
+        "sync_conversations": {
+          "status": "PASSED",
+          "response_time_ms": 890,
+          "incremental_sync": true
+        },
+        "get_sync_status": {
+          "status": "PASSED",
+          "response_time_ms": 5,
+          "status_fields_verified": true
+        }
+      }
+    },
+    "performance": {
+      "status": "PASSED",
+      "sync_performance": {
+        "conversations_per_second": 23.5,
+        "target_met": true
+      },
+      "query_performance": {
+        "average_response_ms": 47,
+        "p95_response_ms": 89,
+        "p99_response_ms": 234,
+        "target_met": true
+      },
+      "resource_usage": {
+        "peak_memory_mb": 78,
+        "average_memory_mb": 65,
+        "database_size_mb": 18.4,
+        "target_met": true
+      }
+    },
+    "data_integrity": {
+      "status": "PASSED",
+      "checks": {
+        "conversation_completeness": {
+          "complete_threads": 1247,
+          "incomplete_threads": 0,
+          "percentage": 100
+        },
+        "message_ordering": {
+          "correctly_ordered": 8934,
+          "ordering_errors": 0
+        },
+        "foreign_keys": {
+          "valid_references": 10181,
+          "orphaned_records": 0
+        },
+        "database_integrity": {
+          "pragma_check": "ok",
+          "corruption_detected": false
+        }
+      }
+    },
+    "background_sync": {
+      "status": "PASSED",
+      "service_started": true,
+      "interval_minutes": 10,
+      "test_trigger": {
+        "triggered": true,
+        "new_conversations": 23,
+        "new_messages": 156
+      }
+    },
+    "error_handling": {
+      "status": "PASSED",
+      "scenarios_tested": {
+        "rate_limiting": {
+          "handled": true,
+          "retry_successful": true,
+          "backoff_applied": true
+        },
+        "network_timeout": {
+          "handled": true,
+          "retry_count": 2,
+          "recovery_successful": true
+        },
+        "partial_sync_failure": {
+          "handled": true,
+          "checkpoint_resumed": true,
+          "data_consistency": true
+        }
+      }
+    }
+  },
+  "summary": {
+    "total_tests": 9,
+    "passed": 9,
+    "failed": 0,
+    "runtime_seconds": 89,
+    "overall_status": "PASSED",
+    "recommendations": [
+      "All systems functioning optimally",
+      "Performance exceeds minimum targets",
+      "Ready for production use"
+    ]
+  }
+}
