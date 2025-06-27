@@ -2,14 +2,14 @@
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import List, Optional, Dict, Any
+from typing import Any
 from urllib.parse import quote
 
 
 class SyncStateException(Exception):
     """Exception raised when data sync state doesn't meet query requirements."""
-    
-    def __init__(self, message: str, sync_state: str, last_sync: Optional[datetime] = None):
+
+    def __init__(self, message: str, sync_state: str, last_sync: datetime | None = None):
         super().__init__(message)
         self.sync_state = sync_state  # 'stale', 'partial', or 'fresh'
         self.last_sync = last_sync
@@ -22,7 +22,7 @@ class Message:
     author_type: str  # 'user' | 'admin'
     body: str
     created_at: datetime
-    part_type: Optional[str] = None  # 'comment' | 'note' | 'message'
+    part_type: str | None = None  # 'comment' | 'note' | 'message'
 
 
 @dataclass
@@ -31,10 +31,10 @@ class Conversation:
     id: str
     created_at: datetime
     updated_at: datetime
-    messages: List[Message]
-    customer_email: Optional[str] = None
-    tags: List[str] = field(default_factory=list)
-    
+    messages: list[Message]
+    customer_email: str | None = None
+    tags: list[str] = field(default_factory=list)
+
     def get_url(self, app_id: str) -> str:
         """Generate clickable Intercom URL for this conversation."""
         base_url = f"https://app.intercom.com/a/inbox/{app_id}/inbox/search/conversation/{self.id}"
@@ -42,12 +42,12 @@ class Conversation:
             encoded_email = quote(self.customer_email)
             return f"{base_url}?query={encoded_email}"
         return base_url
-    
-    def get_customer_messages(self) -> List[Message]:
+
+    def get_customer_messages(self) -> list[Message]:
         """Get only messages from customers (not admins)."""
         return [msg for msg in self.messages if msg.author_type == 'user']
-    
-    def get_admin_messages(self) -> List[Message]:
+
+    def get_admin_messages(self) -> list[Message]:
         """Get only messages from admins."""
         return [msg for msg in self.messages if msg.author_type == 'admin']
 
@@ -66,11 +66,11 @@ class SyncPeriod:
 @dataclass
 class ConversationFilters:
     """Filters for searching conversations."""
-    query: Optional[str] = None
-    start_date: Optional[datetime] = None
-    end_date: Optional[datetime] = None
-    customer_email: Optional[str] = None
-    tags: Optional[List[str]] = None
+    query: str | None = None
+    start_date: datetime | None = None
+    end_date: datetime | None = None
+    customer_email: str | None = None
+    tags: list[str] | None = None
     limit: int = 100
 
 
@@ -80,22 +80,22 @@ class SyncStats:
     total_conversations: int
     new_conversations: int
     updated_conversations: int
-    total_messages: int  
+    total_messages: int
     duration_seconds: float
     api_calls_made: int
     errors_encountered: int = 0
 
 
-@dataclass 
+@dataclass
 class ServerStatus:
     """Overall server status information."""
     is_running: bool
     database_size_mb: float
     total_conversations: int
     total_messages: int
-    last_sync: Optional[datetime]
+    last_sync: datetime | None
     background_sync_active: bool
-    uptime_seconds: Optional[float] = None
+    uptime_seconds: float | None = None
     mcp_requests_served: int = 0
     average_response_time_ms: float = 0.0
 
@@ -105,15 +105,15 @@ class MCPTool:
     """Definition of an MCP tool."""
     name: str
     description: str
-    parameters: Dict[str, Any]
+    parameters: dict[str, Any]
 
 
 @dataclass
 class MCPRequest:
     """An incoming MCP request."""
     tool_name: str
-    parameters: Dict[str, Any]
-    request_id: Optional[str] = None
+    parameters: dict[str, Any]
+    request_id: str | None = None
 
 
 @dataclass
@@ -121,5 +121,5 @@ class MCPResponse:
     """Response to an MCP request."""
     success: bool
     data: Any = None
-    error: Optional[str] = None
-    request_id: Optional[str] = None
+    error: str | None = None
+    request_id: str | None = None

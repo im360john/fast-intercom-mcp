@@ -1,23 +1,21 @@
 """HTTP transport implementation for FastIntercom MCP server."""
 
-import logging
-from typing import Dict, Any, Optional
-from datetime import datetime
-import secrets
 import base64
+import logging
+import secrets
+from datetime import datetime
+from typing import Any
 
-from fastapi import FastAPI, HTTPException, Depends, Security, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
+from fastapi import Depends, FastAPI, HTTPException, Security, status
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from mcp.types import JSONRPCRequest
 from pydantic import BaseModel
 
-from mcp.types import JSONRPCRequest
-
 from .database import DatabaseManager
-from .sync_service import SyncService
 from .mcp_server import FastIntercomMCPServer
-
+from .sync_service import SyncService
 
 logger = logging.getLogger(__name__)
 
@@ -26,31 +24,31 @@ class MCPHTTPRequest(BaseModel):
     """HTTP request wrapper for MCP JSON-RPC."""
     jsonrpc: str = "2.0"
     method: str
-    params: Optional[Dict[str, Any]] = None
-    id: Optional[str] = None
+    params: dict[str, Any] | None = None
+    id: str | None = None
 
 
 class MCPHTTPResponse(BaseModel):
     """HTTP response wrapper for MCP JSON-RPC."""
     jsonrpc: str = "2.0"
-    result: Optional[Any] = None
-    error: Optional[Dict[str, Any]] = None
-    id: Optional[str] = None
+    result: Any | None = None
+    error: dict[str, Any] | None = None
+    id: str | None = None
 
 
 class AuthManager:
     """Simple authentication manager for HTTP MCP."""
-    
-    def __init__(self, api_key: Optional[str] = None):
+
+    def __init__(self, api_key: str | None = None):
         # Generate a random API key if none provided
         self.api_key = api_key or self._generate_api_key()
         logger.info(f"HTTP MCP server authentication key: {self.api_key}")
-    
+
     def _generate_api_key(self) -> str:
         """Generate a secure random API key."""
         random_bytes = secrets.token_bytes(32)
         return base64.urlsafe_b64encode(random_bytes).decode('ascii')
-    
+
     def verify_key(self, provided_key: str) -> bool:
         """Verify the provided API key."""
         return secrets.compare_digest(self.api_key, provided_key)
@@ -58,13 +56,13 @@ class AuthManager:
 
 class FastIntercomHTTPServer:
     """HTTP-based MCP server for FastIntercom."""
-    
+
     def __init__(
-        self, 
-        database_manager: DatabaseManager, 
+        self,
+        database_manager: DatabaseManager,
         sync_service: SyncService,
         intercom_client=None,
-        api_key: Optional[str] = None,
+        api_key: str | None = None,
         host: str = "0.0.0.0",
         port: int = 8000
     ):
@@ -72,26 +70,26 @@ class FastIntercomHTTPServer:
         self.sync_service = sync_service
         self.host = host
         self.port = port
-        
+
         # Initialize core MCP server
         self.mcp_server = FastIntercomMCPServer(database_manager, sync_service, intercom_client)
-        
+
         # Authentication
         self.auth = AuthManager(api_key)
-        
+
         # FastAPI app
         self.app = FastAPI(
             title="FastIntercom MCP Server",
             description="HTTP-based Model Context Protocol server for Intercom conversations",
             version="1.0.0"
         )
-        
+
         # Security
         self.security = HTTPBearer()
-        
+
         self._setup_middleware()
         self._setup_routes()
-    
+
     def _setup_middleware(self):
         """Setup FastAPI middleware."""
         # CORS middleware
@@ -102,7 +100,7 @@ class FastIntercomHTTPServer:
             allow_methods=["GET", "POST", "OPTIONS"],
             allow_headers=["*"],
         )
-    
+
     def _verify_auth(self, credentials: HTTPAuthorizationCredentials = Security(HTTPBearer())):
         """Verify authentication credentials."""
         if not self.auth.verify_key(credentials.credentials):
@@ -112,10 +110,10 @@ class FastIntercomHTTPServer:
                 headers={"WWW-Authenticate": "Bearer"},
             )
         return credentials
-    
+
     def _setup_routes(self):
         """Setup FastAPI routes."""
-        
+
         @self.app.get("/")
         async def root():
             """Root endpoint with server info."""
@@ -130,7 +128,7 @@ class FastIntercomHTTPServer:
                 },
                 "authentication": "bearer_token"
             }
-        
+
         @self.app.get("/health")
         async def health_check():
             """Health check endpoint."""
@@ -148,7 +146,7 @@ class FastIntercomHTTPServer:
                     status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                     detail=f"Service unhealthy: {str(e)}"
                 )
-        
+
         @self.app.post("/mcp")
         async def mcp_endpoint(
             request: MCPHTTPRequest,
@@ -163,10 +161,10 @@ class FastIntercomHTTPServer:
                     params=request.params or {},
                     id=request.id
                 )
-                
+
                 # Process the request through the MCP server
                 response = await self._process_mcp_request(jsonrpc_request)
-                
+
                 # Convert MCP response back to HTTP format
                 return MCPHTTPResponse(
                     jsonrpc="2.0",
@@ -174,7 +172,7 @@ class FastIntercomHTTPServer:
                     error=response.get("error"),
                     id=request.id
                 )
-                
+
             except Exception as e:
                 logger.error(f"MCP request processing error: {e}")
                 return MCPHTTPResponse(
@@ -186,7 +184,7 @@ class FastIntercomHTTPServer:
                     },
                     id=request.id
                 )
-        
+
         @self.app.get("/tools")
         async def list_tools(auth: HTTPAuthorizationCredentials = Depends(self._verify_auth)):
             """List available MCP tools."""
@@ -201,18 +199,18 @@ class FastIntercomHTTPServer:
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail=f"Failed to list tools: {str(e)}"
                 )
-        
+
         @self.app.post("/tools/{tool_name}")
         async def call_tool(
             tool_name: str,
-            arguments: Dict[str, Any],
+            arguments: dict[str, Any],
             auth: HTTPAuthorizationCredentials = Depends(self._verify_auth)
         ):
             """Call a specific MCP tool."""
             try:
                 # Call the tool through the MCP server
                 result = await self.mcp_server._call_tool(tool_name, arguments)
-                
+
                 # Convert TextContent results to simple format
                 formatted_result = []
                 for item in result:
@@ -220,25 +218,25 @@ class FastIntercomHTTPServer:
                         formatted_result.append(item.text)
                     else:
                         formatted_result.append(str(item))
-                
+
                 return {
                     "tool": tool_name,
                     "result": formatted_result,
                     "timestamp": datetime.now().isoformat()
                 }
-                
+
             except Exception as e:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail=f"Tool execution failed: {str(e)}"
                 )
-    
-    async def _process_mcp_request(self, request: JSONRPCRequest) -> Dict[str, Any]:
+
+    async def _process_mcp_request(self, request: JSONRPCRequest) -> dict[str, Any]:
         """Process an MCP JSON-RPC request."""
         try:
             method = request.method
             params = request.params or {}
-            
+
             if method == "initialize":
                 return {
                     "result": {
@@ -252,19 +250,19 @@ class FastIntercomHTTPServer:
                         }
                     }
                 }
-            
-            elif method == "tools/list":
+
+            if method == "tools/list":
                 tools = await self.mcp_server._list_tools()
                 return {
                     "result": {
                         "tools": [tool.model_dump() for tool in tools]
                     }
                 }
-            
-            elif method == "tools/call":
+
+            if method == "tools/call":
                 tool_name = params.get("name")
                 arguments = params.get("arguments", {})
-                
+
                 if not tool_name:
                     return {
                         "error": {
@@ -272,9 +270,9 @@ class FastIntercomHTTPServer:
                             "message": "Invalid params: tool name required"
                         }
                     }
-                
+
                 result = await self.mcp_server._call_tool(tool_name, arguments)
-                
+
                 # Convert TextContent to dict format
                 content = []
                 for item in result:
@@ -285,24 +283,23 @@ class FastIntercomHTTPServer:
                         })
                     else:
                         content.append({
-                            "type": "text", 
+                            "type": "text",
                             "text": str(item)
                         })
-                
+
                 return {
                     "result": {
                         "content": content
                     }
                 }
-            
-            else:
-                return {
-                    "error": {
-                        "code": -32601,
-                        "message": f"Method not found: {method}"
-                    }
+
+            return {
+                "error": {
+                    "code": -32601,
+                    "message": f"Method not found: {method}"
                 }
-                
+            }
+
         except Exception as e:
             logger.error(f"MCP request processing error: {e}")
             return {
@@ -312,15 +309,15 @@ class FastIntercomHTTPServer:
                     "data": str(e)
                 }
             }
-    
+
     async def start(self):
         """Start the HTTP server."""
         logger.info(f"Starting FastIntercom HTTP MCP server on {self.host}:{self.port}")
         logger.info(f"API Key: {self.auth.api_key}")
-        
+
         # Start background sync
         await self.mcp_server.start_background_sync()
-        
+
         # Create uvicorn config
         config = uvicorn.Config(
             app=self.app,
@@ -329,17 +326,17 @@ class FastIntercomHTTPServer:
             log_level="info",
             access_log=True
         )
-        
+
         # Start the server
         server = uvicorn.Server(config)
         await server.serve()
-    
+
     async def stop(self):
         """Stop the HTTP server."""
         logger.info("Stopping FastIntercom HTTP MCP server")
         await self.mcp_server.stop_background_sync()
-    
-    def get_connection_info(self) -> Dict[str, Any]:
+
+    def get_connection_info(self) -> dict[str, Any]:
         """Get connection information for clients."""
         return {
             "transport": "http",
