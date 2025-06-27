@@ -86,9 +86,26 @@ def mock_sync_service():
 
 
 @pytest.fixture
-def mock_intercom_client():
+def mock_intercom_client(test_conversations):
     """Create a mock Intercom client."""
-    return Mock()
+    client = Mock(spec=IntercomClient)
+    client.access_token = "test_token"
+    
+    # Use AsyncMock for proper assertion support
+    client.fetch_conversations_for_period = AsyncMock(return_value=test_conversations)
+    client.fetch_conversations_incremental = AsyncMock(return_value=SyncStats(
+        total_conversations=1,
+        new_conversations=1,
+        updated_conversations=0,
+        total_messages=2,
+        duration_seconds=1.0,
+        api_calls_made=1
+    ))
+    client.fetch_complete_conversation_thread = AsyncMock()
+    client.fetch_individual_conversations = AsyncMock(return_value=test_conversations)
+    client.get_app_id = AsyncMock(return_value="test_app_123")
+    client.test_connection = AsyncMock(return_value=True)
+    return client
 
 
 @pytest.fixture
@@ -108,138 +125,143 @@ def database_manager(temp_db):
 
 
 @pytest.fixture
-def intercom_client():
-    """Provide a mock Intercom client for testing."""
-    client = Mock(spec=IntercomClient)
-    client.access_token = "test_token"
-    client.test_connection = AsyncMock(return_value=True)
-    return client
-
-
-@pytest.fixture
-def sync_service(database_manager, intercom_client):
-    """Provide a sync service for testing."""
-    return SyncService(database_manager, intercom_client)
-
-
-@pytest.fixture
-def enhanced_sync_service(database_manager, intercom_client):
-    """Provide an enhanced sync service for testing."""
-    return EnhancedSyncService(database_manager, intercom_client)
-
-
-@pytest.fixture
 def test_conversations():
-    """Provide test conversation data."""
+    """Provide test conversation data for sync verification."""
     now = datetime.now(UTC)
     
-    # Create multiple conversations with different characteristics
-    conversations = []
-    
-    # Conversation 1: Simple conversation with 2 messages
-    conv1 = Conversation(
-        id="conv_1",
-        created_at=now - timedelta(days=2),
-        updated_at=now - timedelta(days=1),
-        customer_email="user1@example.com",
-        tags=["support", "urgent"],
-        messages=[
-            Message(
-                id="msg_1_1",
-                author_type="user",
-                body="I need help with my account",
-                created_at=now - timedelta(days=2),
-                part_type="comment"
-            ),
-            Message(
-                id="msg_1_2",
-                author_type="admin",
-                body="Sure, I can help you with that",
-                created_at=now - timedelta(days=1),
-                part_type="comment"
-            )
-        ]
-    )
-    conversations.append(conv1)
-    
-    # Conversation 2: Longer conversation with 5 messages
-    conv2_messages = []
-    for i in range(5):
-        conv2_messages.append(Message(
-            id=f"msg_2_{i+1}",
-            author_type="user" if i % 2 == 0 else "admin",
-            body=f"Message {i+1} in conversation 2",
-            created_at=now - timedelta(hours=48-i*2),
-            part_type="comment"
-        ))
-    
-    conv2 = Conversation(
-        id="conv_2",
-        created_at=now - timedelta(days=3),
-        updated_at=now - timedelta(hours=40),
-        customer_email="user2@example.com",
-        tags=["billing"],
-        messages=conv2_messages
-    )
-    conversations.append(conv2)
-    
-    # Conversation 3: Very long conversation (10+ messages)
-    conv3_messages = []
-    for i in range(15):
-        conv3_messages.append(Message(
-            id=f"msg_3_{i+1}",
-            author_type="user" if i % 3 == 0 else "admin",
-            body=f"Extended conversation message {i+1}",
-            created_at=now - timedelta(hours=72-i),
-            part_type="comment"
-        ))
-    
-    conv3 = Conversation(
-        id="conv_3",
-        created_at=now - timedelta(days=4),
-        updated_at=now - timedelta(hours=58),
-        customer_email="user3@example.com",
-        tags=["technical", "resolved"],
-        messages=conv3_messages
-    )
-    conversations.append(conv3)
-    
-    # Conversation 4: Recent conversation (created today)
-    conv4 = Conversation(
-        id="conv_4",
-        created_at=now - timedelta(hours=2),
-        updated_at=now - timedelta(minutes=30),
-        customer_email="user4@example.com",
-        tags=["new"],
-        messages=[
-            Message(
-                id="msg_4_1",
-                author_type="user",
-                body="Just started using your service",
-                created_at=now - timedelta(hours=2),
-                part_type="comment"
-            )
-        ]
-    )
-    conversations.append(conv4)
-    
-    # Conversation 5: No messages (edge case)
-    conv5 = Conversation(
-        id="conv_5",
-        created_at=now - timedelta(days=1),
-        updated_at=now - timedelta(days=1),
-        customer_email="user5@example.com",
-        tags=[],
-        messages=[]
-    )
-    conversations.append(conv5)
+    conversations = [
+        # Conversation 1: Simple with customer/admin interaction
+        Conversation(
+            id="test_conv_1",
+            created_at=now - timedelta(hours=2),
+            updated_at=now - timedelta(hours=1),
+            customer_email="user1@example.com",
+            tags=["support", "high-priority"],
+            messages=[
+                Message(
+                    id="msg_1",
+                    author_type="user",
+                    body="I need help with my account",
+                    created_at=now - timedelta(hours=2),
+                    part_type="comment"
+                ),
+                Message(
+                    id="msg_2",
+                    author_type="admin",
+                    body="I'd be happy to help you with that",
+                    created_at=now - timedelta(hours=2, minutes=5),
+                    part_type="comment"
+                ),
+                Message(
+                    id="msg_3",
+                    author_type="user",
+                    body="Thank you for the quick response",
+                    created_at=now - timedelta(hours=1),
+                    part_type="comment"
+                )
+            ]
+        ),
+        # Conversation 2: Billing inquiry
+        Conversation(
+            id="test_conv_2",
+            created_at=now - timedelta(hours=3),
+            updated_at=now - timedelta(hours=3),
+            customer_email="user2@example.com",
+            tags=["billing"],
+            messages=[
+                Message(
+                    id="msg_4",
+                    author_type="user",
+                    body="Question about my invoice",
+                    created_at=now - timedelta(hours=3),
+                    part_type="comment"
+                ),
+                Message(
+                    id="msg_5",
+                    author_type="admin",
+                    body="Let me look into that for you",
+                    created_at=now - timedelta(hours=3, minutes=2),
+                    part_type="comment"
+                )
+            ]
+        ),
+        # Conversation 3: Long thread with many messages
+        Conversation(
+            id="test_conv_3_long",
+            created_at=now - timedelta(hours=4),
+            updated_at=now - timedelta(minutes=30),
+            customer_email="user3@example.com",
+            tags=["feature-request"],
+            messages=[
+                Message(
+                    id=f"msg_{i}",
+                    author_type="user" if i % 2 == 0 else "admin",
+                    body=f"Message {i} content",
+                    created_at=now - timedelta(hours=4, minutes=i*5),
+                    part_type="comment"
+                )
+                for i in range(25)  # Long conversation with 25 messages
+            ]
+        ),
+        # Conversation 4: Recent conversation
+        Conversation(
+            id="conv_4",
+            created_at=now - timedelta(hours=2),
+            updated_at=now - timedelta(minutes=30),
+            customer_email="user4@example.com",
+            tags=["new"],
+            messages=[
+                Message(
+                    id="msg_4_1",
+                    author_type="user",
+                    body="Just started using your service",
+                    created_at=now - timedelta(hours=2),
+                    part_type="comment"
+                )
+            ]
+        ),
+        # Conversation 5: Empty conversation (edge case)
+        Conversation(
+            id="conv_5",
+            created_at=now - timedelta(days=1),
+            updated_at=now - timedelta(days=1),
+            customer_email="user5@example.com",
+            tags=[],
+            messages=[]
+        )
+    ]
     
     return conversations
 
 
 @pytest.fixture
+def sync_service(database_manager, mock_intercom_client):
+    """Provide a SyncService instance for testing."""
+    return SyncService(database_manager, mock_intercom_client)
+
+
+@pytest.fixture
+def enhanced_sync_service(database_manager, mock_intercom_client):
+    """Provide an EnhancedSyncService instance for testing."""
+    return EnhancedSyncService(database_manager, mock_intercom_client)
+
+
+@pytest.fixture
+def test_sync_stats():
+    """Provide test sync statistics."""
+    return SyncStats(
+        total_conversations=3,
+        new_conversations=2,
+        updated_conversations=1,
+        total_messages=30,
+        duration_seconds=5.5,
+        api_calls_made=3
+    )
+
+
+@pytest.fixture
 def mock_sync_stats():
-    """Provide mock sync statistics."""
+    """Provide mock sync statistics (alternative name for compatibility)."""
     return SyncStats(
         total_conversations=10,
         new_conversations=5,
