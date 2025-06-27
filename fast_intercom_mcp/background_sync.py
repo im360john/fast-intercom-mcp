@@ -27,7 +27,7 @@ class BackgroundSyncService:
         self.running = True
         self.sync_task = asyncio.create_task(self._sync_loop())
         logger.info(
-            f"Background sync started with {self.sync_interval.total_seconds()/60} minute interval"
+            f"Background sync started with {self.sync_interval.total_seconds() / 60} minute interval"
         )
 
     async def stop(self):
@@ -65,16 +65,18 @@ class BackgroundSyncService:
         for start_date, end_date in sync_periods:
             # Start sync - write metadata
             with sqlite3.connect(self.db.db_path) as conn:
-                cursor = conn.execute("""
-                    INSERT INTO sync_metadata 
-                    (sync_started_at, sync_status, sync_type, coverage_start_date, 
-                     coverage_end_date)
+                cursor = conn.execute(
+                    """
+                    INSERT INTO sync_metadata
+                    (sync_started_at, sync_status, sync_type, coverage_start_date, coverage_end_date)
                     VALUES (?, 'in_progress', 'background', ?, ?)
-                """, [
-                    start_time.isoformat(), 
-                    start_date.date().isoformat(), 
-                    end_date.date().isoformat()
-                ])
+                """,
+                    [
+                        start_time.isoformat(),
+                        start_date.date().isoformat(),
+                        end_date.date().isoformat(),
+                    ],
+                )
                 sync_id = cursor.lastrowid
                 conn.commit()
 
@@ -99,19 +101,21 @@ class BackgroundSyncService:
 
                 # Update metadata on success
                 with sqlite3.connect(self.db.db_path) as conn:
-                    conn.execute("""
+                    conn.execute(
+                        """
                         UPDATE sync_metadata
                         SET sync_completed_at = ?,
                             sync_status = 'completed',
                             total_conversations = ?,
                             total_messages = ?
                         WHERE id = ?
-                    """, [datetime.now().isoformat(), total_convos, total_msgs, sync_id])
+                    """,
+                        [datetime.now().isoformat(), total_convos, total_msgs, sync_id],
+                    )
                     conn.commit()
 
                 logger.info(
-                    f"Background sync completed: "
-                    f"{total_convos} conversations, {total_msgs} messages"
+                    f"Background sync completed: {total_convos} conversations, {total_msgs} messages"
                 )
 
             except Exception as e:
@@ -121,13 +125,16 @@ class BackgroundSyncService:
 
                 # Update metadata on failure
                 with sqlite3.connect(self.db.db_path) as conn:
-                    conn.execute("""
+                    conn.execute(
+                        """
                         UPDATE sync_metadata
                         SET sync_completed_at = ?,
                             sync_status = 'failed',
                             error_message = ?
                         WHERE id = ?
-                    """, [datetime.now().isoformat(), str(e), sync_id])
+                    """,
+                        [datetime.now().isoformat(), str(e), sync_id],
+                    )
                     conn.commit()
 
                 # Don't break the entire sync for one failed period
@@ -161,9 +168,11 @@ class BackgroundSyncService:
         """Get the configured number of history days to sync."""
         try:
             from .config import Config
+
             config = Config.load()
-            # Default to 1 year if ALL
-            return config.initial_sync_days if config.initial_sync_days > 0 else 365
+            return (
+                config.initial_sync_days if config.initial_sync_days > 0 else 365
+            )  # Default to 1 year if ALL
         except Exception:
             return 30  # Fallback default
 
