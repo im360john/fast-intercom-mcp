@@ -202,22 +202,21 @@ class ConversationChangeDetector:
                 )
 
         # Detect state changes (updated_at timestamp)
-        if "state_change" in change_types:
-            if remote_conv.updated_at > local_conv.updated_at:
-                time_diff = (remote_conv.updated_at - local_conv.updated_at).total_seconds()
-                if time_diff > self.message_timestamp_tolerance_seconds:
-                    changes.append(
-                        ConversationChange(
-                            conversation_id=local_conv.id,
-                            change_type="state_change",
-                            detected_at=now,
-                            details={
-                                "old_updated_at": local_conv.updated_at,
-                                "new_updated_at": remote_conv.updated_at,
-                                "time_difference_seconds": time_diff,
-                            },
-                        )
+        if "state_change" in change_types and remote_conv.updated_at > local_conv.updated_at:
+            time_diff = (remote_conv.updated_at - local_conv.updated_at).total_seconds()
+            if time_diff > self.message_timestamp_tolerance_seconds:
+                changes.append(
+                    ConversationChange(
+                        conversation_id=local_conv.id,
+                        change_type="state_change",
+                        detected_at=now,
+                        details={
+                            "old_updated_at": local_conv.updated_at,
+                            "new_updated_at": remote_conv.updated_at,
+                            "time_difference_seconds": time_diff,
+                        },
                     )
+                )
 
         # Detect tag changes
         if "tags_updated" in change_types and set(local_conv.tags) != set(remote_conv.tags):

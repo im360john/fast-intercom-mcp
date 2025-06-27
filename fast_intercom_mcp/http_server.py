@@ -143,11 +143,11 @@ class FastIntercomHTTPServer:
                 raise HTTPException(
                     status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                     detail=f"Service unhealthy: {str(e)}",
-                )
+                ) from e
 
         @self.app.post("/mcp")
         async def mcp_endpoint(
-            request: MCPHTTPRequest, auth: HTTPAuthorizationCredentials = Depends(self._verify_auth)
+            request: MCPHTTPRequest, _auth: HTTPAuthorizationCredentials = Depends(self._verify_auth)
         ):
             """Main MCP JSON-RPC endpoint."""
             try:
@@ -176,7 +176,7 @@ class FastIntercomHTTPServer:
                 )
 
         @self.app.get("/tools")
-        async def list_tools(auth: HTTPAuthorizationCredentials = Depends(self._verify_auth)):
+        async def list_tools(_auth: HTTPAuthorizationCredentials = Depends(self._verify_auth)):
             """List available MCP tools."""
             try:
                 # Get tools from the MCP server
@@ -186,13 +186,13 @@ class FastIntercomHTTPServer:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail=f"Failed to list tools: {str(e)}",
-                )
+                ) from e
 
         @self.app.post("/tools/{tool_name}")
         async def call_tool(
             tool_name: str,
             arguments: dict[str, Any],
-            auth: HTTPAuthorizationCredentials = Depends(self._verify_auth),
+            _auth: HTTPAuthorizationCredentials = Depends(self._verify_auth),
         ):
             """Call a specific MCP tool."""
             try:
@@ -217,7 +217,7 @@ class FastIntercomHTTPServer:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail=f"Tool execution failed: {str(e)}",
-                )
+                ) from e
 
     async def _process_mcp_request(self, request: JSONRPCRequest) -> dict[str, Any]:
         """Process an MCP JSON-RPC request."""

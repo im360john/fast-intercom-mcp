@@ -192,7 +192,7 @@ class EnhancedSyncService:
                         f"Data is stale and two-phase sync failed: {str(e)}",
                         sync_state="stale",
                         last_sync=sync_info.get("last_sync"),
-                    )
+                    ) from e
 
         elif sync_state == "partial":
             # State 2: Partial data - proceed but log warning

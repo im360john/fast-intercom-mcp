@@ -41,6 +41,7 @@ class SyncService:
         self.two_phase_coordinator = TwoPhaseSyncCoordinator(
             intercom_client, database_manager, TwoPhaseConfig()
         )
+
     async def start_background_sync(self):
         """Start the background sync service."""
         if self._background_task and not self._background_task.done():
@@ -177,7 +178,7 @@ class SyncService:
                         f"Data is stale and sync failed: {str(e)}",
                         sync_state="stale",
                         last_sync=sync_info.get("last_sync"),
-                    )
+                    ) from e
 
         elif sync_state == "partial":
             # State 2: Partial data - proceed but log warning
