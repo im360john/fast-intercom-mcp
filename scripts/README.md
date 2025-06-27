@@ -7,20 +7,21 @@ This directory contains all testing scripts for the FastIntercom MCP server. The
 ## Script Categories
 
 ### Integration Test Scripts
-- `run_integration_test.sh` - Main integration test runner
-- `test_docker_install.sh` - Docker deployment testing
-- `run_performance_test.sh` - Performance benchmarking
-- `test_mcp_tools.py` - MCP protocol tool testing
+- `run_integration_test.sh` - Main integration test runner with comprehensive API testing
+- `test_docker_install.sh` - Docker deployment and clean install testing
+- `test_mcp_tools.py` - MCP protocol tool testing and validation
 
 ### Monitoring Scripts
-- `monitor_performance.sh` - Real-time performance monitoring
-- `monitor_memory_usage.sh` - Memory usage tracking
-- `profile_sync_performance.sh` - Sync operation profiling
+Note: Performance monitoring is integrated into the main integration test script.
+- Performance metrics are captured during `run_integration_test.sh --performance-report`
+- MCP tool performance is measured by `test_mcp_tools.py`
+- Docker resource usage is monitored by `test_docker_install.sh`
 
 ### Utility Scripts
-- `cleanup_test_data.sh` - Test environment cleanup
-- `verify_database_integrity.py` - Database validation
-- `generate_test_report.sh` - Test result reporting
+Note: Cleanup and reporting are integrated into the main test scripts.
+- Test environment cleanup is handled automatically by each script
+- Database validation is built into the integration test
+- Test reporting is included in script outputs and optional JSON files
 
 ## Script Details
 
@@ -31,21 +32,30 @@ This directory contains all testing scripts for the FastIntercom MCP server. The
 
 **Options**:
 - `--days N` - Number of days to sync (default: 7)
-- `--max-conversations N` - Limit conversations synced
-- `--performance-report` - Generate detailed performance metrics
-- `--quick` - Fast test with minimal data
+- `--max-conversations N` - Limit conversations synced (default: 1000)
+- `--performance-report` - Generate detailed performance metrics in JSON
+- `--quick` - Fast test with minimal data (1 day, 100 conversations)
 - `--verbose` - Enable debug logging
+- `--output FILE` - Save results to JSON file
+- `--no-cleanup` - Don't clean up test environment (for debugging)
+- `--help` - Show detailed usage information
 
 **Examples**:
 ```bash
 # Quick 7-day integration test
 ./scripts/run_integration_test.sh
 
+# Quick functionality check (1 day, 100 conversations)
+./scripts/run_integration_test.sh --quick
+
 # Extended test with performance monitoring
 ./scripts/run_integration_test.sh --days 30 --performance-report
 
-# Quick functionality check
-./scripts/run_integration_test.sh --quick
+# Debug test with verbose output and preserved environment
+./scripts/run_integration_test.sh --verbose --no-cleanup
+
+# Save detailed results to file
+./scripts/run_integration_test.sh --performance-report --output integration_results.json
 ```
 
 **Exit Codes**:
@@ -54,6 +64,7 @@ This directory contains all testing scripts for the FastIntercom MCP server. The
 - `2` - Sync operation failed
 - `3` - MCP server test failed
 - `4` - Performance targets not met
+- `5` - Environment setup failed
 
 ### test_docker_install.sh
 
@@ -61,10 +72,11 @@ This directory contains all testing scripts for the FastIntercom MCP server. The
 **Usage**: `./scripts/test_docker_install.sh [OPTIONS]`
 
 **Options**:
-- `--with-api-test` - Include real API testing
-- `--config FILE` - Use custom configuration
-- `--debug` - Enable debug mode
-- `--keep-container` - Don't remove test container
+- `--with-api-test` - Include real API integration testing
+- `--config FILE` - Use custom configuration file
+- `--debug` - Enable debug mode with verbose output
+- `--keep-container` - Don't remove test container after completion
+- `--help` - Show detailed usage information
 
 **Examples**:
 ```bash
@@ -74,31 +86,31 @@ This directory contains all testing scripts for the FastIntercom MCP server. The
 # Full Docker test with API integration
 ./scripts/test_docker_install.sh --with-api-test
 
-# Debug Docker issues
+# Debug Docker issues with container preservation
 ./scripts/test_docker_install.sh --debug --keep-container
+
+# Test with custom configuration
+./scripts/test_docker_install.sh --config ./test-configs/docker-test.json
 ```
 
-### run_performance_test.sh
+### Performance Testing
 
-**Purpose**: Dedicated performance benchmarking  
-**Usage**: `./scripts/run_performance_test.sh [OPTIONS]`
+**Note**: Performance testing is integrated into the main integration test script.
 
-**Options**:
-- `--profile` - Generate detailed performance profile
-- `--output FILE` - Save results to JSON file
-- `--baseline FILE` - Compare against baseline results
-- `--stress-test` - Run with large dataset
+**Performance Monitoring**: Use `run_integration_test.sh --performance-report`  
+**MCP Performance**: Use `test_mcp_tools.py --verbose`  
+**Docker Performance**: Use `test_docker_install.sh` with resource monitoring  
 
 **Examples**:
 ```bash
-# Standard performance test
-./scripts/run_performance_test.sh
+# Integration test with performance metrics
+./scripts/run_integration_test.sh --performance-report --output perf_results.json
 
-# Detailed profiling with output
-./scripts/run_performance_test.sh --profile --output perf_results.json
+# MCP tools performance testing
+python3 scripts/test_mcp_tools.py --verbose --output mcp_performance.json
 
-# Stress test with large dataset
-./scripts/run_performance_test.sh --stress-test
+# Docker test with debug info
+./scripts/test_docker_install.sh --debug
 ```
 
 ### test_mcp_tools.py
@@ -108,9 +120,11 @@ This directory contains all testing scripts for the FastIntercom MCP server. The
 
 **Options**:
 - `--tool TOOL_NAME` - Test specific tool only
-- `--server-url URL` - Connect to custom server
-- `--test-data FILE` - Use custom test data
-- `--timeout SECONDS` - Set request timeout
+- `--server-url URL` - MCP server URL (default: stdio)
+- `--timeout SECONDS` - Request timeout in seconds (default: 30)
+- `--verbose` - Enable verbose output with detailed responses
+- `--output FILE` - Save results to JSON file
+- `--help` - Show detailed usage information
 
 **Examples**:
 ```bash
@@ -120,53 +134,55 @@ python3 scripts/test_mcp_tools.py
 # Test specific tool
 python3 scripts/test_mcp_tools.py --tool search_conversations
 
-# Test with custom server
-python3 scripts/test_mcp_tools.py --server-url http://localhost:3001
+# Verbose testing with results output
+python3 scripts/test_mcp_tools.py --verbose --output mcp_results.json
+
+# Test with custom timeout
+python3 scripts/test_mcp_tools.py --timeout 60
 ```
 
-### monitor_performance.sh
+### Performance Monitoring
 
-**Purpose**: Real-time performance monitoring during operations  
-**Usage**: `./scripts/monitor_performance.sh [OPTIONS]`
+**Purpose**: Performance monitoring is integrated into test scripts  
+**Usage**: Built into existing test scripts
 
-**Options**:
-- `--duration SECONDS` - Monitoring duration
-- `--interval SECONDS` - Sample interval
-- `--output FILE` - Save metrics to file
-- `--quiet` - Minimal output
+**Available Monitoring**:
+- Integration test performance: `--performance-report` flag
+- MCP tools timing: Built into `test_mcp_tools.py`
+- Docker resource usage: Built into `test_docker_install.sh --debug`
 
 **Examples**:
 ```bash
-# Monitor during integration test
-./scripts/monitor_performance.sh &
-./scripts/run_integration_test.sh
-pkill -f monitor_performance
+# Monitor performance during integration test
+./scripts/run_integration_test.sh --performance-report
 
-# Monitor for specific duration
-./scripts/monitor_performance.sh --duration 300 --output metrics.log
+# Monitor MCP tools performance
+python3 scripts/test_mcp_tools.py --verbose
+
+# Monitor Docker resource usage
+./scripts/test_docker_install.sh --debug
 ```
 
-### verify_database_integrity.py
+### Database Validation
 
-**Purpose**: Comprehensive database validation  
-**Usage**: `python3 scripts/verify_database_integrity.py [OPTIONS]`
+**Purpose**: Database validation is integrated into integration test  
+**Usage**: Built into `run_integration_test.sh`
 
-**Options**:
-- `--database PATH` - Specify database file
-- `--fix-issues` - Attempt to fix detected issues
-- `--report FILE` - Generate detailed report
-- `--quick` - Fast integrity check only
+**Available Validation**:
+- Schema verification: Automatic during database initialization test
+- Data integrity: Automatic during sync verification
+- Storage validation: Automatic conversation and message count checks
 
-**examples**:
+**Manual Database Checks**:
 ```bash
-# Basic integrity check
-python3 scripts/verify_database_integrity.py
+# Check database integrity via SQLite
+sqlite3 ~/.fast-intercom-mcp/data.db "PRAGMA integrity_check;"
 
-# Full validation with report
-python3 scripts/verify_database_integrity.py --report integrity_report.json
+# View database statistics
+sqlite3 ~/.fast-intercom-mcp/data.db "SELECT COUNT(*) FROM conversations;"
 
-# Check and fix issues
-python3 scripts/verify_database_integrity.py --fix-issues
+# Run integration test with database validation
+./scripts/run_integration_test.sh --verbose
 ```
 
 ## Script Implementation Examples

@@ -59,14 +59,20 @@ docker run hello-world
 # Run with default settings (7 days)
 ./scripts/run_integration_test.sh
 
+# Quick test mode (1 day, 100 conversations max)
+./scripts/run_integration_test.sh --quick
+
 # Expected output:
-# 🔍 Testing FastIntercom MCP Integration
-# ✅ API Connection: Connected to workspace 'Your Workspace'
-# ✅ Database: Initialized successfully
-# ✅ Sync: 1,247 conversations (7 days)
-# ✅ Performance: 23.4 conv/sec, 47ms avg response
-# ✅ Queries: All MCP tools working correctly
-# ✅ Memory: 73MB peak usage
+# 🔍 FastIntercom MCP Integration Test v1.0.0
+# ===============================================
+# ℹ️  Test workspace: /Users/username/.fast-intercom-mcp-test-1234567890
+# ✅ Connected to workspace: Your Workspace Name
+# ✅ Database initialized successfully (4 tables)
+# ✅ Sync completed: 1,247 conversations, 5,832 messages
+# ℹ️  Sync duration: 53s (23.4 conv/sec)
+# ✅ MCP server started (PID: 12345)
+# ✅ MCP tools test: 4/4 tools passed
+# ✅ All performance targets met
 # 
 # Integration test PASSED ✅
 ```
@@ -79,8 +85,11 @@ docker run hello-world
 # Test with custom conversation limit
 ./scripts/run_integration_test.sh --days 7 --max-conversations 500
 
-# Test with performance monitoring
-./scripts/run_integration_test.sh --performance-report
+# Test with performance monitoring and output file
+./scripts/run_integration_test.sh --performance-report --output integration_results.json
+
+# Debug test with verbose output and preserved environment
+./scripts/run_integration_test.sh --verbose --no-cleanup
 ```
 
 #### Integration Test Steps (Detailed)
@@ -135,6 +144,9 @@ docker run hello-world
 # Trigger from command line
 gh workflow run integration-test.yml
 
+# Trigger with custom sync days
+gh workflow run integration-test.yml -f sync_days=30 -f run_full_test=true
+
 # Check workflow status
 gh run list --workflow=integration-test.yml --limit=5
 
@@ -143,25 +155,33 @@ gh run view $(gh run list --workflow=integration-test.yml --limit=1 --json datab
 ```
 
 #### Workflow Configuration
-The integration test workflow performs these steps:
-1. Set up Python 3.11 environment
-2. Install dependencies
-3. Configure Intercom API token (from secrets)
-4. Run integration test suite
-5. Upload test results and logs
-6. Report status to PR (if applicable)
+The integration test workflow (`integration-test.yml`) performs these steps:
+1. Set up Python 3.11 environment with pip caching
+2. Install system dependencies (sqlite3)
+3. Install Python dependencies and package
+4. Configure Intercom API token (from GitHub secrets)
+5. Create isolated test environment
+6. Run comprehensive integration test with real API data
+7. Generate performance metrics and test summary
+8. Upload test artifacts (results, logs, database snapshots)
+9. Comment on PR with test results (if applicable)
 
 #### Expected GitHub Actions Results
 ```yaml
-# Successful run indicators
+# Successful workflow run
+✅ Checkout code
 ✅ Set up Python 3.11
-✅ Install dependencies  
-✅ Configure API credentials
-✅ Run integration tests
-   - API Connection: PASSED
-   - Data Sync: PASSED (1,247 conversations)
-   - MCP Server: PASSED (all tools working)
-   - Performance: PASSED (25.3 conv/sec)
+✅ Install system dependencies
+✅ Install Python dependencies
+✅ Verify package installation
+✅ Create test environment
+✅ Run integration test
+   - Package import: PASSED
+   - Database initialization: PASSED
+   - API connection: PASSED
+   - Sync operation: PASSED (1,247 conversations, 30 days)
+   - Performance metrics: PASSED (25.3 conv/sec)
+✅ Generate test summary
 ✅ Upload test artifacts
 ```
 
@@ -177,12 +197,16 @@ The integration test workflow performs these steps:
 ./scripts/test_docker_install.sh
 
 # Expected output:
-# 🐳 Testing Docker Clean Install
-# ✅ Building Docker image...
-# ✅ Starting container...
-# ✅ Testing CLI functionality...
-# ✅ Testing MCP server startup...
-# ✅ Basic functionality verified
+# 🐳 FastIntercom MCP Docker Test v1.0.0
+# ===============================================
+# ℹ️  Docker version: Docker version 24.0.2
+# ℹ️  Building image: fast-intercom-mcp:test
+# ✅ Docker image built successfully: fast-intercom-mcp:test
+# ℹ️  Image size: 892MB
+# ✅ Container started successfully
+# ✅ CLI help command: PASSED
+# ✅ CLI init command: PASSED
+# ✅ MCP server startup: PASSED
 # 
 # Docker test PASSED ✅
 ```
@@ -194,6 +218,9 @@ The integration test workflow performs these steps:
 
 # Test with custom configuration
 ./scripts/test_docker_install.sh --config ./test-configs/docker-test.json
+
+# Debug Docker issues with container preservation
+./scripts/test_docker_install.sh --debug --keep-container
 ```
 
 #### Docker Test Steps (Detailed)
@@ -231,23 +258,23 @@ The integration test workflow performs these steps:
 
 ### Expected Performance Targets
 
-#### Sync Performance
-- **Conversation Sync Speed**: 10-50 conversations/second
-- **Message Processing**: 50-200 messages/second
-- **API Rate Limit Handling**: No 429 errors during normal operation
-- **Database Write Speed**: 100+ conversations/second to SQLite
+#### Sync Performance (Implemented Targets)
+- **Conversation Sync Speed**: 10+ conversations/second (configurable target)
+- **Message Processing**: Efficient batch processing with Intercom API
+- **API Rate Limit Handling**: Built-in rate limiting and retry logic
+- **Database Operations**: SQLite with optimized schema and indexes
 
-#### Response Performance
-- **Cached Query Response**: <100ms for conversation searches
-- **Individual Conversation**: <50ms for cached conversations
-- **Server Status Query**: <10ms for status information
-- **MCP Tool Response**: <200ms for complex searches
+#### Response Performance (Measured by Integration Test)
+- **CLI Status Command**: <100ms average response time
+- **Database Queries**: Fast SQLite operations with proper indexing
+- **Server Startup**: <3 seconds for MCP server initialization
+- **Tool Response**: Varies by data size and query complexity
 
-#### Resource Usage
-- **Memory Usage**: <100MB during sync operations
-- **Peak Memory**: <150MB during large dataset sync
-- **Disk I/O**: Efficient SQLite operations
-- **Network Usage**: Optimized API calls with batching
+#### Resource Usage (Monitored)
+- **Memory Usage**: <100MB target during normal operations
+- **Database Growth**: Approximately 1.8KB per conversation average
+- **Disk Space**: Efficient storage with SQLite database
+- **Network Usage**: Optimized Intercom API calls with pagination
 
 ### Performance Monitoring
 
@@ -256,22 +283,34 @@ The integration test workflow performs these steps:
 # Monitor performance during test
 ./scripts/run_integration_test.sh --performance-report
 
-# Output includes:
-# Performance Metrics:
-# ├── Sync Speed: 23.4 conversations/sec
-# ├── Query Response: 47ms average
-# ├── Memory Usage: 73MB peak
-# ├── Database Size: 45MB (1,247 conversations)
-# └── API Efficiency: 1.2 calls per conversation
+# Output includes performance metrics in JSON format:
+# {
+#   "sync_performance": {
+#     "conversations_synced": 1247,
+#     "messages_synced": 5832,
+#     "duration_seconds": 53,
+#     "conversations_per_second": 23.4
+#   },
+#   "query_performance": {
+#     "average_response_time_ms": 47
+#   },
+#   "resource_usage": {
+#     "memory_usage_mb": 73,
+#     "database_size_mb": 45
+#   }
+# }
 ```
 
-#### Performance Test Script
+#### MCP Tools Performance Test
 ```bash
-# Dedicated performance test
-./scripts/run_performance_test.sh
+# Test MCP tool response times
+python3 scripts/test_mcp_tools.py --verbose
 
-# With detailed profiling
-./scripts/run_performance_test.sh --profile --output perftest_results.json
+# Save detailed results with timing
+python3 scripts/test_mcp_tools.py --output mcp_performance.json
+
+# Test specific tools for performance
+python3 scripts/test_mcp_tools.py --tool search_conversations --timeout 60
 ```
 
 ### Performance Troubleshooting
@@ -333,62 +372,62 @@ Critical issues that prevent normal operation:
 
 #### Successful Integration Test Output
 ```
-🔍 FastIntercom MCP Integration Test Report
+🔍 FastIntercom MCP Integration Test v1.0.0
 ================================================================================
 
 Environment:
 ├── Python Version: 3.11.5
-├── Package Version: 0.4.0-dev
-├── Test Workspace: ~/.fast-intercom-mcp-test
-└── API Workspace: YourCompany (workspace_id: abc123)
+├── Package Available: true
+├── Test Workspace: ~/.fast-intercom-mcp-test-1234567890
+└── CLI Available: fast-intercom-mcp
 
 API Connection:
-├── Status: ✅ Connected
-├── Permissions: ✅ conversations:read, contacts:read
-├── Rate Limits: ✅ 1000/hour remaining
-└── Response Time: 145ms average
+├── Status: ✅ Connected to workspace: YourCompany
+├── Authentication: ✅ Valid token
+├── Connectivity: ✅ HTTPS API access working
+└── Test Result: PASSED
 
 Data Sync:
-├── Date Range: 2024-06-20 to 2024-06-27 (7 days)
+├── Sync Duration: 53s
 ├── Conversations: ✅ 1,247 synced successfully
 ├── Messages: ✅ 5,832 messages processed
-├── Customers: ✅ 891 unique customers
 ├── Sync Speed: ✅ 23.4 conversations/second
-├── API Calls: ✅ 1,502 calls (1.2 per conversation)
-└── Duration: ✅ 53.2 seconds
+├── Data Verification: ✅ 1,247 conversations stored in database
+└── Test Result: PASSED
 
-Data Integrity:
-├── Conversation IDs: ✅ All unique, no duplicates
-├── Message Threading: ✅ All threads complete
-├── Timestamps: ✅ All in correct chronological order
-├── Customer Links: ✅ All conversations linked to customers
-└── Schema Validation: ✅ All data matches expected schema
+Database Integrity:
+├── Database Schema: ✅ 4 tables created successfully
+├── Data Storage: ✅ All synced data properly stored
+├── SQLite Operations: ✅ No corruption detected
+└── Test Result: PASSED
 
 MCP Server:
-├── Startup: ✅ Started in 2.3 seconds
-├── Tool Registration: ✅ 4 tools registered
-├── search_conversations: ✅ 15 test queries successful
-├── get_conversation: ✅ 10 individual retrievals successful
-├── get_server_status: ✅ Status reporting functional
-└── sync_conversations: ✅ Manual sync triggers working
+├── Startup: ✅ Started successfully (PID: 12345)
+├── Tool Testing: ✅ 4/4 tools passed
+├── Server Status: ✅ Status command working
+├── Process Health: ✅ Server running stably
+└── Test Result: PASSED
 
 Performance:
-├── Query Response: ✅ 47ms average (target: <100ms)
-├── Memory Usage: ✅ 73MB peak (target: <100MB)
-├── Database Size: ✅ 45MB (1.8KB per conversation)
-├── CPU Usage: ✅ <5% during queries
-└── Disk I/O: ✅ Efficient SQLite operations
+├── Sync Speed: ✅ 23.4 conv/sec (target: >10)
+├── Response Time: ✅ 47ms average (target: <100ms)
+├── Memory Usage: ✅ 73MB (target: <100MB)
+├── Database Size: ✅ 45MB
+└── Test Result: PASSED
 
-Cleanup:
-├── MCP Server: ✅ Stopped gracefully
-├── Database: ✅ Closed properly
-├── Temp Files: ✅ All cleaned up
-└── Memory: ✅ Fully released
+Test Results:
+================================================================================
+Test Duration: 83s
+Tests Passed: 5/5
+
+✅ api_connection: PASSED
+✅ database_init: PASSED  
+✅ data_sync: PASSED
+✅ mcp_server: PASSED
+✅ performance: PASSED
 
 ================================================================================
-Integration Test Result: ✅ PASSED
-Test Duration: 1m 23s
-Report Generated: 2024-06-27 14:35:22 UTC
+Integration test PASSED ✅
 ================================================================================
 ```
 

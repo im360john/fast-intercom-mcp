@@ -35,48 +35,66 @@ pytest tests/ --cov=fast_intercom_mcp
 
 ### 2. Integration Tests
 **Purpose**: Test end-to-end functionality with real Intercom API  
-**Framework**: Custom integration scripts  
-**Location**: `scripts/` directory  
+**Framework**: Custom integration script with comprehensive testing  
+**Location**: `scripts/run_integration_test.sh`  
 **Duration**: 1-5 minutes  
 **Prerequisites**: Valid Intercom API token  
 
 ```bash
-# Quick integration test (7 days of data)
+# Quick integration test (1 day, 100 conversations)
+./scripts/run_integration_test.sh --quick
+
+# Standard integration test (7 days of data)
 ./scripts/run_integration_test.sh
 
-# Full integration test (30 days of data)
+# Extended integration test (30 days of data)
 ./scripts/run_integration_test.sh --days 30
 
 # Performance benchmark test
 ./scripts/run_integration_test.sh --performance-report
+
+# Debug test with verbose output
+./scripts/run_integration_test.sh --verbose --no-cleanup
 ```
 
 ### 3. Docker Tests
 **Purpose**: Test clean installation and deployment  
-**Framework**: Docker-based testing  
-**Location**: `scripts/` directory  
+**Framework**: Comprehensive Docker testing script  
+**Location**: `scripts/test_docker_install.sh`  
 **Duration**: 2-10 minutes  
 
 ```bash
-# Test Docker build and basic functionality
+# Basic Docker functionality test
 ./scripts/test_docker_install.sh
 
-# Test Docker with real API data
+# Full Docker test with API integration
 ./scripts/test_docker_install.sh --with-api-test
+
+# Debug Docker issues with container preservation
+./scripts/test_docker_install.sh --debug --keep-container
+
+# Test with custom configuration
+./scripts/test_docker_install.sh --config ./test-configs/docker-test.json
 ```
 
-### 4. Performance Tests
-**Purpose**: Validate performance benchmarks  
-**Framework**: Custom benchmarking  
-**Location**: Integrated with integration tests  
-**Duration**: 3-10 minutes  
+### 4. MCP Protocol Tests
+**Purpose**: Test individual MCP tools and protocol compliance  
+**Framework**: Python-based MCP tool tester  
+**Location**: `scripts/test_mcp_tools.py`  
+**Duration**: 30 seconds - 2 minutes  
 
 ```bash
-# Run performance benchmark
-./scripts/run_performance_test.sh
+# Test all MCP tools
+python3 scripts/test_mcp_tools.py
 
-# Monitor performance during sync
-./scripts/monitor_performance.sh
+# Test specific tool
+python3 scripts/test_mcp_tools.py --tool search_conversations
+
+# Verbose testing with results output
+python3 scripts/test_mcp_tools.py --verbose --output mcp_results.json
+
+# Test with custom timeout
+python3 scripts/test_mcp_tools.py --timeout 60
 ```
 
 ## Running Tests
@@ -92,7 +110,7 @@ pytest tests/ --cov=fast_intercom_mcp
 #### Quick Test Suite
 ```bash
 # 1. Basic functionality check (30 seconds)
-python3 -c "import fast_intercom_mcp.cli; print('✅ Import successful')"
+python3 -c "import fast_intercom_mcp; print('✅ Import successful')"
 
 # 2. CLI availability check
 fast-intercom-mcp --help
@@ -103,6 +121,9 @@ pytest tests/ -x --tb=short
 # 4. Quick integration test (requires API token)
 export INTERCOM_ACCESS_TOKEN=your_token_here
 ./scripts/run_integration_test.sh --quick
+
+# 5. Test MCP tools
+python3 scripts/test_mcp_tools.py
 ```
 
 #### Complete Test Suite
@@ -111,47 +132,49 @@ export INTERCOM_ACCESS_TOKEN=your_token_here
 pytest tests/ --cov=fast_intercom_mcp --cov-report=html
 
 # 2. Integration test with performance monitoring
-./scripts/run_integration_test.sh --performance-report
+./scripts/run_integration_test.sh --performance-report --output integration_results.json
 
 # 3. Docker clean install test
-./scripts/test_docker_install.sh
+./scripts/test_docker_install.sh --with-api-test
 
-# 4. Performance benchmark
-./scripts/run_performance_test.sh
+# 4. MCP protocol compliance test
+python3 scripts/test_mcp_tools.py --verbose --output mcp_results.json
 ```
 
 ### CI/CD Pipeline
 
 #### GitHub Actions Workflows
 
-**Fast Check** (runs on every PR):
+**Fast Check** (runs on every PR and push to main):
 ```bash
 # Trigger manually
 gh workflow run fast-check.yml
 
 # View results
 gh run list --workflow=fast-check.yml --limit=5
+
+# Check latest run status
+gh run view $(gh run list --workflow=fast-check.yml --limit=1 --json databaseId --jq '.[0].databaseId')
 ```
 
-**Integration Test** (manual/weekly):
+**Integration Test** (manual trigger with workflow_dispatch):
 ```bash
-# Trigger integration test workflow
+# Trigger integration test workflow from Issue #37
 gh workflow run integration-test.yml
+
+# Trigger with custom parameters
+gh workflow run integration-test.yml -f sync_days=30 -f run_full_test=true
 
 # View detailed logs
 gh run view --log
 ```
 
-**Docker Test** (on releases):
-```bash
-# Trigger Docker test workflow
-gh workflow run docker-test.yml
-```
+Note: The integration test workflow was implemented in Issue #37 and runs comprehensive API testing with real data.
 
 #### Expected CI/CD Results
-- **Fast Check**: < 2 minutes, validates imports and basic functionality
-- **Integration Test**: 5-15 minutes, validates real API functionality
-- **Docker Test**: 10-20 minutes, validates deployment scenarios
+- **Fast Check**: < 2 minutes, validates imports, linting, and CLI smoke test
+- **Integration Test**: 5-30 minutes, validates real API functionality with 30+ days of data
+- **Docker Test**: Can be triggered via local scripts for deployment validation
 
 ### Manual Verification
 
@@ -162,9 +185,13 @@ fast-intercom-mcp start --test-mode &
 SERVER_PID=$!
 
 # 2. Test MCP tools
-python3 scripts/test_mcp_tools.py
+python3 scripts/test_mcp_tools.py --verbose
 
-# 3. Clean up
+# 3. Test specific tools
+python3 scripts/test_mcp_tools.py --tool search_conversations
+python3 scripts/test_mcp_tools.py --tool get_server_status
+
+# 4. Clean up
 kill $SERVER_PID
 ```
 
@@ -467,13 +494,17 @@ echo "✅ Pre-commit tests passed"
 # Daily development testing
 pytest tests/ -x --tb=short                    # Quick unit tests
 ./scripts/run_integration_test.sh --quick      # Quick integration
+python3 scripts/test_mcp_tools.py              # MCP tools test
 
 # Before PR submission
 pytest tests/ --cov=fast_intercom_mcp         # Full unit tests
 ./scripts/run_integration_test.sh             # Full integration
+./scripts/test_docker_install.sh              # Docker test
 
 # Before release
-./scripts/run_complete_test_suite.sh           # Everything
+./scripts/run_integration_test.sh --performance-report  # With metrics
+./scripts/test_docker_install.sh --with-api-test        # Full Docker test
+python3 scripts/test_mcp_tools.py --verbose --output mcp_results.json
 ```
 
 ### Emergency Test Commands
