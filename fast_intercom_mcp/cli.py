@@ -135,9 +135,7 @@ def init(_ctx, token, sync_days):
     click.echo(f"📁 Database initialized at {db.db_path}")
 
     # Perform initial sync
-    if click.confirm(
-        f"Would you like to sync {sync_days} days of conversation history now?"
-    ):
+    if click.confirm(f"Would you like to sync {sync_days} days of conversation history now?"):
         click.echo("🔄 Starting initial sync (this may take a few minutes)...")
 
         async def initial_sync():
@@ -163,9 +161,7 @@ def init(_ctx, token, sync_days):
             click.echo("  2. Configure Claude Desktop to use this MCP server")
             click.echo("  3. Start asking questions about your Intercom conversations!")
         else:
-            click.echo(
-                "Initial sync failed, but you can retry later with 'fastintercom sync'"
-            )
+            click.echo("Initial sync failed, but you can retry later with 'fastintercom sync'")
 
 
 @cli.command()
@@ -176,12 +172,8 @@ def init(_ctx, token, sync_days):
     type=int,
     help="Port for HTTP MCP server (default: stdio mode)",
 )
-@click.option(
-    "--host", default="0.0.0.0", help="Host for HTTP server (default: 0.0.0.0)"
-)
-@click.option(
-    "--api-key", help="API key for HTTP authentication (auto-generated if not provided)"
-)
+@click.option("--host", default="0.0.0.0", help="Host for HTTP server (default: 0.0.0.0)")
+@click.option("--api-key", help="API key for HTTP authentication (auto-generated if not provided)")
 @click.pass_context
 def start(ctx, daemon, port, host, api_key):
     """Start the FastIntercom MCP server."""
@@ -215,9 +207,7 @@ def start(ctx, daemon, port, host, api_key):
             port=port,
         )
     else:
-        server = FastIntercomMCPServer(
-            db, sync_manager.get_sync_service(), intercom_client
-        )
+        server = FastIntercomMCPServer(db, sync_manager.get_sync_service(), intercom_client)
 
     # Setup signal handlers for graceful shutdown
     def signal_handler(_signum, _frame):
@@ -282,9 +272,7 @@ def start(ctx, daemon, port, host, api_key):
 @cli.command()
 @click.option("--port", default=8000, type=int, help="Port for HTTP server")
 @click.option("--host", default="0.0.0.0", help="Host for HTTP server")
-@click.option(
-    "--api-key", help="API key for authentication (auto-generated if not provided)"
-)
+@click.option("--api-key", help="API key for authentication (auto-generated if not provided)")
 @click.pass_context
 def serve(ctx, port, host, api_key):
     """Start the FastIntercom HTTP MCP server."""
@@ -364,9 +352,7 @@ def mcp(ctx):
     db = DatabaseManager(config.database_path, config.connection_pool_size)
     intercom_client = IntercomClient(config.intercom_token, config.api_timeout_seconds)
     sync_manager = SyncManager(db, intercom_client)
-    mcp_server = FastIntercomMCPServer(
-        db, sync_manager.get_sync_service(), intercom_client
-    )
+    mcp_server = FastIntercomMCPServer(db, sync_manager.get_sync_service(), intercom_client)
 
     async def run_mcp_server():
         # Note: MCP server will start its own background sync
@@ -434,9 +420,7 @@ def status(ctx):
 
 @cli.command()
 @click.option("--force", "-f", is_flag=True, help="Force full sync of recent data")
-@click.option(
-    "--days", "-d", default=1, type=int, help="Number of days to sync (for force mode)"
-)
+@click.option("--days", "-d", default=1, type=int, help="Number of days to sync (for force mode)")
 @click.pass_context
 def sync(ctx, force, days):
     """Manually trigger conversation sync."""
@@ -446,9 +430,7 @@ def sync(ctx, force, days):
 
     async def run_sync():
         db = DatabaseManager(config.database_path, config.connection_pool_size)
-        intercom_client = IntercomClient(
-            config.intercom_token, config.api_timeout_seconds
-        )
+        intercom_client = IntercomClient(config.intercom_token, config.api_timeout_seconds)
         sync_manager = SyncManager(db, intercom_client)
         sync_service = sync_manager.get_sync_service()
 

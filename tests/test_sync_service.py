@@ -170,9 +170,7 @@ class TestSyncServiceOperations:
             messages=[test_message],
         )
 
-        sync_service.intercom.fetch_conversations_for_period.return_value = [
-            test_conversation
-        ]
+        sync_service.intercom.fetch_conversations_for_period.return_value = [test_conversation]
 
         # Perform period sync
         result = await sync_service.sync_period(start_date, end_date)
@@ -212,9 +210,7 @@ class TestSyncServiceOperations:
             messages=[test_message],
         )
 
-        sync_service.intercom.fetch_conversations_for_period.return_value = [
-            test_conversation
-        ]
+        sync_service.intercom.fetch_conversations_for_period.return_value = [test_conversation]
 
         # Perform initial sync
         result = await sync_service.sync_initial(days_back=7)
@@ -252,9 +248,7 @@ class TestSyncServiceOperations:
     async def test_sync_error_handling(self, sync_service):
         """Test sync error handling and cleanup."""
         # Configure mock to raise exception
-        sync_service.intercom.fetch_conversations_incremental.side_effect = Exception(
-            "API Error"
-        )
+        sync_service.intercom.fetch_conversations_incremental.side_effect = Exception("API Error")
 
         # Sync should raise exception but clean up state
         with pytest.raises(Exception, match="API Error"):
@@ -481,9 +475,7 @@ class TestSyncManager:
 class TestSyncServiceConfiguration:
     """Test sync service configuration options."""
 
-    def test_sync_service_timing_configuration(
-        self, test_db_manager, mock_intercom_client
-    ):
+    def test_sync_service_timing_configuration(self, test_db_manager, mock_intercom_client):
         """Test sync service timing configuration."""
         service = SyncService(test_db_manager, mock_intercom_client)
 
@@ -516,11 +508,7 @@ class TestSyncServiceConfiguration:
 
         # Verify types
         assert isinstance(status["active"], bool)
-        assert status["current_operation"] is None or isinstance(
-            status["current_operation"], str
-        )
-        assert status["last_sync_time"] is None or isinstance(
-            status["last_sync_time"], str
-        )
+        assert status["current_operation"] is None or isinstance(status["current_operation"], str)
+        assert status["last_sync_time"] is None or isinstance(status["last_sync_time"], str)
         assert isinstance(status["last_sync_stats"], dict)
         assert status["app_id"] is None or isinstance(status["app_id"], str)

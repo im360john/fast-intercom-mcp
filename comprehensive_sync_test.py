@@ -145,9 +145,7 @@ def test_api_connectivity():
 
 async def test_sync_performance(monitor, days=7, max_conversations=1000):
     """Run a comprehensive sync test with performance monitoring"""
-    print(
-        f"🔄 Running sync test ({days} days, max {max_conversations} conversations)..."
-    )
+    print(f"🔄 Running sync test ({days} days, max {max_conversations} conversations)...")
 
     try:
         # Setup
@@ -193,12 +191,8 @@ async def test_sync_performance(monitor, days=7, max_conversations=1000):
             }
         )
 
-        print(
-            f"✅ Sync completed: {conversations_synced} conversations in {sync_duration:.2f}s"
-        )
-        print(
-            f"📈 Rate: {monitor.metrics['sync_rate_per_second']:.1f} conversations/second"
-        )
+        print(f"✅ Sync completed: {conversations_synced} conversations in {sync_duration:.2f}s")
+        print(f"📈 Rate: {monitor.metrics['sync_rate_per_second']:.1f} conversations/second")
 
         return True
 
@@ -255,9 +249,7 @@ def test_mcp_server_startup():
         return 0
 
 
-def generate_performance_report(
-    monitor, db_size_mb, total_conversations, server_startup_time
-):
+def generate_performance_report(monitor, db_size_mb, total_conversations, server_startup_time):
     """Generate a comprehensive performance report"""
 
     return {
@@ -288,20 +280,16 @@ def generate_performance_report(
                 2,
             ),
             "memory_efficiency_conversations_per_mb_ram": round(
-                monitor.metrics["conversations_synced"]
-                / max(monitor.metrics["peak_memory_mb"], 1),
+                monitor.metrics["conversations_synced"] / max(monitor.metrics["peak_memory_mb"], 1),
                 2,
             ),
         },
         "assessment": {
-            "overall_status": "PASSED"
-            if monitor.metrics["errors_encountered"] == 0
-            else "PARTIAL",
+            "overall_status": "PASSED" if monitor.metrics["errors_encountered"] == 0 else "PARTIAL",
             "performance_rating": _rate_performance(monitor.metrics),
             "total_conversations_available": total_conversations,
             "test_coverage_percent": round(
-                (monitor.metrics["conversations_synced"] / max(total_conversations, 1))
-                * 100,
+                (monitor.metrics["conversations_synced"] / max(total_conversations, 1)) * 100,
                 2,
             ),
         },
@@ -426,9 +414,7 @@ def main():
     print()
     print("🎯 Efficiency Metrics:")
     print(f"  • Conversations per MB Storage: {efficiency['conversations_per_mb']:.1f}")
-    print(
-        f"  • API Efficiency: {efficiency['api_efficiency']:.2f} conversations/request"
-    )
+    print(f"  • API Efficiency: {efficiency['api_efficiency']:.2f} conversations/request")
     print(
         f"  • Memory Efficiency: "
         f"{efficiency['memory_efficiency_conversations_per_mb_ram']:.1f} conv/MB RAM"

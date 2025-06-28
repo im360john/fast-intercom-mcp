@@ -486,9 +486,7 @@ class APIOptimizer:
                 )
 
             # Calculate averages
-            non_cached_requests = (
-                self.metrics.total_requests - self.metrics.cached_responses
-            )
+            non_cached_requests = self.metrics.total_requests - self.metrics.cached_responses
             if non_cached_requests > 0:
                 self.metrics.avg_response_time_seconds = (
                     self.metrics.total_response_time_seconds / non_cached_requests
@@ -514,17 +512,11 @@ class APIOptimizer:
                 "deduplicated": self.metrics.deduplicated_requests,
             },
             "performance": {
-                "avg_response_time_seconds": round(
-                    self.metrics.avg_response_time_seconds, 3
-                ),
-                "fastest_request_seconds": round(
-                    self.metrics.fastest_request_seconds, 3
-                )
+                "avg_response_time_seconds": round(self.metrics.avg_response_time_seconds, 3),
+                "fastest_request_seconds": round(self.metrics.fastest_request_seconds, 3)
                 if self.metrics.fastest_request_seconds != float("inf")
                 else 0,
-                "slowest_request_seconds": round(
-                    self.metrics.slowest_request_seconds, 3
-                ),
+                "slowest_request_seconds": round(self.metrics.slowest_request_seconds, 3),
                 "cache_hit_ratio": round(self.metrics.cache_hit_ratio, 3),
             },
             "cache": cache_stats,
@@ -542,28 +534,17 @@ class APIOptimizer:
         recommendations = []
 
         if self.metrics.cache_hit_ratio < 0.3 and self.metrics.total_requests > 100:
-            recommendations.append(
-                "Low cache hit ratio - consider increasing cache TTL or size"
-            )
+            recommendations.append("Low cache hit ratio - consider increasing cache TTL or size")
 
-        if (
-            self.metrics.avg_response_time_seconds
-            > self.config.slow_request_threshold_seconds
-        ):
-            recommendations.append(
-                "High average response time - check network or API performance"
-            )
+        if self.metrics.avg_response_time_seconds > self.config.slow_request_threshold_seconds:
+            recommendations.append("High average response time - check network or API performance")
 
         if self.metrics.deduplicated_requests > self.metrics.total_requests * 0.1:
-            recommendations.append(
-                "High request deduplication - consider request optimization"
-            )
+            recommendations.append("High request deduplication - consider request optimization")
 
         cache_stats = self.cache.get_stats()
         if cache_stats["utilization_percentage"] > 90:
-            recommendations.append(
-                "Cache near capacity - consider increasing cache size"
-            )
+            recommendations.append("Cache near capacity - consider increasing cache size")
 
         return recommendations
 

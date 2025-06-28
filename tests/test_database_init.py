@@ -118,9 +118,7 @@ class TestDatabaseInitialization:
             cursor = conn.execute("SELECT MAX(version) FROM schema_version")
             current_version = cursor.fetchone()[0]
 
-            assert current_version == 2, (
-                f"Expected schema version 2, got {current_version}"
-            )
+            assert current_version == 2, f"Expected schema version 2, got {current_version}"
 
     def test_foreign_keys_enabled(self, test_db_manager):
         """Test that foreign key constraints are enabled."""
@@ -139,14 +137,10 @@ class TestDatabaseInitialization:
         assert db_manager.pool_size == 5
 
         # Invalid pool sizes should raise ValueError
-        with pytest.raises(
-            ValueError, match="Database pool size must be between 1 and 20"
-        ):
+        with pytest.raises(ValueError, match="Database pool size must be between 1 and 20"):
             DatabaseManager(db_path=temp_db_path, pool_size=0)
 
-        with pytest.raises(
-            ValueError, match="Database pool size must be between 1 and 20"
-        ):
+        with pytest.raises(ValueError, match="Database pool size must be between 1 and 20"):
             DatabaseManager(db_path=temp_db_path, pool_size=25)
 
     def test_default_database_path(self):
@@ -254,9 +248,7 @@ class TestDatabaseOperations:
         end_time = now - timedelta(hours=1)
 
         # No data initially
-        freshness = test_db_manager.get_data_freshness_for_timeframe(
-            start_time, end_time
-        )
+        freshness = test_db_manager.get_data_freshness_for_timeframe(start_time, end_time)
         assert freshness == 0
 
         # Add conversation in timeframe
@@ -277,9 +269,7 @@ class TestDatabaseOperations:
         test_db_manager.store_conversations([conversation])
 
         # Check freshness again - should return an integer (can be negative due to timing)
-        freshness = test_db_manager.get_data_freshness_for_timeframe(
-            start_time, end_time
-        )
+        freshness = test_db_manager.get_data_freshness_for_timeframe(start_time, end_time)
         assert isinstance(freshness, int), "Freshness should be an integer value"
 
 
@@ -310,10 +300,7 @@ class TestDatabaseTransaction:
         test_db_manager.store_conversations([valid_conversation])
 
         # Verify it was stored
-        assert (
-            test_db_manager.get_sync_status()["total_conversations"]
-            == initial_count + 1
-        )
+        assert test_db_manager.get_sync_status()["total_conversations"] == initial_count + 1
 
     def test_duplicate_conversation_handling(self, test_db_manager):
         """Test that duplicate conversations are handled correctly."""

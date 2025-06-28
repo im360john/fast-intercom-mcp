@@ -45,9 +45,7 @@ class Config:
             "connection_pool_size": os.getenv("FASTINTERCOM_DB_POOL_SIZE"),
             "log_level": os.getenv("FASTINTERCOM_LOG_LEVEL"),
             "max_sync_age_minutes": os.getenv("FASTINTERCOM_MAX_SYNC_AGE_MINUTES"),
-            "background_sync_interval_minutes": os.getenv(
-                "FASTINTERCOM_BACKGROUND_SYNC_INTERVAL"
-            ),
+            "background_sync_interval_minutes": os.getenv("FASTINTERCOM_BACKGROUND_SYNC_INTERVAL"),
             "initial_sync_days": os.getenv("FASTINTERCOM_INITIAL_SYNC_DAYS"),
         }
 
@@ -64,10 +62,7 @@ class Config:
                     config_data[key] = value
 
         # Validate pool size
-        if (
-            "connection_pool_size" in config_data
-            and config_data["connection_pool_size"] > 20
-        ):
+        if "connection_pool_size" in config_data and config_data["connection_pool_size"] > 20:
             raise ValueError("Database connection pool size cannot exceed 20")
 
         # Validate required fields

@@ -74,9 +74,7 @@ class FastIntercomHTTPServer:
         self.port = port
 
         # Initialize core MCP server
-        self.mcp_server = FastIntercomMCPServer(
-            database_manager, sync_service, intercom_client
-        )
+        self.mcp_server = FastIntercomMCPServer(database_manager, sync_service, intercom_client)
 
         # Authentication
         self.auth = AuthManager(api_key)
@@ -105,9 +103,7 @@ class FastIntercomHTTPServer:
             allow_headers=["*"],
         )
 
-    def _verify_auth(
-        self, credentials: HTTPAuthorizationCredentials = Security(HTTPBearer())
-    ):
+    def _verify_auth(self, credentials: HTTPAuthorizationCredentials = Security(HTTPBearer())):
         """Verify authentication credentials."""
         if not self.auth.verify_key(credentials.credentials):
             raise HTTPException(
@@ -276,9 +272,7 @@ class FastIntercomHTTPServer:
 
         except Exception as e:
             logger.error(f"MCP request processing error: {e}")
-            return {
-                "error": {"code": -32603, "message": "Internal error", "data": str(e)}
-            }
+            return {"error": {"code": -32603, "message": "Internal error", "data": str(e)}}
 
     async def start(self):
         """Start the HTTP server."""

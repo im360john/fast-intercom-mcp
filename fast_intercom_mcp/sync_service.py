@@ -19,9 +19,7 @@ logger = logging.getLogger(__name__)
 class SyncService:
     """Manages background synchronization of Intercom conversations."""
 
-    def __init__(
-        self, database_manager: DatabaseManager, intercom_client: IntercomClient
-    ):
+    def __init__(self, database_manager: DatabaseManager, intercom_client: IntercomClient):
         self.db = database_manager
         self.intercom = intercom_client
         self.app_id = None
@@ -42,9 +40,7 @@ class SyncService:
 
         # Sync settings
         self.max_sync_age_minutes = 5  # Trigger sync if data is older than this
-        self.background_sync_interval_minutes = (
-            10  # Check for sync needs every 10 minutes
-        )
+        self.background_sync_interval_minutes = 10  # Check for sync needs every 10 minutes
 
         # Two-phase coordinator for advanced operations
         self.two_phase_coordinator = TwoPhaseSyncCoordinator(
@@ -131,17 +127,13 @@ class SyncService:
             return
 
         # Priority 1: Check for request-triggered timeframes that need syncing
-        stale_request_timeframes = self.db.get_stale_timeframes(
-            self.max_sync_age_minutes
-        )
+        stale_request_timeframes = self.db.get_stale_timeframes(self.max_sync_age_minutes)
 
         if stale_request_timeframes:
             logger.info(
                 f"Found {len(stale_request_timeframes)} request-triggered timeframes needing sync"
             )
-            for start, end in stale_request_timeframes[
-                :2
-            ]:  # Limit to 2 to avoid overwhelming API
+            for start, end in stale_request_timeframes[:2]:  # Limit to 2 to avoid overwhelming API
                 await self.sync_period(start, end, is_background=True)
 
         # Priority 2: Check legacy period-based syncing
@@ -150,9 +142,7 @@ class SyncService:
         if (
             stale_periods and not stale_request_timeframes
         ):  # Only if no request-triggered syncs needed
-            logger.info(
-                f"Found {len(stale_periods)} stale periods, triggering background sync"
-            )
+            logger.info(f"Found {len(stale_periods)} stale periods, triggering background sync")
             for start, end in stale_periods[:2]:  # Limit to 2 periods
                 await self.sync_period(start, end, is_background=True)
 
@@ -173,18 +163,14 @@ class SyncService:
 
             if today_count < 5:  # Less than 5 conversations today
                 # Sync the full day to get better coverage
-                logger.info(
-                    f"Only {today_count} conversations found for today, syncing full day"
-                )
+                logger.info(f"Only {today_count} conversations found for today, syncing full day")
                 await self.sync_period(today_start, now, is_background=True)
             else:
                 # We have some data, just sync recent hour
                 recent_start = now - timedelta(hours=1)
                 await self.sync_period(recent_start, now, is_background=True)
 
-    async def sync_if_needed(
-        self, start_date: datetime | None, end_date: datetime | None
-    ):
+    async def sync_if_needed(self, start_date: datetime | None, end_date: datetime | None):
         """
         Smart sync based on 3-state sync logic.
 
@@ -194,9 +180,7 @@ class SyncService:
         - 'fresh': Data is current, proceed normally
         """
         # Check sync state using intelligent logic
-        sync_info = self.db.check_sync_state(
-            start_date, end_date, self.max_sync_age_minutes
-        )
+        sync_info = self.db.check_sync_state(start_date, end_date, self.max_sync_age_minutes)
         sync_state = sync_info["sync_state"]
 
         logger.info(f"Sync state check: {sync_state}")
@@ -290,9 +274,7 @@ class SyncService:
             self._last_sync_time = datetime.now()
             self._sync_stats = stats.__dict__
 
-            logger.info(
-                f"Period sync completed: {stats.total_conversations} conversations"
-            )
+            logger.info(f"Period sync completed: {stats.total_conversations} conversations")
             await self._broadcast_progress(
                 f"Sync completed: {stats.total_conversations} conversations, "
                 f"{stats.total_messages} messages"
@@ -319,9 +301,7 @@ class SyncService:
             raise Exception("Sync already in progress")
 
         self._sync_active = True
-        self._current_operation = (
-            f"Incremental sync since {since.strftime('%m/%d %H:%M')}"
-        )
+        self._current_operation = f"Incremental sync since {since.strftime('%m/%d %H:%M')}"
 
         try:
             logger.info(f"Starting incremental sync since {since}")
@@ -332,9 +312,7 @@ class SyncService:
             self._last_sync_time = datetime.now()
             self._sync_stats = stats.__dict__
 
-            logger.info(
-                f"Incremental sync completed: {stats.total_conversations} conversations"
-            )
+            logger.info(f"Incremental sync completed: {stats.total_conversations} conversations")
             return stats
 
         finally:
@@ -350,8 +328,7 @@ class SyncService:
 
         self._sync_active = True
         self._current_operation = (
-            f"Two-phase sync {start_date.strftime('%m/%d')} to "
-            f"{end_date.strftime('%m/%d')}"
+            f"Two-phase sync {start_date.strftime('%m/%d')} to " f"{end_date.strftime('%m/%d')}"
         )
 
         try:
@@ -365,9 +342,7 @@ class SyncService:
             self._last_sync_time = datetime.now()
             self._sync_stats = stats.__dict__
 
-            logger.info(
-                f"Two-phase sync completed: {stats.total_conversations} conversations"
-            )
+            logger.info(f"Two-phase sync completed: {stats.total_conversations} conversations")
             return stats
 
         finally:
@@ -394,9 +369,7 @@ class SyncService:
         return {
             "active": self._sync_active,
             "current_operation": self._current_operation,
-            "last_sync_time": self._last_sync_time.isoformat()
-            if self._last_sync_time
-            else None,
+            "last_sync_time": self._last_sync_time.isoformat() if self._last_sync_time else None,
             "last_sync_stats": self._sync_stats,
             "app_id": self.app_id,
             "recent_errors": self._sync_errors[-5:],  # Last 5 errors
@@ -419,9 +392,7 @@ class SyncService:
 class SyncManager:
     """Manages the sync service lifecycle in a separate thread."""
 
-    def __init__(
-        self, database_manager: DatabaseManager, intercom_client: IntercomClient
-    ):
+    def __init__(self, database_manager: DatabaseManager, intercom_client: IntercomClient):
         self.sync_service = SyncService(database_manager, intercom_client)
         self._loop = None
         self._thread = None

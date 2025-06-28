@@ -67,9 +67,7 @@ class Colors:
 class MCPToolTester:
     """MCP tool testing class."""
 
-    def __init__(
-        self, server_url: str = "stdio", timeout: int = 30, verbose: bool = False
-    ):
+    def __init__(self, server_url: str = "stdio", timeout: int = 30, verbose: bool = False):
         self.server_url = server_url
         self.timeout = timeout
         self.verbose = verbose
@@ -144,9 +142,7 @@ class MCPToolTester:
             if not validation_errors:
                 self.passed_tests += 1
                 if self.verbose:
-                    self.log_success(
-                        f"Tool response: {json.dumps(result, indent=2)[:200]}..."
-                    )
+                    self.log_success(f"Tool response: {json.dumps(result, indent=2)[:200]}...")
             else:
                 self.failed_tests += 1
                 if self.verbose:
@@ -174,9 +170,7 @@ class MCPToolTester:
 
             return error_result
 
-    def _validate_tool_specific(
-        self, tool_name: str, result: dict[str, Any]
-    ) -> list[str]:
+    def _validate_tool_specific(self, tool_name: str, result: dict[str, Any]) -> list[str]:
         """Perform tool-specific validation."""
         errors = []
 
@@ -191,9 +185,7 @@ class MCPToolTester:
                         if not isinstance(conv, dict):
                             errors.append(f"conversation {i} should be a dict")
                         elif "id" not in conv:
-                            errors.append(
-                                f"conversation {i} missing required 'id' field"
-                            )
+                            errors.append(f"conversation {i} missing required 'id' field")
 
             # Validate total_count
             if "total_count" in result:
@@ -235,9 +227,7 @@ class MCPToolTester:
 
         return errors
 
-    async def _call_mcp_tool(
-        self, tool_name: str, arguments: dict[str, Any]
-    ) -> dict[str, Any]:
+    async def _call_mcp_tool(self, tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         """Call MCP tool and return result."""
         if self.server_url == "stdio":
             # Use CLI interface to call tool
@@ -245,9 +235,7 @@ class MCPToolTester:
         # Use HTTP/WebSocket interface (not implemented in this version)
         raise NotImplementedError("HTTP/WebSocket MCP testing not yet implemented")
 
-    async def _call_via_cli(
-        self, tool_name: str, arguments: dict[str, Any]
-    ) -> dict[str, Any]:
+    async def _call_via_cli(self, tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         """Call MCP tool via CLI interface."""
         # For now, simulate MCP calls using CLI commands
         # In a real implementation, this would use the MCP client library
@@ -259,9 +247,7 @@ class MCPToolTester:
 
             # Parse CLI output and convert to MCP format
             return {
-                "conversations": [
-                    {"id": "sample_conv_1", "summary": "Sample conversation"}
-                ],
+                "conversations": [{"id": "sample_conv_1", "summary": "Sample conversation"}],
                 "total_count": 1,
             }
 
@@ -302,21 +288,15 @@ class MCPToolTester:
                 *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
             )
 
-            stdout, stderr = await asyncio.wait_for(
-                process.communicate(), timeout=self.timeout
-            )
+            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=self.timeout)
 
             if process.returncode != 0:
-                raise subprocess.CalledProcessError(
-                    process.returncode, cmd, stdout, stderr
-                )
+                raise subprocess.CalledProcessError(process.returncode, cmd, stdout, stderr)
 
             return stdout.decode("utf-8")
 
         except TimeoutError as e:
-            raise TimeoutError(
-                f"Command timed out after {self.timeout}s: {' '.join(cmd)}"
-            ) from e
+            raise TimeoutError(f"Command timed out after {self.timeout}s: {' '.join(cmd)}") from e
 
     async def get_sample_conversation_id(self) -> str | None:
         """Get a sample conversation ID for testing get_conversation tool."""
@@ -361,16 +341,12 @@ class MCPToolTester:
             tests_to_run.append(conv_test)
             self.log_info(f"Found sample conversation ID for testing: {sample_conv_id}")
         else:
-            self.log_warning(
-                "No sample conversation ID found, skipping get_conversation test"
-            )
+            self.log_warning("No sample conversation ID found, skipping get_conversation test")
             self.skipped_tests += 1
 
         # Filter to specific tool if requested
         if specific_tool:
-            tests_to_run = [
-                test for test in tests_to_run if test["tool"] == specific_tool
-            ]
+            tests_to_run = [test for test in tests_to_run if test["tool"] == specific_tool]
             if not tests_to_run:
                 self.log_error(f"No tests found for tool: {specific_tool}")
                 return False
@@ -402,9 +378,7 @@ class MCPToolTester:
                     print(f"   └── Error: {result['error']}")
 
             except Exception as e:
-                self.log_error(
-                    f"Test execution failed for {test_config['tool']}: {str(e)}"
-                )
+                self.log_error(f"Test execution failed for {test_config['tool']}: {str(e)}")
                 self.failed_tests += 1
 
         print("=" * 80)
@@ -413,9 +387,7 @@ class MCPToolTester:
     def generate_report(self) -> dict[str, Any]:
         """Generate comprehensive test report."""
         success_rate = (
-            round((self.passed_tests / self.total_tests) * 100, 1)
-            if self.total_tests > 0
-            else 0
+            round((self.passed_tests / self.total_tests) * 100, 1) if self.total_tests > 0 else 0
         )
 
         return {
@@ -472,9 +444,7 @@ Examples:
     )
 
     parser.add_argument("--tool", help="Test specific tool only")
-    parser.add_argument(
-        "--server-url", default="stdio", help="MCP server URL (default: stdio)"
-    )
+    parser.add_argument("--server-url", default="stdio", help="MCP server URL (default: stdio)")
     parser.add_argument(
         "--timeout",
         type=int,

@@ -275,13 +275,11 @@ class TestMCPProtocol:
                 assert any(word in desc_lower for word in ["search", "find", "query"])
             elif "status" in tool.name:
                 assert any(
-                    word in desc_lower
-                    for word in ["status", "statistics", "info", "check", "get"]
+                    word in desc_lower for word in ["status", "statistics", "info", "check", "get"]
                 )
             elif "sync" in tool.name:
                 assert any(
-                    word in desc_lower
-                    for word in ["sync", "synchronize", "update", "trigger"]
+                    word in desc_lower for word in ["sync", "synchronize", "update", "trigger"]
                 )
 
     def test_server_initialization_requirements(self, server):

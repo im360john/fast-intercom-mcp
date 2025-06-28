@@ -154,9 +154,7 @@ class TestServerHealth:
     @pytest.mark.asyncio
     async def test_search_conversations_tool(self, server):
         """Test the search_conversations tool."""
-        result = await server._call_tool(
-            "search_conversations", {"query": "test", "limit": 10}
-        )
+        result = await server._call_tool("search_conversations", {"query": "test", "limit": 10})
         assert isinstance(result, list)
         assert len(result) > 0
         assert result[0].type == "text"
@@ -219,6 +217,7 @@ class TestServerHealth:
 
         # Should not raise an exception
         import contextlib
+
         with contextlib.suppress(asyncio.CancelledError):
             await task
 
