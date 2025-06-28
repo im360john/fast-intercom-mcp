@@ -111,7 +111,11 @@ def setup_logging(log_level: str = "INFO"):
         log_dir = Path.home() / ".fastintercom" / "logs"
 
     # Check if JSON logging is enabled
-    enable_json = os.getenv("FASTINTERCOM_JSON_LOGGING", "").lower() in ("true", "1", "yes")
+    enable_json = os.getenv("FASTINTERCOM_JSON_LOGGING", "").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
 
     try:
         return setup_enhanced_logging(str(log_dir), log_level, enable_json)

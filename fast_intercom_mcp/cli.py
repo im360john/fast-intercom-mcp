@@ -88,7 +88,10 @@ def cli(ctx, config, verbose):
 
 @cli.command()
 @click.option(
-    "--token", prompt="Intercom Access Token", hide_input=True, help="Your Intercom access token"
+    "--token",
+    prompt="Intercom Access Token",
+    hide_input=True,
+    help="Your Intercom access token",
 )
 @click.option(
     "--sync-days",
@@ -164,7 +167,10 @@ def init(_ctx, token, sync_days):
 @cli.command()
 @click.option("--daemon", "-d", is_flag=True, help="Run as daemon (background process)")
 @click.option(
-    "--port", default=None, type=int, help="Port for HTTP MCP server (default: stdio mode)"
+    "--port",
+    default=None,
+    type=int,
+    help="Port for HTTP MCP server (default: stdio mode)",
 )
 @click.option("--host", default="0.0.0.0", help="Host for HTTP server (default: 0.0.0.0)")
 @click.option("--api-key", help="API key for HTTP authentication (auto-generated if not provided)")
@@ -280,7 +286,12 @@ def serve(ctx, port, host, api_key):
     sync_manager = SyncManager(db, intercom_client)
 
     server = FastIntercomHTTPServer(
-        db, sync_manager.get_sync_service(), intercom_client, api_key=api_key, host=host, port=port
+        db,
+        sync_manager.get_sync_service(),
+        intercom_client,
+        api_key=api_key,
+        host=host,
+        port=port,
     )
 
     # Setup signal handlers for graceful shutdown

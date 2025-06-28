@@ -20,7 +20,10 @@ class FastIntercomMCPServer:
     """MCP server for Intercom conversation access."""
 
     def __init__(
-        self, database_manager: DatabaseManager, sync_service: SyncService, intercom_client=None
+        self,
+        database_manager: DatabaseManager,
+        sync_service: SyncService,
+        intercom_client=None,
     ):
         self.db = database_manager
         self.sync_service = sync_service
@@ -52,7 +55,9 @@ class FastIntercomMCPServer:
                             },
                             "timeframe": {
                                 "type": "string",
-                                "description": "Time period like 'last 7 days', 'this month', 'last week'",
+                                "description": (
+                                    "Time period like 'last 7 days', 'this month', 'last week'"
+                                ),
                             },
                             "customer_email": {
                                 "type": "string",
@@ -60,7 +65,9 @@ class FastIntercomMCPServer:
                             },
                             "limit": {
                                 "type": "integer",
-                                "description": "Maximum number of conversations to return (default: 50)",
+                                "description": (
+                                    "Maximum number of conversations to return (default: 50)"
+                                ),
                                 "default": 50,
                             },
                         },
@@ -112,11 +119,15 @@ class FastIntercomMCPServer:
                         "properties": {
                             "start_date": {
                                 "type": "string",
-                                "description": "Start date in ISO format (YYYY-MM-DD or full ISO timestamp)",
+                                "description": (
+                                    "Start date in ISO format (YYYY-MM-DD or full ISO timestamp)"
+                                ),
                             },
                             "end_date": {
                                 "type": "string",
-                                "description": "End date in ISO format (YYYY-MM-DD or full ISO timestamp)",
+                                "description": (
+                                    "End date in ISO format (YYYY-MM-DD or full ISO timestamp)"
+                                ),
                             },
                         },
                         "required": ["start_date", "end_date"],
@@ -184,7 +195,10 @@ class FastIntercomMCPServer:
                 """).fetchone()
 
                 if not result:
-                    response = {"has_data": False, "message": "No successful sync found"}
+                    response = {
+                        "has_data": False,
+                        "message": "No successful sync found",
+                    }
                 else:
                     last_sync = datetime.fromisoformat(result["sync_completed_at"])
                     data_age_minutes = int((datetime.now() - last_sync).total_seconds() / 60)
@@ -346,7 +360,10 @@ class FastIntercomMCPServer:
                     "message": "Sync completed successfully" if success else "Sync failed",
                 }
             else:
-                response = {"success": False, "error": "Background sync service not available"}
+                response = {
+                    "success": False,
+                    "error": "Background sync service not available",
+                }
             return [TextContent(type="text", text=json.dumps(response, indent=2))]
         except Exception as e:
             response = {"success": False, "error": str(e)}
@@ -409,7 +426,10 @@ class FastIntercomMCPServer:
             result_text += f"**Conversation {conv.id}**\n"
             result_text += f"- Customer: {conv.customer_email or 'Unknown'}\n"
             result_text += f"- Created: {conv.created_at.strftime('%Y-%m-%d %H:%M')}\n"
-            result_text += f"- Messages: {len(customer_messages)} from customer, {len(admin_messages)} from support\n"
+            result_text += (
+                f"- Messages: {len(customer_messages)} from customer, "
+                f"{len(admin_messages)} from support\n"
+            )
 
             if conv.tags:
                 result_text += f"- Tags: {', '.join(conv.tags)}\n"
@@ -470,7 +490,8 @@ class FastIntercomMCPServer:
         if not conversation:
             return [
                 TextContent(
-                    type="text", text=f"Conversation {conversation_id} not found in local database."
+                    type="text",
+                    text=f"Conversation {conversation_id} not found in local database.",
                 )
             ]
 
@@ -479,7 +500,7 @@ class FastIntercomMCPServer:
         result_text += f"**Customer:** {conversation.customer_email or 'Unknown'}\n"
         result_text += f"**Created:** {conversation.created_at.strftime('%Y-%m-%d %H:%M UTC')}\n"
         result_text += (
-            f"**Last Updated:** {conversation.updated_at.strftime('%Y-%m-%d %H:%M UTC')}\n"
+            f"**Last Updated:** " f"{conversation.updated_at.strftime('%Y-%m-%d %H:%M UTC')}\n"
         )
 
         if conversation.tags:
@@ -518,7 +539,7 @@ class FastIntercomMCPServer:
             result_text += "🕒 **Last Sync:** Never\n"
 
         result_text += (
-            f"🔄 **Background Sync:** {'Active' if sync_status['active'] else 'Inactive'}\n"
+            f"🔄 **Background Sync:** " f"{'Active' if sync_status['active'] else 'Inactive'}\n"
         )
 
         if sync_status.get("current_operation"):
@@ -651,23 +672,27 @@ class FastIntercomMCPServer:
                     "properties": {
                         "query": {
                             "type": "string",
-                            "description": "Text to search for in conversation messages"
+                            "description": "Text to search for in conversation messages",
                         },
                         "timeframe": {
                             "type": "string",
-                            "description": "Time period like 'last 7 days', 'this month', 'last week'"
+                            "description": (
+                                "Time period like 'last 7 days', 'this month', 'last week'"
+                            ),
                         },
                         "customer_email": {
                             "type": "string",
-                            "description": "Filter by specific customer email address"
+                            "description": "Filter by specific customer email address",
                         },
                         "limit": {
                             "type": "integer",
-                            "description": "Maximum number of conversations to return (default: 50)",
-                            "default": 50
-                        }
-                    }
-                }
+                            "description": (
+                                "Maximum number of conversations to return (default: 50)"
+                            ),
+                            "default": 50,
+                        },
+                    },
+                },
             ),
             Tool(
                 name="get_conversation",
@@ -677,19 +702,16 @@ class FastIntercomMCPServer:
                     "properties": {
                         "conversation_id": {
                             "type": "string",
-                            "description": "The Intercom conversation ID"
+                            "description": "The Intercom conversation ID",
                         }
                     },
-                    "required": ["conversation_id"]
-                }
+                    "required": ["conversation_id"],
+                },
             ),
             Tool(
                 name="get_server_status",
                 description="Get FastIntercom server status and statistics",
-                inputSchema={
-                    "type": "object",
-                    "properties": {}
-                }
+                inputSchema={"type": "object", "properties": {}},
             ),
             Tool(
                 name="sync_conversations",
@@ -700,19 +722,15 @@ class FastIntercomMCPServer:
                         "force": {
                             "type": "boolean",
                             "description": "Force full sync even if recent data exists",
-                            "default": False
+                            "default": False,
                         }
-                    }
-                }
+                    },
+                },
             ),
             Tool(
                 name="get_data_info",
                 description="Get information about cached data freshness and coverage",
-                inputSchema={
-                    "type": "object",
-                    "properties": {},
-                    "required": []
-                }
+                inputSchema={"type": "object", "properties": {}, "required": []},
             ),
             Tool(
                 name="check_coverage",
@@ -722,34 +740,30 @@ class FastIntercomMCPServer:
                     "properties": {
                         "start_date": {
                             "type": "string",
-                            "description": "Start date in ISO format (YYYY-MM-DD or full ISO timestamp)"
+                            "description": (
+                                "Start date in ISO format (YYYY-MM-DD or full ISO timestamp)"
+                            ),
                         },
                         "end_date": {
                             "type": "string",
-                            "description": "End date in ISO format (YYYY-MM-DD or full ISO timestamp)"
-                        }
+                            "description": (
+                                "End date in ISO format (YYYY-MM-DD or full ISO timestamp)"
+                            ),
+                        },
                     },
-                    "required": ["start_date", "end_date"]
-                }
+                    "required": ["start_date", "end_date"],
+                },
             ),
             Tool(
                 name="get_sync_status",
                 description="Check if a sync is currently in progress",
-                inputSchema={
-                    "type": "object",
-                    "properties": {},
-                    "required": []
-                }
+                inputSchema={"type": "object", "properties": {}, "required": []},
             ),
             Tool(
                 name="force_sync",
                 description="Force an immediate sync operation",
-                inputSchema={
-                    "type": "object",
-                    "properties": {},
-                    "required": []
-                }
-            )
+                inputSchema={"type": "object", "properties": {}, "required": []},
+            ),
         ]
 
     async def _call_tool(self, name: str, arguments: dict[str, Any]):
@@ -771,16 +785,10 @@ class FastIntercomMCPServer:
                 return await self._get_sync_status_tool(arguments)
             if name == "force_sync":
                 return await self._force_sync_tool(arguments)
-            return [TextContent(
-                type="text",
-                text=f"Unknown tool: {name}"
-            )]
+            return [TextContent(type="text", text=f"Unknown tool: {name}")]
         except Exception as e:
             logger.error(f"Tool call error for {name}: {e}")
-            return [TextContent(
-                type="text",
-                text=f"Error executing {name}: {str(e)}"
-            )]
+            return [TextContent(type="text", text=f"Error executing {name}: {str(e)}")]
 
     async def run(self):
         """Run the MCP server with simplified architecture."""
@@ -795,7 +803,9 @@ class FastIntercomMCPServer:
             async with stdio_server() as (read_stream, write_stream):
                 logger.info("MCP server listening for requests...")
                 await self.server.run(
-                    read_stream, write_stream, self.server.create_initialization_options()
+                    read_stream,
+                    write_stream,
+                    self.server.create_initialization_options(),
                 )
         except KeyboardInterrupt:
             logger.info("MCP server shutdown requested")

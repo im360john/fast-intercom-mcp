@@ -97,7 +97,8 @@ def setup_enhanced_logging(
         "formatters": {
             "json" if enable_json else "standard": {
                 "()": JSONFormatter if enable_json else logging.Formatter,
-                "format": "%(asctime)s [%(levelname)s] %(name)s:%(funcName)s:%(lineno)d - %(message)s",
+                "format": "%(asctime)s [%(levelname)s] "
+                "%(name)s:%(funcName)s:%(lineno)d - %(message)s",
             }
         },
         "handlers": {

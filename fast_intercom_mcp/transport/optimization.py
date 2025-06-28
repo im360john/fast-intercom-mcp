@@ -142,7 +142,10 @@ class APICache:
                 self._current_size_bytes -= old_entry.size_bytes
 
             entry = CacheEntry(
-                data=data, expires_at=expires_at, created_at=datetime.now(), size_bytes=size_bytes
+                data=data,
+                expires_at=expires_at,
+                created_at=datetime.now(),
+                size_bytes=size_bytes,
             )
 
             self._cache[key] = entry
@@ -406,7 +409,7 @@ class APIOptimizer:
                     request_kwargs["json"] = data
                 else:
                     request_kwargs["params"] = data
-            
+
             if timeout is not None:
                 request_kwargs["timeout"] = timeout
 

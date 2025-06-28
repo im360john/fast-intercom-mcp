@@ -147,13 +147,17 @@ class FastIntercomHTTPServer:
 
         @self.app.post("/mcp")
         async def mcp_endpoint(
-            request: MCPHTTPRequest, _auth: HTTPAuthorizationCredentials = Depends(self._verify_auth)
+            request: MCPHTTPRequest,
+            _auth: HTTPAuthorizationCredentials = Depends(self._verify_auth),
         ):
             """Main MCP JSON-RPC endpoint."""
             try:
                 # Convert HTTP request to MCP JSON-RPC format
                 jsonrpc_request = JSONRPCRequest(
-                    jsonrpc="2.0", method=request.method, params=request.params or {}, id=request.id
+                    jsonrpc="2.0",
+                    method=request.method,
+                    params=request.params or {},
+                    id=request.id,
                 )
 
                 # Process the request through the MCP server
@@ -176,7 +180,9 @@ class FastIntercomHTTPServer:
                 )
 
         @self.app.get("/tools")
-        async def list_tools(_auth: HTTPAuthorizationCredentials = Depends(self._verify_auth)):
+        async def list_tools(
+            _auth: HTTPAuthorizationCredentials = Depends(self._verify_auth),
+        ):
             """List available MCP tools."""
             try:
                 # Get tools from the MCP server
@@ -244,7 +250,10 @@ class FastIntercomHTTPServer:
 
                 if not tool_name:
                     return {
-                        "error": {"code": -32602, "message": "Invalid params: tool name required"}
+                        "error": {
+                            "code": -32602,
+                            "message": "Invalid params: tool name required",
+                        }
                     }
 
                 result = await self.mcp_server._call_tool(tool_name, arguments)
@@ -275,7 +284,11 @@ class FastIntercomHTTPServer:
 
         # Create uvicorn config
         config = uvicorn.Config(
-            app=self.app, host=self.host, port=self.port, log_level="info", access_log=True
+            app=self.app,
+            host=self.host,
+            port=self.port,
+            log_level="info",
+            access_log=True,
         )
 
         # Start the server

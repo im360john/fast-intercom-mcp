@@ -303,7 +303,8 @@ class AdaptiveRateLimiter:
                     100,  # Never exceed 100 requests per window
                 )
                 logger.info(
-                    f"Adaptive rate limit increase: {self.config.max_requests_per_window} -> {new_max}"
+                    f"Adaptive rate limit increase: "
+                    f"{self.config.max_requests_per_window} -> {new_max}"
                 )
                 self.config.max_requests_per_window = new_max
 
@@ -314,7 +315,8 @@ class AdaptiveRateLimiter:
                     20,  # Never go below 20 requests per window
                 )
                 logger.info(
-                    f"Adaptive rate limit decrease: {self.config.max_requests_per_window} -> {new_max}"
+                    f"Adaptive rate limit decrease: "
+                    f"{self.config.max_requests_per_window} -> {new_max}"
                 )
                 self.config.max_requests_per_window = new_max
 

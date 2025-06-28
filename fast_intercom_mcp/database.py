@@ -121,7 +121,8 @@ class DatabaseManager:
 
             # Index for quick lookups
             conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_sync_metadata_completed ON sync_metadata(sync_completed_at DESC)"
+                "CREATE INDEX IF NOT EXISTS idx_sync_metadata_completed "
+                "ON sync_metadata(sync_completed_at DESC)"
             )
 
             # Request tracking for intelligent sync triggers
@@ -183,36 +184,45 @@ class DatabaseManager:
 
             # Create indexes for performance
             conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_conversations_created_at ON conversations (created_at)"
+                "CREATE INDEX IF NOT EXISTS idx_conversations_created_at "
+                "ON conversations (created_at)"
             )
             conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_conversations_updated_at ON conversations (updated_at)"
+                "CREATE INDEX IF NOT EXISTS idx_conversations_updated_at "
+                "ON conversations (updated_at)"
             )
             conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_conversations_customer_email ON conversations (customer_email)"
+                "CREATE INDEX IF NOT EXISTS idx_conversations_customer_email "
+                "ON conversations (customer_email)"
             )
             conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON messages (conversation_id)"
+                "CREATE INDEX IF NOT EXISTS idx_messages_conversation_id "
+                "ON messages (conversation_id)"
             )
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages (created_at)"
             )
             conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_sync_periods_timestamps ON sync_periods (start_timestamp, end_timestamp)"
+                "CREATE INDEX IF NOT EXISTS idx_sync_periods_timestamps "
+                "ON sync_periods (start_timestamp, end_timestamp)"
             )
 
             # Enhanced indexes for thread tracking
             conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_conversations_thread_complete ON conversations (thread_complete)"
+                "CREATE INDEX IF NOT EXISTS idx_conversations_thread_complete "
+                "ON conversations (thread_complete)"
             )
             conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_conversations_last_message_synced ON conversations (last_message_synced)"
+                "CREATE INDEX IF NOT EXISTS idx_conversations_last_message_synced "
+                "ON conversations (last_message_synced)"
             )
             conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_conversations_message_sequence ON conversations (message_sequence_number)"
+                "CREATE INDEX IF NOT EXISTS idx_conversations_message_sequence "
+                "ON conversations (message_sequence_number)"
             )
             conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_messages_sequence_number ON messages (conversation_id, sequence_number)"
+                "CREATE INDEX IF NOT EXISTS idx_messages_sequence_number "
+                "ON messages (conversation_id, sequence_number)"
             )
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_messages_last_synced ON messages (last_synced)"
@@ -221,22 +231,28 @@ class DatabaseManager:
                 "CREATE INDEX IF NOT EXISTS idx_messages_sync_version ON messages (sync_version)"
             )
             conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_messages_thread_position ON messages (conversation_id, thread_position)"
+                "CREATE INDEX IF NOT EXISTS idx_messages_thread_position "
+                "ON messages (conversation_id, thread_position)"
             )
             conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_conversation_sync_state_status ON conversation_sync_state (sync_status)"
+                "CREATE INDEX IF NOT EXISTS idx_conversation_sync_state_status "
+                "ON conversation_sync_state (sync_status)"
             )
             conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_conversation_sync_state_next_sync ON conversation_sync_state (next_sync_needed)"
+                "CREATE INDEX IF NOT EXISTS idx_conversation_sync_state_next_sync "
+                "ON conversation_sync_state (next_sync_needed)"
             )
             conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_conversation_sync_state_last_sync ON conversation_sync_state (last_sync_attempt)"
+                "CREATE INDEX IF NOT EXISTS idx_conversation_sync_state_last_sync "
+                "ON conversation_sync_state (last_sync_attempt)"
             )
             conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_message_threads_conversation ON message_threads (conversation_id)"
+                "CREATE INDEX IF NOT EXISTS idx_message_threads_conversation "
+                "ON message_threads (conversation_id)"
             )
             conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_message_threads_parent ON message_threads (parent_message_id)"
+                "CREATE INDEX IF NOT EXISTS idx_message_threads_parent "
+                "ON message_threads (parent_message_id)"
             )
 
             # Create useful views for sync operations
@@ -819,11 +835,17 @@ class DatabaseManager:
         if not start_date or not end_date:
             recent_threshold = datetime.now() - timedelta(minutes=freshness_threshold_minutes)
             if last_sync >= recent_threshold:
-                return {"sync_state": "fresh", "last_sync": last_sync, "data_complete": True}
+                return {
+                    "sync_state": "fresh",
+                    "last_sync": last_sync,
+                    "data_complete": True,
+                }
             return {
                 "sync_state": "partial",
                 "last_sync": last_sync,
-                "message": f"Data may be stale - last sync: {last_sync.strftime('%Y-%m-%d %H:%M:%S')}",
+                "message": (
+                    f"Data may be stale - last sync: " f"{last_sync.strftime('%Y-%m-%d %H:%M:%S')}"
+                ),
                 "data_complete": False,
             }
 
@@ -832,7 +854,10 @@ class DatabaseManager:
             return {
                 "sync_state": "stale",
                 "last_sync": last_sync,
-                "message": f"Data is stale - last sync {last_sync.strftime('%Y-%m-%d %H:%M:%S')} is before requested period {start_date.strftime('%Y-%m-%d %H:%M:%S')}",
+                "message": (
+                    f"Data is stale - last sync {last_sync.strftime('%Y-%m-%d %H:%M:%S')} "
+                    f"is before requested period {start_date.strftime('%Y-%m-%d %H:%M:%S')}"
+                ),
                 "should_sync": True,
                 "data_complete": False,
             }
@@ -842,7 +867,11 @@ class DatabaseManager:
             return {
                 "sync_state": "partial",
                 "last_sync": last_sync,
-                "message": f"Analysis includes conversations up to {last_sync.strftime('%Y-%m-%d %H:%M:%S')} - may be missing recent conversations",
+                "message": (
+                    f"Analysis includes conversations up to "
+                    f"{last_sync.strftime('%Y-%m-%d %H:%M:%S')} - "
+                    f"may be missing recent conversations"
+                ),
                 "should_sync": False,
                 "data_complete": False,
             }
@@ -860,7 +889,11 @@ class DatabaseManager:
         return {
             "sync_state": "partial",
             "last_sync": last_sync,
-            "message": f"Analysis includes conversations up to {last_sync.strftime('%Y-%m-%d %H:%M:%S')} - may be missing very recent conversations",
+            "message": (
+                f"Analysis includes conversations up to "
+                f"{last_sync.strftime('%Y-%m-%d %H:%M:%S')} - "
+                f"may be missing very recent conversations"
+            ),
             "should_sync": False,
             "data_complete": False,
         }
@@ -927,7 +960,13 @@ class DatabaseManager:
                  last_sync_attempt, error_message, next_sync_needed)
                 VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?, FALSE)
             """,
-                (conversation_id, sync_status, thread_complete, total_messages or 0, error_message),
+                (
+                    conversation_id,
+                    sync_status,
+                    thread_complete,
+                    total_messages or 0,
+                    error_message,
+                ),
             )
 
             conn.commit()
@@ -1005,13 +1044,15 @@ class DatabaseManager:
                 "complete_threads": thread_stats["complete"] or 0,
                 "incomplete_threads": thread_stats["incomplete"] or 0,
                 "completion_percentage": round(
-                    (thread_stats["complete"] or 0) / max(total_conversations, 1) * 100, 1
+                    (thread_stats["complete"] or 0) / max(total_conversations, 1) * 100,
+                    1,
                 ),
                 "sync_status_breakdown": sync_status_breakdown,
                 "total_messages": message_stats["total_messages"] or 0,
                 "conversations_with_messages": message_stats["conversations_with_messages"] or 0,
                 "average_messages_per_conversation": round(
-                    (message_stats["total_messages"] or 0) / max(total_conversations, 1), 1
+                    (message_stats["total_messages"] or 0) / max(total_conversations, 1),
+                    1,
                 ),
             }
 

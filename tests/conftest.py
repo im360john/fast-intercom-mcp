@@ -11,7 +11,6 @@ import pytest
 from fast_intercom_mcp.database import DatabaseManager
 from fast_intercom_mcp.intercom_client import IntercomClient
 from fast_intercom_mcp.models import Conversation, Message, SyncStats
-from fast_intercom_mcp.sync.service import EnhancedSyncService
 from fast_intercom_mcp.sync_service import SyncService
 
 
@@ -147,12 +146,6 @@ def mock_intercom_client(test_conversations):
 def sync_service(database_manager, mock_intercom_client):
     """Provide a SyncService instance for testing."""
     return SyncService(database_manager, mock_intercom_client)
-
-
-@pytest.fixture
-def enhanced_sync_service(database_manager, mock_intercom_client):
-    """Provide an EnhancedSyncService instance for testing."""
-    return EnhancedSyncService(database_manager, mock_intercom_client)
 
 
 @pytest.fixture

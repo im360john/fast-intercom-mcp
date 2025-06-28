@@ -146,7 +146,11 @@ class IntercomClient:
         async with httpx.AsyncClient(timeout=self.timeout):
             # Build search filters
             search_filters = [
-                {"field": "updated_at", "operator": ">", "value": int(since_timestamp.timestamp())}
+                {
+                    "field": "updated_at",
+                    "operator": ">",
+                    "value": int(since_timestamp.timestamp()),
+                }
             ]
 
             if until_timestamp:
@@ -212,20 +216,24 @@ class IntercomClient:
 
         elapsed_time = time.time() - start_time
         logger.info(
-            f"Incremental sync complete: {len(conversations)} conversations in {elapsed_time:.2f}s ({api_calls} API calls)"
+            f"Incremental sync complete: {len(conversations)} conversations "
+            f"in {elapsed_time:.2f}s ({api_calls} API calls)"
         )
 
         return SyncStats(
             total_conversations=len(conversations),
             new_conversations=len(conversations),  # All are new in incremental
-            updated_conversations=0,  # None are updated in incremental 
+            updated_conversations=0,  # None are updated in incremental
             total_messages=sum(len(conv.messages) for conv in conversations),
             duration_seconds=elapsed_time,
-            api_calls_made=api_calls
+            api_calls_made=api_calls,
         )
 
     async def fetch_conversations_for_period(
-        self, start_date: datetime, end_date: datetime, progress_callback: Callable | None = None
+        self,
+        start_date: datetime,
+        end_date: datetime,
+        progress_callback: Callable | None = None,
     ) -> list[Conversation]:
         """Fetch all conversations for a specific time period.
 
@@ -240,10 +248,19 @@ class IntercomClient:
         conversations = []
 
         async with httpx.AsyncClient(timeout=self.timeout) as client:
-            # Use updated_at to capture both new conversations AND existing conversations with new messages
+            # Use updated_at to capture both new conversations AND existing
+            # conversations with new messages
             search_filters = [
-                {"field": "updated_at", "operator": ">", "value": int(start_date.timestamp())},
-                {"field": "updated_at", "operator": "<", "value": int(end_date.timestamp())},
+                {
+                    "field": "updated_at",
+                    "operator": ">",
+                    "value": int(start_date.timestamp()),
+                },
+                {
+                    "field": "updated_at",
+                    "operator": "<",
+                    "value": int(end_date.timestamp()),
+                },
             ]
 
             # Paginate through results
@@ -260,7 +277,9 @@ class IntercomClient:
                 }
 
                 response = await client.post(
-                    f"{self.base_url}/conversations/search", headers=self.headers, json=request_body
+                    f"{self.base_url}/conversations/search",
+                    headers=self.headers,
+                    json=request_body,
                 )
                 response.raise_for_status()
 
@@ -278,7 +297,8 @@ class IntercomClient:
 
                 if progress_callback:
                     await progress_callback(
-                        f"Fetched {len(conversations)} conversations from {start_date.date()} to {end_date.date()}"
+                        f"Fetched {len(conversations)} conversations "
+                        f"from {start_date.date()} to {end_date.date()}"
                     )
 
                 # Check if more pages available
@@ -560,7 +580,10 @@ class IntercomClient:
         return self._parse_individual_conversation(conv_data)
 
     async def get_conversation_messages(
-        self, conversation_id: str, per_page: int = 20, starting_after: str | None = None
+        self,
+        conversation_id: str,
+        per_page: int = 20,
+        starting_after: str | None = None,
     ) -> tuple[list[Message], str | None]:
         """Fetch messages for a conversation with pagination.
 

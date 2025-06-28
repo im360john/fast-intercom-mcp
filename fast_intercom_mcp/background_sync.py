@@ -27,7 +27,8 @@ class BackgroundSyncService:
         self.running = True
         self.sync_task = asyncio.create_task(self._sync_loop())
         logger.info(
-            f"Background sync started with {self.sync_interval.total_seconds() / 60} minute interval"
+            f"Background sync started with "
+            f"{self.sync_interval.total_seconds() / 60} minute interval"
         )
 
     async def stop(self):
@@ -68,7 +69,8 @@ class BackgroundSyncService:
                 cursor = conn.execute(
                     """
                     INSERT INTO sync_metadata
-                    (sync_started_at, sync_status, sync_type, coverage_start_date, coverage_end_date)
+                    (sync_started_at, sync_status, sync_type,
+                     coverage_start_date, coverage_end_date)
                     VALUES (?, 'in_progress', 'background', ?, ?)
                 """,
                     [
@@ -115,7 +117,8 @@ class BackgroundSyncService:
                     conn.commit()
 
                 logger.info(
-                    f"Background sync completed: {total_convos} conversations, {total_msgs} messages"
+                    f"Background sync completed: {total_convos} conversations, "
+                    f"{total_msgs} messages"
                 )
 
             except Exception as e:

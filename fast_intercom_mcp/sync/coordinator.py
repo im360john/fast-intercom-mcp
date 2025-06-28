@@ -207,7 +207,8 @@ class TwoPhaseSyncCoordinator:
 
             self._phase_results.append(result)
             logger.info(
-                f"Discovery phase completed: {len(conversations)} conversations found in {duration:.1f}s"
+                f"Discovery phase completed: {len(conversations)} conversations "
+                f"found in {duration:.1f}s"
             )
             await self._notify_progress(
                 f"Phase 1 complete: Found {len(conversations)} conversations"
@@ -258,7 +259,8 @@ class TwoPhaseSyncCoordinator:
             # else: conversation has complete thread data, skip
 
         logger.info(
-            f"Filtered conversations: {len(conversations_needing_fetch)} of {len(conversation_ids)} need fetching"
+            f"Filtered conversations: {len(conversations_needing_fetch)} of "
+            f"{len(conversation_ids)} need fetching"
         )
         await self._notify_progress(
             f"Identified {len(conversations_needing_fetch)} conversations needing complete threads"
@@ -305,7 +307,8 @@ class TwoPhaseSyncCoordinator:
                     api_calls += len(batch)
 
                     await self._notify_progress(
-                        f"Fetched {len(all_conversations)}/{len(conversation_ids)} conversation threads"
+                        f"Fetched {len(all_conversations)}/"
+                        f"{len(conversation_ids)} conversation threads"
                     )
 
                 except Exception as e:
@@ -336,7 +339,8 @@ class TwoPhaseSyncCoordinator:
 
             self._phase_results.append(result)
             logger.info(
-                f"Fetch phase completed: {len(all_conversations)} threads fetched in {duration:.1f}s"
+                f"Fetch phase completed: {len(all_conversations)} threads "
+                f"fetched in {duration:.1f}s"
             )
             await self._notify_progress(
                 f"Phase 2 complete: Fetched {len(all_conversations)} complete threads"
@@ -362,7 +366,10 @@ class TwoPhaseSyncCoordinator:
             return result
 
     def _create_summary_stats(
-        self, total_conversations: int, fetched_conversations: int, total_duration: float
+        self,
+        total_conversations: int,
+        fetched_conversations: int,
+        total_duration: float,
     ) -> SyncStats:
         """Create comprehensive sync statistics from phase results."""
         total_api_calls = sum(result.api_calls for result in self._phase_results)

@@ -145,7 +145,10 @@ class TestDatabaseInitialization:
 
     def test_default_database_path(self):
         """Test that default database path is created correctly."""
-        with tempfile.TemporaryDirectory() as temp_dir, patch("pathlib.Path.home") as mock_home:
+        with (
+            tempfile.TemporaryDirectory() as temp_dir,
+            patch("pathlib.Path.home") as mock_home,
+        ):
             mock_home.return_value = Path(temp_dir)
 
             # Create the database manager with default path
@@ -166,11 +169,17 @@ class TestDatabaseOperations:
         """Test storing and retrieving conversations."""
         # Create test data
         message1 = Message(
-            id="msg1", author_type="user", body="Hello, I need help", created_at=datetime.now()
+            id="msg1",
+            author_type="user",
+            body="Hello, I need help",
+            created_at=datetime.now(),
         )
 
         message2 = Message(
-            id="msg2", author_type="admin", body="How can I help you?", created_at=datetime.now()
+            id="msg2",
+            author_type="admin",
+            body="How can I help you?",
+            created_at=datetime.now(),
         )
 
         conversation = Conversation(
@@ -211,11 +220,17 @@ class TestDatabaseOperations:
 
         # Add some test data
         message = Message(
-            id="msg1", author_type="user", body="Test message", created_at=datetime.now()
+            id="msg1",
+            author_type="user",
+            body="Test message",
+            created_at=datetime.now(),
         )
 
         conversation = Conversation(
-            id="conv1", created_at=datetime.now(), updated_at=datetime.now(), messages=[message]
+            id="conv1",
+            created_at=datetime.now(),
+            updated_at=datetime.now(),
+            messages=[message],
         )
 
         test_db_manager.store_conversations([conversation])
@@ -268,7 +283,10 @@ class TestDatabaseTransaction:
 
         # Create valid conversation
         valid_message = Message(
-            id="valid_msg", author_type="user", body="Valid message", created_at=datetime.now()
+            id="valid_msg",
+            author_type="user",
+            body="Valid message",
+            created_at=datetime.now(),
         )
 
         valid_conversation = Conversation(
@@ -288,11 +306,17 @@ class TestDatabaseTransaction:
         """Test that duplicate conversations are handled correctly."""
         # Create conversation
         message = Message(
-            id="msg1", author_type="user", body="Original message", created_at=datetime.now()
+            id="msg1",
+            author_type="user",
+            body="Original message",
+            created_at=datetime.now(),
         )
 
         conversation = Conversation(
-            id="conv1", created_at=datetime.now(), updated_at=datetime.now(), messages=[message]
+            id="conv1",
+            created_at=datetime.now(),
+            updated_at=datetime.now(),
+            messages=[message],
         )
 
         # Store conversation twice
