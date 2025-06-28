@@ -310,7 +310,8 @@ class SyncService:
                 # Extract conversation count from message for progress tracking
                 if "Fetched" in message and "conversations" in message:
                     try:
-                        # Parse message like "Fetched 50 conversations from 2024-01-01 to 2024-01-02"
+                        # Parse message like "Fetched 50 conversations from 2024-01-01 to
+                        # 2024-01-02"
                         parts = message.split()
                         current_count = int(parts[1])
                         # Estimate total (we don't know ahead of time, so use current as proxy)

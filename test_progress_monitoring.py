@@ -148,7 +148,8 @@ async def test_progress_monitoring():
     )
 
     print(
-        f"✅ Sync completed: {stats.total_conversations} conversations in {stats.duration_seconds:.1f}s"
+        f"✅ Sync completed: {stats.total_conversations} conversations in "
+        f"{stats.duration_seconds:.1f}s"
     )
     print(f"📈 Progress updates received: {len(progress_updates)}")
 
