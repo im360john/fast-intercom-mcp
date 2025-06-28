@@ -8,6 +8,7 @@ import sys
 import sqlite3
 import psutil
 import json
+import asyncio
 from datetime import datetime, timedelta
 import threading
 import subprocess
@@ -19,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from fast_intercom_mcp.config import Config
 from fast_intercom_mcp.database import DatabaseManager
 from fast_intercom_mcp.intercom_client import IntercomClient
-from fast_intercom_mcp.sync_service import SyncManager
+from fast_intercom_mcp.sync_service import SyncService
 
 class PerformanceMonitor:
     def __init__(self):
@@ -138,7 +139,7 @@ def test_api_connectivity():
         print(f"❌ API error: {e}")
         return False, 0
 
-def test_sync_performance(monitor, days=7, max_conversations=1000):
+async def test_sync_performance(monitor, days=7, max_conversations=1000):
     """Run a comprehensive sync test with performance monitoring"""
     print(f"🔄 Running sync test ({days} days, max {max_conversations} conversations)...")
     
@@ -149,7 +150,7 @@ def test_sync_performance(monitor, days=7, max_conversations=1000):
         
         db_manager = DatabaseManager(config)
         client = IntercomClient(config.intercom_access_token)
-        sync_service = SyncManager(config, db_manager, client)
+        sync_service = SyncService(db_manager, client)  # Use same as GitHub tests
         
         # Calculate date range
         end_date = datetime.now()
@@ -160,22 +161,18 @@ def test_sync_performance(monitor, days=7, max_conversations=1000):
         # Start monitoring
         monitor.start_monitoring()
         
-        # Run sync
+        # Run sync using same method as GitHub tests
         sync_start = time.time()
-        results = sync_service.sync_conversations(
-            start_date=start_date,
-            end_date=end_date,
-            max_conversations=max_conversations
-        )
+        results = await sync_service.sync_period(start_date, end_date)
         sync_duration = time.time() - sync_start
         
         # Stop monitoring
         monitor.stop_monitoring()
         
-        # Collect results
-        conversations_synced = results.get('conversations_synced', 0)
-        api_requests = results.get('api_requests_made', 0)
-        errors = results.get('errors', 0)
+        # Collect results (results is now SyncStats object)
+        conversations_synced = results.total_conversations
+        api_requests = results.api_calls_made  
+        errors = results.errors_encountered
         
         monitor.metrics.update({
             'conversations_synced': conversations_synced,
@@ -348,7 +345,7 @@ def main():
     print("=" * 60)
     
     # Run with moderate scope for comprehensive test
-    success = test_sync_performance(monitor, days=7, max_conversations=500)
+    success = asyncio.run(test_sync_performance(monitor, days=7, max_conversations=500))
     
     if not success:
         print("❌ Sync test failed!")
