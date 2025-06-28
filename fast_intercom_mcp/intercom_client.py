@@ -217,12 +217,11 @@ class IntercomClient:
 
         return SyncStats(
             total_conversations=len(conversations),
+            new_conversations=len(conversations),  # All are new in incremental
+            updated_conversations=0,  # None are updated in incremental 
             total_messages=sum(len(conv.messages) for conv in conversations),
-            api_calls=api_calls,
-            sync_duration_seconds=elapsed_time,
-            sync_type="incremental",
-            period_start=since_timestamp,
-            period_end=until_timestamp or datetime.now(UTC),
+            duration_seconds=elapsed_time,
+            api_calls_made=api_calls
         )
 
     async def fetch_conversations_for_period(
