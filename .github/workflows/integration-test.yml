@@ -1,13 +1,23 @@
 name: Integration Test
 
+# This workflow tests the integration with Intercom's real API
+# Default sync period reduced from 30 to 7 days to prevent timeouts
+# Quick mode option added for rapid PR validation (2 days only)
+# Timeout increased to 45 minutes for reliability
+
 on:
   workflow_dispatch:
     inputs:
       sync_days:
-        description: 'Days of history to sync (default: 30)'
+        description: 'Days of history to sync (default: 7, was 30)'
         required: false
-        default: '30'
+        default: '7'  # Reduced from 30 to prevent timeouts
         type: string
+      quick_mode:
+        description: 'Run quick test with only 2 days of data'
+        required: false
+        default: false
+        type: boolean
       run_full_test:
         description: 'Run full integration test with all verifications'
         required: false
@@ -28,7 +38,7 @@ jobs:
   integration-test:
     name: Real API Integration Test
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45  # Increased from 30 to handle longer sync periods
     
     steps:
       - name: Checkout code
@@ -82,7 +92,8 @@ jobs:
           
           echo "🚀 Starting Integration Test"
           echo "Test environment: $(python --version)"
-          echo "Sync days: ${{ github.event.inputs.sync_days || '30' }}"
+          echo "Quick mode: ${{ github.event.inputs.quick_mode || 'false' }}"
+          echo "Sync days: ${{ github.event.inputs.quick_mode == 'true' && '2' || github.event.inputs.sync_days || '7' }}"
           echo "Full test: ${{ github.event.inputs.run_full_test || 'true' }}"
           
           # Initialize test start time
@@ -148,7 +159,8 @@ jobs:
           
           # Test 5: Actual sync test with real API data
           echo "🔄 Running real API sync test..."
-          SYNC_DAYS=${{ github.event.inputs.sync_days || '30' }}
+          # Use 2 days for quick mode, otherwise use the input value or default to 7 days
+          SYNC_DAYS=${{ github.event.inputs.quick_mode == 'true' && '2' || github.event.inputs.sync_days || '7' }}
           
           python -c "
           import asyncio
