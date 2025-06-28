@@ -69,7 +69,9 @@ class SyncService:
             except Exception as e:
                 logger.warning(f"Progress callback failed: {e}")
 
-    async def _broadcast_progress(self, current_count: int, estimated_total: int, elapsed_seconds: float):
+    async def _broadcast_progress(
+        self, current_count: int, estimated_total: int, elapsed_seconds: float
+    ):
         """Broadcast progress to all registered callbacks with detailed statistics."""
         for callback in self._progress_callbacks:
             try:
@@ -80,23 +82,27 @@ class SyncService:
             except Exception as e:
                 logger.warning(f"Progress callback failed: {e}")
 
-    async def _update_progress_if_needed(self, current_count: int, estimated_total: int, start_time: float):
+    async def _update_progress_if_needed(
+        self, current_count: int, estimated_total: int, start_time: float
+    ):
         """Update progress if enough time has passed since last update."""
         current_time = time.time()
         elapsed_seconds = current_time - start_time
-        
+
         # Update every 10-30 seconds or on first/last item
-        if (current_time - self._last_progress_time >= self._progress_update_interval or 
-            current_count == 1 or current_count == estimated_total):
-            
+        if (
+            current_time - self._last_progress_time >= self._progress_update_interval
+            or current_count == 1
+            or current_count == estimated_total
+        ):
             self._last_progress_time = current_time
-            
+
             # Calculate rate and ETA
             if elapsed_seconds > 0:
                 rate = current_count / elapsed_seconds
                 remaining = estimated_total - current_count
                 eta_seconds = remaining / rate if rate > 0 else 0
-                
+
                 # Log detailed progress for debugging
                 logger.info(
                     f"Sync progress: {current_count}/{estimated_total} conversations "
@@ -105,9 +111,10 @@ class SyncService:
                     f"elapsed: {elapsed_seconds:.1f}s, "
                     f"ETA: {eta_seconds:.1f}s"
                 )
-            
+
             # Broadcast to callbacks
             await self._broadcast_progress(current_count, estimated_total, elapsed_seconds)
+
     async def start_background_sync(self):
         """Start the background sync service."""
         if self._background_task and not self._background_task.done():
@@ -264,8 +271,7 @@ class SyncService:
         return sync_info
 
     async def sync_recent(
-        self, 
-        progress_callback: Callable[[int, int, float], None] = None
+        self, progress_callback: Callable[[int, int, float], None] = None
     ) -> SyncStats:
         """Sync conversations from the last few hours."""
         now = datetime.now()
@@ -273,11 +279,11 @@ class SyncService:
         return await self.sync_incremental(since, progress_callback=progress_callback)
 
     async def sync_period(
-        self, 
-        start_date: datetime, 
-        end_date: datetime, 
+        self,
+        start_date: datetime,
+        end_date: datetime,
         is_background: bool = False,
-        progress_callback: Callable[[int, int, float], None] = None
+        progress_callback: Callable[[int, int, float], None] = None,
     ) -> SyncStats:
         """Sync all conversations in a specific time period."""
         if self._sync_active and not is_background:
@@ -309,7 +315,9 @@ class SyncService:
                         current_count = int(parts[1])
                         # Estimate total (we don't know ahead of time, so use current as proxy)
                         estimated_total = max(current_count, 100)  # Minimum estimate
-                        await self._update_progress_if_needed(current_count, estimated_total, start_time)
+                        await self._update_progress_if_needed(
+                            current_count, estimated_total, start_time
+                        )
                     except (ValueError, IndexError):
                         pass
 
@@ -320,7 +328,9 @@ class SyncService:
             # Final progress update for storage phase
             total_conversations = len(conversations)
             if total_conversations > 0:
-                await self._update_progress_if_needed(total_conversations, total_conversations, start_time)
+                await self._update_progress_if_needed(
+                    total_conversations, total_conversations, start_time
+                )
 
             # Store in database
             await self._broadcast_progress_simple(
@@ -329,16 +339,12 @@ class SyncService:
             stored_count = self.db.store_conversations(conversations)
 
             # Record sync period
-<<<<<<< HEAD
             updated_count = max(
-                0, len(conversations) - stored_count
+                0, total_conversations - stored_count
             )  # Approximate updated conversations
             self.db.record_sync_period(
-                start_date, end_date, len(conversations), stored_count, updated_count
+                start_date, end_date, total_conversations, stored_count, updated_count
             )
-=======
-            self.db.record_sync_period(start_date, end_date, total_conversations, stored_count, 0)
->>>>>>> 2ca5c94 (Feature #52: Add real-time progress monitoring to sync operations)
 
             duration_seconds = time.time() - start_time
             stats = SyncStats(
@@ -378,9 +384,7 @@ class SyncService:
             self._current_operation = None
 
     async def sync_incremental(
-        self, 
-        since: datetime,
-        progress_callback: Callable[[int, int, float], None] = None
+        self, since: datetime, progress_callback: Callable[[int, int, float], None] = None
     ) -> SyncStats:
         """Sync conversations updated since the given timestamp."""
         if self._sync_active:
@@ -424,11 +428,11 @@ class SyncService:
             self._current_operation = None
 
     async def sync_period_two_phase(
-        self, 
-        start_date: datetime, 
-        end_date: datetime, 
+        self,
+        start_date: datetime,
+        end_date: datetime,
         is_background: bool = False,
-        progress_callback: Callable[[int, int, float], None] = None
+        progress_callback: Callable[[int, int, float], None] = None,
     ) -> SyncStats:
         """Two-phase sync: search for conversations, then fetch complete threads."""
         if self._sync_active and not is_background:
@@ -501,9 +505,7 @@ class SyncService:
             self._current_operation = None
 
     async def sync_initial(
-        self, 
-        days_back: int = 30,
-        progress_callback: Callable[[int, int, float], None] = None
+        self, days_back: int = 30, progress_callback: Callable[[int, int, float], None] = None
     ) -> SyncStats:
         """Perform initial sync of conversation history.
 
