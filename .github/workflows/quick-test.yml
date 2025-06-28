@@ -108,13 +108,13 @@ jobs:
               print(f'📅 Period: {start_date.strftime(\"%Y-%m-%d\")} to {end_date.strftime(\"%Y-%m-%d\")}')
               
               sync_start = time.time()
-              # Use incremental fetch with very recent timestamp for quick test
+              # Use the proven sync_period method with a very short period for speed
               recent_time = end_date - timedelta(hours=2)  # Last 2 hours for speed
-              sync_stats = await client.fetch_conversations_incremental(recent_time, end_date)
-              sync_duration = time.time() - sync_start
               
-              # Use the real sync stats from incremental fetch
-              stats = sync_stats
+              print(f'🔄 Using sync_period with last 2 hours: {recent_time.strftime(\"%H:%M\")} to {end_date.strftime(\"%H:%M\")}')
+              
+              stats = await sync_service.sync_period(recent_time, end_date)
+              sync_duration = time.time() - sync_start
               
               # Results
               rate = stats.total_conversations / max(sync_duration, 1)
