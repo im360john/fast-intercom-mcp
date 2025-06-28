@@ -4,6 +4,7 @@ import asyncio
 import contextlib
 import logging
 import threading
+import time
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from typing import Any
@@ -47,13 +48,18 @@ class SyncService:
             intercom_client, database_manager, TwoPhaseConfig()
         )
 
+        # Progress tracking
+        self._last_progress_time = 0
+        self._progress_update_interval = 10  # seconds
+
     def add_progress_callback(self, callback: Callable):
         """Add a progress callback for sync operations."""
         self._progress_callbacks.append(callback)
-        self.two_phase_coordinator.set_progress_callback(self._broadcast_progress)
+        self.two_phase_coordinator.set_progress_callback(self._broadcast_progress_simple)
 
-    async def _broadcast_progress(self, message: str):
-        """Broadcast progress to all registered callbacks."""
+    async def _broadcast_progress_simple(self, message: str):
+        """Broadcast simple string progress messages."""
+        # Convert simple messages to detailed progress when possible
         for callback in self._progress_callbacks:
             try:
                 if asyncio.iscoroutinefunction(callback):
@@ -62,6 +68,52 @@ class SyncService:
                     callback(message)
             except Exception as e:
                 logger.warning(f"Progress callback failed: {e}")
+
+    async def _broadcast_progress(
+        self, current_count: int, estimated_total: int, elapsed_seconds: float
+    ):
+        """Broadcast progress to all registered callbacks with detailed statistics."""
+        for callback in self._progress_callbacks:
+            try:
+                if asyncio.iscoroutinefunction(callback):
+                    await callback(current_count, estimated_total, elapsed_seconds)
+                else:
+                    callback(current_count, estimated_total, elapsed_seconds)
+            except Exception as e:
+                logger.warning(f"Progress callback failed: {e}")
+
+    async def _update_progress_if_needed(
+        self, current_count: int, estimated_total: int, start_time: float
+    ):
+        """Update progress if enough time has passed since last update."""
+        current_time = time.time()
+        elapsed_seconds = current_time - start_time
+
+        # Update every 10-30 seconds or on first/last item
+        if (
+            current_time - self._last_progress_time >= self._progress_update_interval
+            or current_count == 1
+            or current_count == estimated_total
+        ):
+            self._last_progress_time = current_time
+
+            # Calculate rate and ETA
+            if elapsed_seconds > 0:
+                rate = current_count / elapsed_seconds
+                remaining = estimated_total - current_count
+                eta_seconds = remaining / rate if rate > 0 else 0
+
+                # Log detailed progress for debugging
+                logger.info(
+                    f"Sync progress: {current_count}/{estimated_total} conversations "
+                    f"({(current_count/estimated_total)*100:.1f}%), "
+                    f"rate: {rate:.2f}/sec, "
+                    f"elapsed: {elapsed_seconds:.1f}s, "
+                    f"ETA: {eta_seconds:.1f}s"
+                )
+
+            # Broadcast to callbacks
+            await self._broadcast_progress(current_count, estimated_total, elapsed_seconds)
 
     async def start_background_sync(self):
         """Start the background sync service."""
@@ -218,14 +270,20 @@ class SyncService:
 
         return sync_info
 
-    async def sync_recent(self) -> SyncStats:
+    async def sync_recent(
+        self, progress_callback: Callable[[int, int, float], None] = None
+    ) -> SyncStats:
         """Sync conversations from the last few hours."""
         now = datetime.now()
         since = now - timedelta(hours=6)  # Last 6 hours
-        return await self.sync_incremental(since)
+        return await self.sync_incremental(since, progress_callback=progress_callback)
 
     async def sync_period(
-        self, start_date: datetime, end_date: datetime, is_background: bool = False
+        self,
+        start_date: datetime,
+        end_date: datetime,
+        is_background: bool = False,
+        progress_callback: Callable[[int, int, float], None] = None,
     ) -> SyncStats:
         """Sync all conversations in a specific time period."""
         if self._sync_active and not is_background:
@@ -237,45 +295,76 @@ class SyncService:
         )
 
         try:
+            start_time = time.time()
             logger.info(f"Starting period sync: {start_date} to {end_date}")
-            await self._broadcast_progress(
+            await self._broadcast_progress_simple(
                 f"Starting sync for {start_date.date()} to {end_date.date()}"
             )
 
-            # Fetch conversations from Intercom
-            await self._broadcast_progress("Fetching conversations from Intercom...")
+            # Add progress callback to local callbacks if provided
+            if progress_callback:
+                self.add_progress_callback(progress_callback)
+
+            # Fetch conversations from Intercom with progress monitoring
+            async def period_progress_callback(message: str):
+                # Extract conversation count from message for progress tracking
+                if "Fetched" in message and "conversations" in message:
+                    try:
+                        # Parse message like "Fetched 50 conversations from 2024-01-01 to
+                        # 2024-01-02"
+                        parts = message.split()
+                        current_count = int(parts[1])
+                        # Estimate total (we don't know ahead of time, so use current as proxy)
+                        estimated_total = max(current_count, 100)  # Minimum estimate
+                        await self._update_progress_if_needed(
+                            current_count, estimated_total, start_time
+                        )
+                    except (ValueError, IndexError):
+                        pass
+
             conversations = await self.intercom.fetch_conversations_for_period(
-                start_date, end_date, self._broadcast_progress
+                start_date, end_date, period_progress_callback
             )
 
+            # Final progress update for storage phase
+            total_conversations = len(conversations)
+            if total_conversations > 0:
+                await self._update_progress_if_needed(
+                    total_conversations, total_conversations, start_time
+                )
+
             # Store in database
-            await self._broadcast_progress(
+            await self._broadcast_progress_simple(
                 f"Storing {len(conversations)} conversations in database..."
             )
             stored_count = self.db.store_conversations(conversations)
 
             # Record sync period
             updated_count = max(
-                0, len(conversations) - stored_count
+                0, total_conversations - stored_count
             )  # Approximate updated conversations
             self.db.record_sync_period(
-                start_date, end_date, len(conversations), stored_count, updated_count
+                start_date, end_date, total_conversations, stored_count, updated_count
             )
 
+            duration_seconds = time.time() - start_time
             stats = SyncStats(
-                total_conversations=len(conversations),
+                total_conversations=total_conversations,
                 new_conversations=stored_count,
                 updated_conversations=updated_count,
                 total_messages=sum(len(conv.messages) for conv in conversations),
-                duration_seconds=0,  # Would track this in real implementation
-                api_calls_made=0,  # Would track this in real implementation
+                duration_seconds=duration_seconds,
+                api_calls_made=1,  # At least one search API call
             )
 
             self._last_sync_time = datetime.now()
             self._sync_stats = stats.__dict__
 
-            logger.info(f"Period sync completed: {stats.total_conversations} conversations")
-            await self._broadcast_progress(
+            logger.info(
+                f"Period sync completed: {stats.total_conversations} conversations, "
+                f"{stats.total_messages} messages in {stats.duration_seconds:.1f}s"
+            )
+            await self._broadcast_progress_simple(
                 f"Sync completed: {stats.total_conversations} conversations, "
                 f"{stats.total_messages} messages"
             )
@@ -295,7 +384,9 @@ class SyncService:
             self._sync_active = False
             self._current_operation = None
 
-    async def sync_incremental(self, since: datetime) -> SyncStats:
+    async def sync_incremental(
+        self, since: datetime, progress_callback: Callable[[int, int, float], None] = None
+    ) -> SyncStats:
         """Sync conversations updated since the given timestamp."""
         if self._sync_active:
             raise Exception("Sync already in progress")
@@ -304,15 +395,33 @@ class SyncService:
         self._current_operation = f"Incremental sync since {since.strftime('%m/%d %H:%M')}"
 
         try:
+            start_time = time.time()
             logger.info(f"Starting incremental sync since {since}")
 
-            # Use the incremental sync method
+            # Add progress callback to local callbacks if provided
+            if progress_callback:
+                self.add_progress_callback(progress_callback)
+
+            # Use the incremental sync method (this already returns SyncStats)
             stats = await self.intercom.fetch_conversations_incremental(since)
+
+            # Update duration and progress
+            duration_seconds = time.time() - start_time
+            stats.duration_seconds = duration_seconds
+
+            # Final progress update
+            if stats.total_conversations > 0:
+                await self._update_progress_if_needed(
+                    stats.total_conversations, stats.total_conversations, start_time
+                )
 
             self._last_sync_time = datetime.now()
             self._sync_stats = stats.__dict__
 
-            logger.info(f"Incremental sync completed: {stats.total_conversations} conversations")
+            logger.info(
+                f"Incremental sync completed: {stats.total_conversations} conversations "
+                f"in {stats.duration_seconds:.1f}s"
+            )
             return stats
 
         finally:
@@ -320,7 +429,11 @@ class SyncService:
             self._current_operation = None
 
     async def sync_period_two_phase(
-        self, start_date: datetime, end_date: datetime, is_background: bool = False
+        self,
+        start_date: datetime,
+        end_date: datetime,
+        is_background: bool = False,
+        progress_callback: Callable[[int, int, float], None] = None,
     ) -> SyncStats:
         """Two-phase sync: search for conversations, then fetch complete threads."""
         if self._sync_active and not is_background:
@@ -332,28 +445,74 @@ class SyncService:
         )
 
         try:
+            start_time = time.time()
             logger.info(f"Starting two-phase sync: {start_date} to {end_date}")
+
+            # Add progress callback to local callbacks if provided
+            if progress_callback:
+                self.add_progress_callback(progress_callback)
+
+            # Set up progress callback for two-phase coordinator
+            async def coordinator_progress_callback(message: str):
+                # Extract progress information from coordinator messages
+                # Messages like "Phase 1: Found 50 conversations to sync"
+                # or "Phase 2: Fetching complete threads: 20/50"
+                try:
+                    if "Phase 2:" in message and "/" in message:
+                        # Parse "Phase 2: Fetching complete threads: 20/50"
+                        parts = message.split(":")[-1].strip().split("/")
+                        if len(parts) == 2:
+                            current = int(parts[0].split()[-1])
+                            total = int(parts[1])
+                            await self._update_progress_if_needed(current, total, start_time)
+                    elif "Found" in message and "conversations" in message:
+                        # Parse "Phase 1: Found 50 conversations to sync"
+                        words = message.split()
+                        if "Found" in words:
+                            idx = words.index("Found")
+                            if idx + 1 < len(words):
+                                total = int(words[idx + 1])
+                                await self._update_progress_if_needed(1, total, start_time)
+                except (ValueError, IndexError):
+                    pass
+
+            self.two_phase_coordinator.set_progress_callback(coordinator_progress_callback)
 
             # Use two-phase coordinator
             stats = await self.two_phase_coordinator.sync_period_two_phase(
                 start_date, end_date, force_refetch=False
             )
 
+            # Update duration
+            stats.duration_seconds = time.time() - start_time
+
+            # Final progress update
+            if stats.total_conversations > 0:
+                await self._update_progress_if_needed(
+                    stats.total_conversations, stats.total_conversations, start_time
+                )
+
             self._last_sync_time = datetime.now()
             self._sync_stats = stats.__dict__
 
-            logger.info(f"Two-phase sync completed: {stats.total_conversations} conversations")
+            logger.info(
+                f"Two-phase sync completed: {stats.total_conversations} conversations, "
+                f"{stats.total_messages} messages in {stats.duration_seconds:.1f}s"
+            )
             return stats
 
         finally:
             self._sync_active = False
             self._current_operation = None
 
-    async def sync_initial(self, days_back: int = 30) -> SyncStats:
+    async def sync_initial(
+        self, days_back: int = 30, progress_callback: Callable[[int, int, float], None] = None
+    ) -> SyncStats:
         """Perform initial sync of conversation history.
 
         Args:
             days_back: Number of days of history to sync (default: 30, max: 30)
+            progress_callback: Optional progress callback
         """
         # Limit to 30 days max for initial sync
         days_back = min(days_back, 30)
@@ -362,7 +521,7 @@ class SyncService:
         start_date = now - timedelta(days=days_back)
 
         logger.info(f"Starting initial sync: {days_back} days of history")
-        return await self.sync_period(start_date, now)
+        return await self.sync_period(start_date, now, progress_callback=progress_callback)
 
     def get_status(self) -> dict[str, Any]:
         """Get current enhanced sync service status."""
