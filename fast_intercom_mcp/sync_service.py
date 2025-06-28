@@ -4,6 +4,7 @@ import asyncio
 import contextlib
 import logging
 import threading
+from collections.abc import Callable
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -28,6 +29,10 @@ class SyncService:
         self._current_operation = None
         self._last_sync_time = None
         self._sync_stats = {}
+        self._sync_errors = []
+
+        # Progress tracking
+        self._progress_callbacks: list[Callable] = []
 
         # Background task management
         self._background_task = None
@@ -41,6 +46,22 @@ class SyncService:
         self.two_phase_coordinator = TwoPhaseSyncCoordinator(
             intercom_client, database_manager, TwoPhaseConfig()
         )
+
+    def add_progress_callback(self, callback: Callable):
+        """Add a progress callback for sync operations."""
+        self._progress_callbacks.append(callback)
+        self.two_phase_coordinator.set_progress_callback(self._broadcast_progress)
+
+    async def _broadcast_progress(self, message: str):
+        """Broadcast progress to all registered callbacks."""
+        for callback in self._progress_callbacks:
+            try:
+                if asyncio.iscoroutinefunction(callback):
+                    await callback(message)
+                else:
+                    callback(message)
+            except Exception as e:
+                logger.warning(f"Progress callback failed: {e}")
 
     async def start_background_sync(self):
         """Start the background sync service."""
@@ -85,6 +106,11 @@ class SyncService:
 
             except Exception as e:
                 logger.error(f"Background sync error: {e}")
+                self._sync_errors.append({
+                    "timestamp": datetime.now(),
+                    "error": str(e),
+                    "operation": "background_sync"
+                })
                 # Wait a bit before retrying
                 try:
                     await asyncio.wait_for(self._shutdown_event.wait(), timeout=60)
@@ -210,20 +236,26 @@ class SyncService:
 
         try:
             logger.info(f"Starting period sync: {start_date} to {end_date}")
+            await self._broadcast_progress(f"Starting sync for {start_date.date()} to {end_date.date()}")
 
             # Fetch conversations from Intercom
-            conversations = await self.intercom.fetch_conversations_for_period(start_date, end_date)
+            await self._broadcast_progress("Fetching conversations from Intercom...")
+            conversations = await self.intercom.fetch_conversations_for_period(
+                start_date, end_date, self._broadcast_progress
+            )
 
             # Store in database
+            await self._broadcast_progress(f"Storing {len(conversations)} conversations in database...")
             stored_count = self.db.store_conversations(conversations)
 
-            # Record sync period
-            self.db.record_sync_period(start_date, end_date, len(conversations), stored_count, 0)
+            # Record sync period  
+            updated_count = max(0, len(conversations) - stored_count)  # Approximate updated conversations
+            self.db.record_sync_period(start_date, end_date, len(conversations), stored_count, updated_count)
 
             stats = SyncStats(
                 total_conversations=len(conversations),
                 new_conversations=stored_count,
-                updated_conversations=0,  # Simplified for now
+                updated_conversations=updated_count,
                 total_messages=sum(len(conv.messages) for conv in conversations),
                 duration_seconds=0,  # Would track this in real implementation
                 api_calls_made=0,  # Would track this in real implementation
@@ -233,8 +265,19 @@ class SyncService:
             self._sync_stats = stats.__dict__
 
             logger.info(f"Period sync completed: {stats.total_conversations} conversations")
+            await self._broadcast_progress(
+                f"Sync completed: {stats.total_conversations} conversations, {stats.total_messages} messages"
+            )
             return stats
 
+        except Exception as e:
+            logger.error(f"Period sync failed: {e}")
+            self._sync_errors.append({
+                "timestamp": datetime.now(),
+                "error": str(e),
+                "operation": f"period_sync_{start_date}_{end_date}"
+            })
+            raise
         finally:
             self._sync_active = False
             self._current_operation = None
@@ -309,13 +352,23 @@ class SyncService:
         return await self.sync_period(start_date, now)
 
     def get_status(self) -> dict[str, Any]:
-        """Get current sync service status."""
+        """Get current enhanced sync service status."""
         return {
             "active": self._sync_active,
             "current_operation": self._current_operation,
             "last_sync_time": self._last_sync_time.isoformat() if self._last_sync_time else None,
             "last_sync_stats": self._sync_stats,
             "app_id": self.app_id,
+            "recent_errors": self._sync_errors[-5:],  # Last 5 errors
+            "progress_callbacks_count": len(self._progress_callbacks),
+            "two_phase_status": self.two_phase_coordinator.get_operation_status(),
+            "enhanced_features": [
+                "progress_tracking",
+                "error_collection",
+                "two_phase_sync_coordination",
+                "background_sync_management",
+                "enhanced_status_reporting"
+            ],
         }
 
     async def test_connection(self) -> bool:
