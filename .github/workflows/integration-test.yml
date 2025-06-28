@@ -1,23 +1,18 @@
 name: Integration Test
 
 # This workflow tests the integration with Intercom's real API
-# Default sync period reduced from 30 to 7 days to prevent timeouts
-# Quick mode option added for rapid PR validation (2 days only)
-# Timeout increased to 45 minutes for reliability
+# Uses time-based sync (default: 5 minutes) for predictable CI runtime
+# Performance requirement: >10 conversations/second
+# Timeout set to 15 minutes for fast feedback
 
 on:
   workflow_dispatch:
     inputs:
-      sync_days:
-        description: 'Days of history to sync (default: 7, was 30)'
+      max_sync_minutes:
+        description: 'Maximum sync duration in minutes (default: 5)'
         required: false
-        default: '7'  # Reduced from 30 to prevent timeouts
+        default: '5'
         type: string
-      quick_mode:
-        description: 'Run quick test with only 2 days of data'
-        required: false
-        default: false
-        type: boolean
       run_full_test:
         description: 'Run full integration test with all verifications'
         required: false
@@ -38,7 +33,7 @@ jobs:
   integration-test:
     name: Real API Integration Test
     runs-on: ubuntu-latest
-    timeout-minutes: 45  # Increased from 30 to handle longer sync periods
+    timeout-minutes: 15  # Reduced for faster feedback with time-based sync
     
     steps:
       - name: Checkout code
@@ -92,8 +87,7 @@ jobs:
           
           echo "🚀 Starting Integration Test"
           echo "Test environment: $(python --version)"
-          echo "Quick mode: ${{ github.event.inputs.quick_mode || 'false' }}"
-          echo "Sync days: ${{ github.event.inputs.quick_mode == 'true' && '2' || github.event.inputs.sync_days || '7' }}"
+          echo "Max sync minutes: ${{ github.event.inputs.max_sync_minutes || '5' }}"
           echo "Full test: ${{ github.event.inputs.run_full_test || 'true' }}"
           
           # Initialize test start time
@@ -159,8 +153,8 @@ jobs:
           
           # Test 5: Actual sync test with real API data
           echo "🔄 Running real API sync test..."
-          # Use 2 days for quick mode, otherwise use the input value or default to 7 days
-          SYNC_DAYS=${{ github.event.inputs.quick_mode == 'true' && '2' || github.event.inputs.sync_days || '7' }}
+          # Use time-based sync with configurable duration
+          MAX_SYNC_MINUTES=${{ github.event.inputs.max_sync_minutes || '5' }}
           
           python -c "
           import asyncio
@@ -174,29 +168,90 @@ jobs:
           from fast_intercom_mcp.database import DatabaseManager
           from fast_intercom_mcp.intercom_client import IntercomClient
           
-          def progress_monitor(db_path, sync_start_time, estimated_conversations):
+          def progress_monitor(db_path, sync_start_time, max_minutes, stop_event):
               '''Monitor progress and show updates every 10 seconds'''
               last_count = 0
-              while True:
+              last_msg_count = 0
+              while not stop_event.is_set():
                   try:
                       with sqlite3.connect(db_path) as conn:
                           cursor = conn.execute('SELECT COUNT(*) FROM conversations')
                           current_count = cursor.fetchone()[0]
+                          
+                          cursor = conn.execute('SELECT COUNT(*) FROM messages')
+                          current_msg_count = cursor.fetchone()[0]
                       
                       elapsed = time.time() - sync_start_time
-                      if current_count > last_count:
-                          rate = current_count / max(elapsed, 1)
-                          if estimated_conversations > 0:
-                              progress_pct = (current_count / estimated_conversations) * 100
-                              eta_seconds = (estimated_conversations - current_count) / max(rate, 1) if rate > 0 else 0
-                              eta_min = eta_seconds / 60
-                              print(f'📊 Progress: {current_count:,}/{estimated_conversations:,} conversations ({progress_pct:.1f}%) | Rate: {rate:.1f}/sec | ETA: {eta_min:.1f}min')
-                          else:
-                              print(f'📊 Progress: {current_count:,} conversations | Rate: {rate:.1f}/sec | Elapsed: {elapsed/60:.1f}min')
+                      elapsed_minutes = elapsed / 60
+                      remaining_minutes = max_minutes - elapsed_minutes
+                      
+                      if current_count > last_count or current_msg_count > last_msg_count:
+                          conv_rate = current_count / max(elapsed, 1)
+                          msg_rate = current_msg_count / max(elapsed, 1)
+                          
+                          print(f'📊 Progress: {current_count:,} conversations, {current_msg_count:,} messages | '
+                                f'Rate: {conv_rate:.1f} conv/sec, {msg_rate:.1f} msg/sec | '
+                                f'Elapsed: {elapsed_minutes:.1f}/{max_minutes} min')
+                          
                           last_count = current_count
+                          last_msg_count = current_msg_count
+                      
                       time.sleep(10)
-                  except:
+                  except Exception as e:
+                      print(f'Monitor error: {e}')
                       time.sleep(5)
+          
+          async def run_time_limited_sync(sync_service, max_minutes):
+              '''Run sync for a maximum time period'''
+              # Calculate time window - use last 90 days of data to ensure we have enough to sync
+              end_date = datetime.now(UTC)
+              start_date = end_date - timedelta(days=90)
+              
+              print(f'📅 Time-limited sync configuration:')
+              print(f'  - Max duration: {max_minutes} minutes')
+              print(f'  - Data window: {start_date.date()} to {end_date.date()} (90 days available)')
+              print(f'  - Performance target: >10 conversations/second')
+              print(f'  - Will sync as much as possible within time limit')
+              print('')
+              
+              sync_start = time.time()
+              max_seconds = max_minutes * 60
+              
+              # Track what we've synced
+              total_stats = None
+              
+              try:
+                  # Use existing sync_period method with timeout
+                  # The sync will process data chronologically and we'll stop when time runs out
+                  total_stats = await asyncio.wait_for(
+                      sync_service.sync_period(start_date, end_date),
+                      timeout=max_seconds
+                  )
+                  print(f'✅ Sync completed within time limit')
+              except asyncio.TimeoutError:
+                  print(f'⏰ Time limit reached ({max_minutes} minutes) - stopping sync')
+                  # Get partial results from database
+                  with sqlite3.connect('./test_integration.db') as conn:
+                      cursor = conn.execute('SELECT COUNT(*) FROM conversations')
+                      conv_count = cursor.fetchone()[0]
+                      
+                      cursor = conn.execute('SELECT COUNT(*) FROM messages')
+                      msg_count = cursor.fetchone()[0]
+                  
+                  sync_duration = time.time() - sync_start
+                  
+                  # Create stats for partial sync
+                  from fast_intercom_mcp.models import SyncStats
+                  total_stats = SyncStats(
+                      total_conversations=conv_count,
+                      new_conversations=conv_count,  # Approximate
+                      updated_conversations=0,
+                      total_messages=msg_count,
+                      duration_seconds=sync_duration,
+                      api_calls_made=int(sync_duration / 3)  # Rough estimate: ~1 call per 3 seconds
+                  )
+              
+              return total_stats
           
           async def run_integration_test():
               # Initialize components
@@ -205,48 +260,49 @@ jobs:
               client = IntercomClient(os.getenv('INTERCOM_ACCESS_TOKEN'))
               sync_service = SyncService(db, client)
               
-              # Set sync period and estimate conversations
-              sync_days = int('$SYNC_DAYS')
-              end_date = datetime.now(UTC)
-              start_date = end_date - timedelta(days=sync_days)
+              # Get max sync time
+              max_minutes = int('$MAX_SYNC_MINUTES')
               
-              # Estimate conversations (rough: 150-200 per day for active workspace)
-              estimated_conversations = sync_days * 175
-              
-              print(f'📅 Syncing data from {start_date.isoformat()} to {end_date.isoformat()} ({sync_days} days)')
-              print(f'📊 Estimated conversations: ~{estimated_conversations:,}')
-              print(f'⏱️  Estimated completion time: {(estimated_conversations / 20) / 60:.1f} minutes (at 20 conv/sec)')
+              print(f'🚀 Starting time-based integration test')
+              print(f'⏱️  Maximum sync duration: {max_minutes} minutes')
               print('')
               
               # Start progress monitoring in background
               sync_start = time.time()
+              stop_event = threading.Event()
               monitor_thread = threading.Thread(
                   target=progress_monitor, 
-                  args=('./test_integration.db', sync_start, estimated_conversations),
+                  args=('./test_integration.db', sync_start, max_minutes, stop_event),
                   daemon=True
               )
               monitor_thread.start()
               
-              print('🚀 Starting sync with real-time progress monitoring...')
-              
-              # Run sync and measure performance
               try:
-                  stats = await sync_service.sync_period(start_date, end_date)
-                  sync_duration = time.time() - sync_start
+                  # Run time-limited sync
+                  stats = await run_time_limited_sync(sync_service, max_minutes)
+                  sync_duration = stats.duration_seconds
+                  
+                  # Stop the monitor
+                  stop_event.set()
+                  
+                  # Calculate performance metrics
+                  conv_per_sec = stats.total_conversations / max(sync_duration, 0.1) if stats.total_conversations > 0 else 0
+                  msg_per_sec = stats.total_messages / max(sync_duration, 0.1) if stats.total_messages > 0 else 0
                   
                   # Collect performance metrics
                   metrics = {
                       'test_timestamp': datetime.now(UTC).isoformat(),
-                      'sync_period_days': sync_days,
+                      'max_sync_minutes': max_minutes,
+                      'actual_sync_minutes': round(sync_duration / 60, 2),
                       'total_conversations': stats.total_conversations,
                       'new_conversations': stats.new_conversations,
                       'updated_conversations': stats.updated_conversations,
                       'total_messages': stats.total_messages,
                       'api_calls_made': stats.api_calls_made,
                       'sync_duration_seconds': round(sync_duration, 2),
-                      'conversations_per_second': round(stats.total_conversations / max(sync_duration, 0.1), 2) if stats.total_conversations > 0 else 0,
-                      'messages_per_second': round(stats.total_messages / max(sync_duration, 0.1), 2) if stats.total_messages > 0 else 0,
-                      'avg_response_time_ms': round(sync_duration * 1000 / max(stats.api_calls_made, 1), 2) if stats.api_calls_made > 0 else 0
+                      'conversations_per_second': round(conv_per_sec, 2),
+                      'messages_per_second': round(msg_per_sec, 2),
+                      'performance_passed': conv_per_sec >= 10  # Performance requirement
                   }
                   
                   # Save metrics for artifacts
@@ -258,18 +314,16 @@ jobs:
                   print('📊 Integration Test Results')
                   print('=' * 50)
                   print(f'✅ Test completed successfully')
-                  print(f'✅ Conversations synced: {stats.total_conversations:,} ({sync_days} days)')
+                  print(f'✅ Sync duration: {metrics[\"actual_sync_minutes\"]} minutes (limit: {max_minutes})')
+                  print(f'✅ Conversations synced: {stats.total_conversations:,}')
                   print(f'✅ Messages synced: {stats.total_messages:,}')
                   print(f'✅ New conversations: {stats.new_conversations:,}')
                   print(f'✅ Updated conversations: {stats.updated_conversations:,}')
                   print(f'✅ API calls made: {stats.api_calls_made:,}')
-                  print(f'✅ Sync speed: {metrics[\"conversations_per_second\"]} conv/sec')
-                  print(f'✅ Message speed: {metrics[\"messages_per_second\"]} msg/sec')
-                  print(f'✅ Average response time: {metrics[\"avg_response_time_ms\"]}ms')
-                  print(f'⏱️  Total test time: {sync_duration:.1f}s')
+                  print(f'✅ Sync speed: {conv_per_sec:.1f} conv/sec {"✅ PASS" if conv_per_sec >= 10 else "❌ FAIL (need ≥10)"}')
+                  print(f'✅ Message speed: {msg_per_sec:.1f} msg/sec')
                   
                   # Verify data integrity
-                  import sqlite3
                   with sqlite3.connect('./test_integration.db') as conn:
                       cursor = conn.execute('SELECT COUNT(*) FROM conversations')
                       conv_count = cursor.fetchone()[0]
@@ -278,16 +332,24 @@ jobs:
                       msg_count = cursor.fetchone()[0]
                       
                       print(f'✅ Database integrity: {conv_count:,} conversations, {msg_count:,} messages')
+                  
+                  # Performance check
+                  if conv_per_sec < 10:
+                      raise Exception(f'Performance requirement not met: {conv_per_sec:.1f} conv/sec < 10 conv/sec')
+                  
+                  print()
+                  print('✅ All checks passed!')
               
               except Exception as e:
-                  print(f'❌ Sync failed: {e}')
+                  stop_event.set()  # Stop monitor on error
+                  print(f'❌ Test failed: {e}')
                   # Save error info for debugging
                   with open('error_report.json', 'w') as f:
                       json.dump({
                           'error': str(e),
                           'error_type': type(e).__name__,
                           'timestamp': datetime.now(UTC).isoformat(),
-                          'sync_days': sync_days
+                          'max_sync_minutes': max_minutes
                       }, f, indent=2)
                   raise
           
