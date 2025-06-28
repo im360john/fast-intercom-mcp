@@ -384,9 +384,6 @@ class TwoPhaseSyncCoordinator:
             total_messages=total_messages,
             duration_seconds=total_duration,
             api_calls_made=total_api_calls,
-            sync_type="two_phase",
-            period_start=None,  # Set by caller if needed
-            period_end=None,  # Set by caller if needed
         )
 
     def get_operation_status(self) -> dict[str, Any]:
