@@ -51,9 +51,11 @@ class TestInitialSyncVerification:
         )
 
         # Verify API was called correctly
-        sync_service.intercom.fetch_conversations_for_period.assert_called_once_with(
-            start_date, end_date
-        )
+        # Note: Enhanced SyncService now includes progress callback
+        sync_service.intercom.fetch_conversations_for_period.assert_called_once()
+        call_args = sync_service.intercom.fetch_conversations_for_period.call_args
+        assert call_args[0][0] == start_date
+        assert call_args[0][1] == end_date
 
         # Verify database was updated
         with sqlite3.connect(database_manager.db_path) as conn:

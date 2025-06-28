@@ -175,9 +175,12 @@ class TestSyncServiceOperations:
         assert result.total_messages == 1
 
         # Verify mock was called with correct parameters
-        sync_service.intercom.fetch_conversations_for_period.assert_called_once_with(
-            start_date, end_date
-        )
+        # Note: Enhanced SyncService now includes progress callback
+        sync_service.intercom.fetch_conversations_for_period.assert_called_once()
+        call_args = sync_service.intercom.fetch_conversations_for_period.call_args
+        assert call_args[0][0] == start_date
+        assert call_args[0][1] == end_date
+        # Third argument is the progress callback
 
         # Verify service state
         assert sync_service._last_sync_time is not None
