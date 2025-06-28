@@ -155,10 +155,36 @@ jobs:
           import os
           import json
           import time
+          import sqlite3
+          import threading
           from datetime import datetime, timedelta, UTC
           from fast_intercom_mcp.sync_service import SyncService
           from fast_intercom_mcp.database import DatabaseManager
           from fast_intercom_mcp.intercom_client import IntercomClient
+          
+          def progress_monitor(db_path, sync_start_time, estimated_conversations):
+              '''Monitor progress and show updates every 10 seconds'''
+              last_count = 0
+              while True:
+                  try:
+                      with sqlite3.connect(db_path) as conn:
+                          cursor = conn.execute('SELECT COUNT(*) FROM conversations')
+                          current_count = cursor.fetchone()[0]
+                      
+                      elapsed = time.time() - sync_start_time
+                      if current_count > last_count:
+                          rate = current_count / max(elapsed, 1)
+                          if estimated_conversations > 0:
+                              progress_pct = (current_count / estimated_conversations) * 100
+                              eta_seconds = (estimated_conversations - current_count) / max(rate, 1) if rate > 0 else 0
+                              eta_min = eta_seconds / 60
+                              print(f'📊 Progress: {current_count:,}/{estimated_conversations:,} conversations ({progress_pct:.1f}%) | Rate: {rate:.1f}/sec | ETA: {eta_min:.1f}min')
+                          else:
+                              print(f'📊 Progress: {current_count:,} conversations | Rate: {rate:.1f}/sec | Elapsed: {elapsed/60:.1f}min')
+                          last_count = current_count
+                      time.sleep(10)
+                  except:
+                      time.sleep(5)
           
           async def run_integration_test():
               # Initialize components
@@ -167,15 +193,31 @@ jobs:
               client = IntercomClient(os.getenv('INTERCOM_ACCESS_TOKEN'))
               sync_service = SyncService(db, client)
               
-              # Set sync period
+              # Set sync period and estimate conversations
               sync_days = int('$SYNC_DAYS')
               end_date = datetime.now(UTC)
               start_date = end_date - timedelta(days=sync_days)
               
+              # Estimate conversations (rough: 150-200 per day for active workspace)
+              estimated_conversations = sync_days * 175
+              
               print(f'📅 Syncing data from {start_date.isoformat()} to {end_date.isoformat()} ({sync_days} days)')
+              print(f'📊 Estimated conversations: ~{estimated_conversations:,}')
+              print(f'⏱️  Estimated completion time: {(estimated_conversations / 20) / 60:.1f} minutes (at 20 conv/sec)')
+              print('')
+              
+              # Start progress monitoring in background
+              sync_start = time.time()
+              monitor_thread = threading.Thread(
+                  target=progress_monitor, 
+                  args=('./test_integration.db', sync_start, estimated_conversations),
+                  daemon=True
+              )
+              monitor_thread.start()
+              
+              print('🚀 Starting sync with real-time progress monitoring...')
               
               # Run sync and measure performance
-              sync_start = time.time()
               try:
                   stats = await sync_service.sync_period(start_date, end_date)
                   sync_duration = time.time() - sync_start
