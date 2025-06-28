@@ -148,8 +148,6 @@ def sync_service(database_manager, mock_intercom_client):
     return SyncService(database_manager, mock_intercom_client)
 
 
-
-
 @pytest.fixture
 def test_sync_stats():
     """Provide test sync statistics."""

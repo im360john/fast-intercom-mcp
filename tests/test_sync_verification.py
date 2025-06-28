@@ -37,7 +37,9 @@ class TestInitialSyncVerification:
             initial_count = cursor.fetchone()[0]
 
         # Configure mock to return test conversations
-        sync_service.intercom.fetch_conversations_for_period.return_value = test_conversations
+        sync_service.intercom.fetch_conversations_for_period.return_value = (
+            test_conversations
+        )
 
         # Run initial sync
         start_date = datetime.now(UTC) - timedelta(days=7)
@@ -61,7 +63,9 @@ class TestInitialSyncVerification:
         with sqlite3.connect(database_manager.db_path) as conn:
             cursor = conn.execute("SELECT COUNT(*) FROM conversations")
             new_count = cursor.fetchone()[0]
-            assert new_count > initial_count, "Database was not updated with new conversations"
+            assert new_count > initial_count, (
+                "Database was not updated with new conversations"
+            )
 
             # Verify conversation data integrity
             cursor = conn.execute("SELECT id, created_at FROM conversations LIMIT 1")
@@ -97,7 +101,9 @@ class TestInitialSyncVerification:
             sample_msg = cursor.fetchone()
             assert sample_msg is not None, "No messages found"
             assert sample_msg[0] is not None, "Message ID is None"
-            assert sample_msg[1] in ["user", "admin"], f"Invalid author_type: {sample_msg[1]}"
+            assert sample_msg[1] in ["user", "admin"], (
+                f"Invalid author_type: {sample_msg[1]}"
+            )
             assert sample_msg[2] is not None, "Message body is None"
             assert sample_msg[3] is not None, "Message created_at is None"
             assert sample_msg[4] is not None, "Message conversation_id is None"
@@ -106,7 +112,9 @@ class TestInitialSyncVerification:
     async def test_initial_sync_with_empty_result(self, sync_service):
         """Test initial sync behavior when no conversations are found."""
         # Configure mock to return empty list
-        sync_service.intercom.fetch_conversations_for_period = AsyncMock(return_value=[])
+        sync_service.intercom.fetch_conversations_for_period = AsyncMock(
+            return_value=[]
+        )
 
         # Run sync
         start_date = datetime.now(UTC) - timedelta(days=1)
@@ -114,7 +122,9 @@ class TestInitialSyncVerification:
         stats = await sync_service.sync_period(start_date, end_date)
 
         # Verify empty result is handled correctly
-        assert stats.total_conversations == 0, "Expected 0 conversations for empty result"
+        assert stats.total_conversations == 0, (
+            "Expected 0 conversations for empty result"
+        )
         assert stats.total_messages == 0, "Expected 0 messages for empty result"
 
         # Verify API was still called
@@ -165,7 +175,9 @@ class TestNewConversationDetection:
         assert stats.new_conversations >= 1, "New conversation count is incorrect"
 
         # Verify API was called with correct timestamp
-        sync_service.intercom.fetch_conversations_incremental.assert_called_once_with(since_time)
+        sync_service.intercom.fetch_conversations_incremental.assert_called_once_with(
+            since_time
+        )
 
     @pytest.mark.asyncio
     async def test_no_new_conversations_detected(self, sync_service):
@@ -200,7 +212,9 @@ class TestMessageCompleteness:
     ):
         """Test that ALL messages in a conversation are synced."""
         # Find the long conversation from test data
-        long_conv = next(conv for conv in test_conversations if conv.id == "test_conv_3_long")
+        long_conv = next(
+            conv for conv in test_conversations if conv.id == "test_conv_3_long"
+        )
         expected_message_count = len(long_conv.messages)
 
         # Run sync
@@ -241,7 +255,9 @@ class TestMessageCompleteness:
             """)
             stored_conv_ids = [row[0] for row in cursor.fetchall()]
 
-            assert len(stored_conv_ids) > 0, "No conversations with messages found in database"
+            assert len(stored_conv_ids) > 0, (
+                "No conversations with messages found in database"
+            )
 
             for conv_id in stored_conv_ids:
                 cursor = conn.execute(
@@ -256,7 +272,9 @@ class TestMessageCompleteness:
                 timestamps = [row[0] for row in cursor.fetchall()]
 
                 # Verify timestamps are in order
-                assert len(timestamps) > 0, f"No messages found for conversation {conv_id}"
+                assert len(timestamps) > 0, (
+                    f"No messages found for conversation {conv_id}"
+                )
 
                 # Check that timestamps are sorted (allowing for equal timestamps)
                 for i in range(1, len(timestamps)):
@@ -265,7 +283,9 @@ class TestMessageCompleteness:
                     )
 
     @pytest.mark.asyncio
-    async def test_no_duplicate_messages(self, sync_service, database_manager, test_conversations):
+    async def test_no_duplicate_messages(
+        self, sync_service, database_manager, test_conversations
+    ):
         """Test that no duplicate messages are created."""
         # Run sync twice to test for duplicates
         start_date = datetime.now(UTC) - timedelta(days=1)
@@ -385,21 +405,25 @@ class TestConversationThreadCompleteness:
     ):
         """Test that complete conversation threads are fetched via two-phase sync."""
         # Find long conversation for testing
-        long_conv = next(conv for conv in test_conversations if conv.id == "test_conv_3_long")
+        long_conv = next(
+            conv for conv in test_conversations if conv.id == "test_conv_3_long"
+        )
 
         # Mock individual conversation fetching on the coordinator
-        sync_service.two_phase_coordinator.intercom.fetch_individual_conversations = AsyncMock(
-            return_value=[long_conv]
+        sync_service.two_phase_coordinator.intercom.fetch_individual_conversations = (
+            AsyncMock(return_value=[long_conv])
         )
 
         # Use two-phase sync to fetch complete conversation thread
         start_date = long_conv.created_at
         end_date = long_conv.updated_at
-        stats = await sync_service.sync_period_two_phase(start_date, end_date, force_refetch=True)
+        stats = await sync_service.sync_period_two_phase(
+            start_date, end_date, force_refetch=True
+        )
 
         # Verify thread completeness
         assert stats.total_conversations >= 1, "Expected at least 1 conversation"
-        
+
         # Verify API was called for fetching individual conversations
         sync_service.two_phase_coordinator.intercom.fetch_individual_conversations.assert_called()
 
@@ -487,11 +511,15 @@ class TestSyncDataIntegrity:
             """)
             conversations_with_emails = cursor.fetchall()
 
-            assert len(conversations_with_emails) > 0, "No conversations with customer emails found"
+            assert len(conversations_with_emails) > 0, (
+                "No conversations with customer emails found"
+            )
 
             # Verify email format
             for conv_id, email in conversations_with_emails:
-                assert "@" in email, f"Invalid email format for conversation {conv_id}: {email}"
+                assert "@" in email, (
+                    f"Invalid email format for conversation {conv_id}: {email}"
+                )
 
     @pytest.mark.asyncio
     async def test_conversation_tags_preserved(
