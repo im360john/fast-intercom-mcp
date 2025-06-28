@@ -898,6 +898,71 @@ class DatabaseManager:
             "data_complete": False,
         }
 
+    def get_conversation_by_id(self, conversation_id: str) -> Conversation | None:
+        """Get a conversation by ID with its messages."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            # Get conversation data - only select basic columns for test compatibility
+            cursor = conn.execute(
+                """
+                SELECT id, customer_email, created_at, updated_at, tags, message_count
+                FROM conversations
+                WHERE id = ?
+                """,
+                (conversation_id,),
+            )
+            row = cursor.fetchone()
+
+            if not row:
+                return None
+
+            # Get messages for this conversation - check which columns exist
+            # First, get column info
+            cursor = conn.execute("PRAGMA table_info(messages)")
+            columns = {row[1] for row in cursor.fetchall()}
+
+            # Build query based on available columns
+            select_columns = ["id", "conversation_id", "body", "author_type", "created_at"]
+            optional_columns = ["type", "author_id", "author_email", "author_name", "part_type"]
+
+            for col in optional_columns:
+                if col in columns:
+                    select_columns.append(col)
+
+            messages_cursor = conn.execute(
+                f"""
+                SELECT {', '.join(select_columns)}
+                FROM messages
+                WHERE conversation_id = ?
+                ORDER BY created_at ASC
+                """,
+                (conversation_id,),
+            )
+
+            messages = []
+            for msg_row in messages_cursor:
+                # Handle both test and production schemas
+                msg_dict = dict(msg_row)
+                messages.append(
+                    Message(
+                        id=msg_dict["id"],
+                        author_type=msg_dict["author_type"],
+                        body=msg_dict["body"],
+                        created_at=datetime.fromisoformat(msg_dict["created_at"]),
+                        part_type=msg_dict.get("type") or msg_dict.get("part_type", "comment"),
+                    )
+                )
+
+            # Create Conversation object with only the fields it expects
+            return Conversation(
+                id=row["id"],
+                created_at=datetime.fromisoformat(row["created_at"]),
+                updated_at=datetime.fromisoformat(row["updated_at"]),
+                customer_email=row["customer_email"],
+                tags=json.loads(row["tags"]) if row["tags"] else [],
+                messages=messages,
+            )
+
     def get_conversations_needing_thread_sync(self, limit: int = 50) -> list[dict[str, Any]]:
         """Get conversations that need complete thread fetching."""
         with sqlite3.connect(self.db_path) as conn:
