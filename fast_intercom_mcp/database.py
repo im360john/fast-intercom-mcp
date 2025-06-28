@@ -844,7 +844,7 @@ class DatabaseManager:
                 "sync_state": "partial",
                 "last_sync": last_sync,
                 "message": (
-                    f"Data may be stale - last sync: " f"{last_sync.strftime('%Y-%m-%d %H:%M:%S')}"
+                    f"Data may be stale - last sync: {last_sync.strftime('%Y-%m-%d %H:%M:%S')}"
                 ),
                 "data_complete": False,
             }

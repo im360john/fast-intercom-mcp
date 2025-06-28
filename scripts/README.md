@@ -6,6 +6,13 @@ This directory contains all testing scripts for the FastIntercom MCP server. The
 
 ## Script Categories
 
+### Validation Scripts
+- `pre_commit_validation.sh` - Pre-commit testing script with environment detection
+- `example-pre-commit-hook` - Example Git pre-commit hook using validation script
+
+### Docker Test Runners
+- `docker_test_runner.sh` - Docker-based test runner for CI environment parity (NEW)
+
 ### Integration Test Scripts
 - `run_integration_test.sh` - Main integration test runner with comprehensive API testing
 - `test_docker_install.sh` - Docker deployment and clean install testing
@@ -24,6 +31,108 @@ Note: Cleanup and reporting are integrated into the main test scripts.
 - Test reporting is included in script outputs and optional JSON files
 
 ## Script Details
+
+### pre_commit_validation.sh
+
+**Purpose**: Consistent pre-commit testing with automatic environment detection  
+**Usage**: `./scripts/pre_commit_validation.sh [OPTIONS]`
+
+**Features**:
+- Automatic environment detection (Poetry, venv, .venv, system Python)
+- Comprehensive validation pipeline (imports, linting, type checking, tests, CLI)
+- Auto-fix capabilities for linting and formatting issues
+- Configurable validation steps with skip options
+- Fast mode for quick pre-commit checks
+- Verbose and quiet modes for different use cases
+- JSON results output for CI integration
+
+**Options**:
+- `--verbose` - Enable verbose output with detailed logging
+- `--quiet` - Suppress non-essential output (CI-friendly)
+- `--skip-tests` - Skip running tests (faster validation)
+- `--skip-type-check` - Skip mypy type checking
+- `--skip-lint` - Skip ruff linting
+- `--skip-format` - Skip ruff formatting check
+- `--fix` - Auto-fix linting and formatting issues
+- `--fast` - Fast mode: skip tests and type checking
+- `--no-import-check` - Skip Python module import test
+- `--no-cli-check` - Skip CLI smoke test
+- `--output FILE` - Save validation results to JSON file
+- `--help` - Show detailed usage information
+
+**Examples**:
+```bash
+# Full pre-commit validation (recommended)
+./scripts/pre_commit_validation.sh
+
+# Fast validation for quick checks
+./scripts/pre_commit_validation.sh --fast
+
+# Auto-fix issues and validate
+./scripts/pre_commit_validation.sh --fix
+
+# Quiet mode for CI environments
+./scripts/pre_commit_validation.sh --quiet
+
+# Debug mode with verbose output
+./scripts/pre_commit_validation.sh --verbose
+
+# Custom validation with skipped steps
+./scripts/pre_commit_validation.sh --skip-tests --skip-type-check
+
+# Save results for CI reporting
+./scripts/pre_commit_validation.sh --output validation_results.json
+```
+
+**Environment Detection**:
+The script automatically detects and configures for:
+- **Poetry projects**: Uses `poetry run` commands when `pyproject.toml` and `poetry` command exist
+- **Virtual environments**: Activates `venv/` or `.venv/` and uses local commands
+- **System Python**: Falls back to `python3` commands
+
+**Validation Pipeline**:
+1. **Environment Setup**: Detect and configure Python environment
+2. **Import Testing**: Verify `fast_intercom_mcp` module can be imported
+3. **CLI Testing**: Verify CLI commands are accessible and functional
+4. **Linting**: Run `ruff check` with project configuration
+5. **Formatting**: Check code formatting with `ruff format --check`
+6. **Type Checking**: Run `mypy` type checking (if available)
+7. **Testing**: Run `pytest` tests (if available and not skipped)
+
+**Exit Codes**:
+- `0` - All validations passed
+- `1` - Environment setup failed
+- `2` - Import test failed
+- `3` - Linting or formatting failed
+- `4` - Type checking failed
+- `5` - Tests failed
+- `6` - CLI test failed
+- `7` - Multiple validation failures
+
+**Integration with Git Hooks**:
+```bash
+# Copy the example hook file
+cp scripts/example-pre-commit-hook .git/hooks/pre-commit
+chmod +x .git/hooks/pre-commit
+
+# Or create manually:
+# Add to .git/hooks/pre-commit
+#!/bin/bash
+./scripts/pre_commit_validation.sh --fast --quiet
+```
+
+**Integration with CI/CD**:
+```yaml
+# GitHub Actions usage
+- name: Pre-commit Validation
+  run: ./scripts/pre_commit_validation.sh --quiet --output validation_results.json
+  
+- name: Upload Validation Results
+  uses: actions/upload-artifact@v4
+  with:
+    name: validation-results
+    path: validation_results.json
+```
 
 ### run_integration_test.sh
 
@@ -112,6 +221,66 @@ python3 scripts/test_mcp_tools.py --verbose --output mcp_performance.json
 # Docker test with debug info
 ./scripts/test_docker_install.sh --debug
 ```
+
+### docker_test_runner.sh
+
+**Purpose**: Docker-based test runner providing CI environment parity  
+**Usage**: `./scripts/docker_test_runner.sh [OPTIONS]`
+
+**Features**:
+- Complete CI environment parity (Python 3.11, Ubuntu, exact package versions)
+- Multiple test modes: fast-check, quick-test, integration, performance
+- Isolated Docker environments for reproducible testing
+- Comprehensive test reporting with JSON output
+- Performance benchmarking and target validation
+- Automatic cleanup with preservation options for debugging
+
+**Test Modes**:
+- `fast-check` - 2 minutes: Import, lint, CLI smoke test (matches CI fast-check.yml)
+- `quick-test` - 10 minutes: Fast integration with limited data (matches CI quick-test.yml)
+- `integration` - 30 minutes: Full integration with real API
+- `performance` - 45 minutes: Performance benchmarks with reporting
+
+**Options**:
+- `--mode MODE` - Test mode: fast-check, quick-test, integration, performance
+- `--clean-build` - Force clean Docker build (no cache)
+- `--keep-container` - Don't remove container after test completion
+- `--verbose` - Enable verbose output and debug logging
+- `--output FILE` - Save test results to JSON file
+- `--api-test` - Enable real API integration (requires INTERCOM_ACCESS_TOKEN)
+- `--performance-report` - Generate detailed performance metrics
+- `--parallel` - Run tests in parallel where possible
+- `--help` - Show detailed usage information
+
+**Examples**:
+```bash
+# Quick development check (matches CI fast-check)
+./scripts/docker_test_runner.sh --mode fast-check
+
+# Integration test with API (matches CI quick-test)
+./scripts/docker_test_runner.sh --mode quick-test --api-test
+
+# Full performance testing
+./scripts/docker_test_runner.sh --mode performance --performance-report --output perf_results.json
+
+# Debug mode with container preservation
+./scripts/docker_test_runner.sh --mode integration --verbose --keep-container
+```
+
+**Exit Codes**:
+- `0` - All tests passed
+- `1` - Docker setup failed
+- `2` - Test execution failed
+- `3` - Performance targets not met
+- `4` - Environment setup failed
+- `5` - Invalid configuration
+
+**CI Environment Parity**:
+- Python 3.11 (matches GitHub Actions)
+- Ubuntu-based container (matches CI runners)
+- Identical package versions and test commands
+- Same timeout constraints and performance targets
+- Exact test execution patterns from CI workflows
 
 ### test_mcp_tools.py
 

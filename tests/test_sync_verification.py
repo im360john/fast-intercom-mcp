@@ -393,7 +393,7 @@ class TestConversationThreadCompleteness:
         # Use two-phase sync to fetch complete conversation thread
         start_date = long_conv.created_at
         end_date = long_conv.updated_at
-        stats = await sync_service.sync_period_two_phase(start_date, end_date, force_refetch=True)
+        stats = await sync_service.sync_period_two_phase(start_date, end_date)
 
         # Verify thread completeness
         assert stats.total_conversations >= 1, "Expected at least 1 conversation"
