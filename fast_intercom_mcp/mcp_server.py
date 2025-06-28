@@ -500,7 +500,7 @@ class FastIntercomMCPServer:
         result_text += f"**Customer:** {conversation.customer_email or 'Unknown'}\n"
         result_text += f"**Created:** {conversation.created_at.strftime('%Y-%m-%d %H:%M UTC')}\n"
         result_text += (
-            f"**Last Updated:** " f"{conversation.updated_at.strftime('%Y-%m-%d %H:%M UTC')}\n"
+            f"**Last Updated:** {conversation.updated_at.strftime('%Y-%m-%d %H:%M UTC')}\n"
         )
 
         if conversation.tags:
@@ -539,7 +539,7 @@ class FastIntercomMCPServer:
             result_text += "🕒 **Last Sync:** Never\n"
 
         result_text += (
-            f"🔄 **Background Sync:** " f"{'Active' if sync_status['active'] else 'Inactive'}\n"
+            f"🔄 **Background Sync:** {'Active' if sync_status['active'] else 'Inactive'}\n"
         )
 
         if sync_status.get("current_operation"):

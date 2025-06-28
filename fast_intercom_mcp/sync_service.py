@@ -106,7 +106,7 @@ class SyncService:
                 # Log detailed progress for debugging
                 logger.info(
                     f"Sync progress: {current_count}/{estimated_total} conversations "
-                    f"({(current_count/estimated_total)*100:.1f}%), "
+                    f"({(current_count / estimated_total) * 100:.1f}%), "
                     f"rate: {rate:.2f}/sec, "
                     f"elapsed: {elapsed_seconds:.1f}s, "
                     f"ETA: {eta_seconds:.1f}s"
@@ -441,7 +441,7 @@ class SyncService:
 
         self._sync_active = True
         self._current_operation = (
-            f"Two-phase sync {start_date.strftime('%m/%d')} to " f"{end_date.strftime('%m/%d')}"
+            f"Two-phase sync {start_date.strftime('%m/%d')} to {end_date.strftime('%m/%d')}"
         )
 
         try:
