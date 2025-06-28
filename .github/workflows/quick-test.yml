@@ -108,21 +108,13 @@ jobs:
               print(f'📅 Period: {start_date.strftime(\"%Y-%m-%d\")} to {end_date.strftime(\"%Y-%m-%d\")}')
               
               sync_start = time.time()
-              # Use limited fetch for quick test
-              conversations = await client.fetch_conversations(limit=50)
-              stored_count = db.store_conversations(conversations)
+              # Use incremental fetch with very recent timestamp for quick test
+              recent_time = end_date - timedelta(hours=2)  # Last 2 hours for speed
+              sync_stats = await client.fetch_conversations_incremental(recent_time, end_date)
               sync_duration = time.time() - sync_start
               
-              # Create mock stats for quick test
-              class QuickStats:
-                  def __init__(self, conversations, messages=0, api_calls=2):
-                      self.total_conversations = conversations
-                      self.new_conversations = conversations  
-                      self.updated_conversations = 0
-                      self.total_messages = messages
-                      self.api_calls_made = api_calls
-              
-              stats = QuickStats(stored_count, stored_count * 3, 2)
+              # Use the real sync stats from incremental fetch
+              stats = sync_stats
               
               # Results
               rate = stats.total_conversations / max(sync_duration, 1)
