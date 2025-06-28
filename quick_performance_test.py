@@ -16,9 +16,7 @@ from pathlib import Path
 def run_quick_sync_test(days=7, max_conversations=1000):
     """Run a quick sync test and capture performance metrics"""
 
-    print(
-        f"🚀 Running quick performance test ({days} days, max {max_conversations} conversations)"
-    )
+    print(f"🚀 Running quick performance test ({days} days, max {max_conversations} conversations)")
 
     # Setup test environment
     test_dir = Path.home() / ".fast-intercom-mcp-quick-performance"
@@ -188,18 +186,15 @@ def main():
     print("\n📊 QUICK PERFORMANCE TEST RESULTS")
     print("=" * 60)
     print(f"🏆 Performance Rating: {rating}")
-    print(
-        f"🚀 Production Ready: {'YES' if report['assessment']['production_ready'] else 'NO'}"
-    )
+    print(f"🚀 Production Ready: {'YES' if report['assessment']['production_ready'] else 'NO'}")
     print()
     print("📈 Key Metrics:")
     print(f"  • Sync Rate: {conv_per_sec:.1f} conversations/second")
     print(
-        f"  • Storage Efficiency: {sync_metrics['storage_efficiency_conversations_per_mb']:.1f} conv/MB"
+        f"  • Storage Efficiency: "
+        f"{sync_metrics['storage_efficiency_conversations_per_mb']:.1f} conv/MB"
     )
-    print(
-        f"  • Avg Conversation Size: {sync_metrics['avg_conversation_size_kb']:.1f}KB"
-    )
+    print(f"  • Avg Conversation Size: {sync_metrics['avg_conversation_size_kb']:.1f}KB")
     print()
     print("⚡ Server Response Times:")
     for test_name, result in server_tests.items():

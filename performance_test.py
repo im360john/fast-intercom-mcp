@@ -50,9 +50,7 @@ def run_timed_test(command, description):
 
         success = result.returncode == 0
 
-        print(
-            f"{'✅' if success else '❌'} {description} - {duration:.2f}s, {peak_memory:.1f}MB"
-        )
+        print(f"{'✅' if success else '❌'} {description} - {duration:.2f}s, {peak_memory:.1f}MB")
 
         if not success:
             print(f"  Error: {result.stderr}")
@@ -120,15 +118,13 @@ def test_environment():
     )
 
     # Check CLI availability
-    cli_test = run_timed_test(
-        "python3 -m fast_intercom_mcp --help", "CLI availability test"
-    )
+    cli_test = run_timed_test("python3 -m fast_intercom_mcp --help", "CLI availability test")
 
     # Check token availability
     token_available = bool(os.environ.get("INTERCOM_ACCESS_TOKEN"))
-    print(
-        f"{'✅' if token_available else '❌'} API token {'available' if token_available else 'missing'}"
-    )
+    token_status = "available" if token_available else "missing"
+    icon = "✅" if token_available else "❌"
+    print(f"{icon} API token {token_status}")
 
     return import_test["success"] and cli_test["success"] and token_available
 
@@ -180,8 +176,7 @@ def calculate_efficiency_metrics(integration_result, db_metrics):
         "sync_rate_conversations_per_second": conversations / max(duration, 1),
         "storage_efficiency_conversations_per_mb": conversations / max(db_size, 0.1),
         "memory_efficiency_conversations_per_mb_ram": conversations / max(memory, 1),
-        "database_efficiency_kb_per_conversation": (db_size * 1024)
-        / max(conversations, 1),
+        "database_efficiency_kb_per_conversation": (db_size * 1024) / max(conversations, 1),
     }
 
 
@@ -311,17 +306,18 @@ def main():
         if "performance_metrics" in report:
             perf = report["performance_metrics"]
             print("\n⚡ Performance Metrics:")
+            print(f"  • Sync rate: {perf['sync_rate_conversations_per_second']:.1f} conv/sec")
             print(
-                f"  • Sync rate: {perf['sync_rate_conversations_per_second']:.1f} conv/sec"
+                f"  • Storage efficiency: "
+                f"{perf['storage_efficiency_conversations_per_mb']:.1f} conv/MB"
             )
             print(
-                f"  • Storage efficiency: {perf['storage_efficiency_conversations_per_mb']:.1f} conv/MB"
+                f"  • Memory efficiency: "
+                f"{perf['memory_efficiency_conversations_per_mb_ram']:.1f} conv/MB RAM"
             )
             print(
-                f"  • Memory efficiency: {perf['memory_efficiency_conversations_per_mb_ram']:.1f} conv/MB RAM"
-            )
-            print(
-                f"  • Avg conversation size: {perf['database_efficiency_kb_per_conversation']:.1f}KB"
+                f"  • Avg conversation size: "
+                f"{perf['database_efficiency_kb_per_conversation']:.1f}KB"
             )
 
     print(f"\n📄 Full report saved to: {report_path.absolute()}")

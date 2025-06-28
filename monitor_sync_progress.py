@@ -59,7 +59,9 @@ def main():
 
                 # Show progress
                 print(
-                    f"⏱️ {elapsed:5.0f}s | 💬 {conversations:6,} conv | ✉️ {messages:7,} msg | 💾 {size_mb:6.1f}MB | 🚀 {conversations_per_sec:5.1f}/sec"
+                    f"⏱️ {elapsed:5.0f}s | 💬 {conversations:6,} conv | "
+                    f"✉️ {messages:7,} msg | 💾 {size_mb:6.1f}MB | "
+                    f"🚀 {conversations_per_sec:5.1f}/sec"
                 )
 
                 # Track the last count for potential future use
@@ -73,7 +75,8 @@ def main():
         print("\n📊 Monitoring stopped")
         if stats:
             print(
-                f"Final stats: {stats['conversations']:,} conversations, {stats['messages']:,} messages, {stats['size_mb']:.1f}MB"
+                f"Final stats: {stats['conversations']:,} conversations, "
+                f"{stats['messages']:,} messages, {stats['size_mb']:.1f}MB"
             )
 
 

@@ -185,9 +185,7 @@ class IntegrationTestRunner:
         logger.info(f"🔄 Testing initial sync of {self.target_days}+ days...")
 
         if not DEPENDENCIES_AVAILABLE or not self.db or not self.intercom_client:
-            logger.error(
-                "❌ Dependencies or components not available - skipping sync test"
-            )
+            logger.error("❌ Dependencies or components not available - skipping sync test")
             return False
 
         try:
@@ -213,9 +211,7 @@ class IntegrationTestRunner:
                 return False
 
             # Calculate performance metrics
-            sync_speed = (
-                stats.total_conversations / sync_duration if sync_duration > 0 else 0
-            )
+            sync_speed = stats.total_conversations / sync_duration if sync_duration > 0 else 0
 
             # Log results
             logger.info("✅ Initial sync completed successfully!")
@@ -236,14 +232,13 @@ class IntegrationTestRunner:
             # Check performance targets
             if sync_speed < self.performance_targets["min_sync_speed"]:
                 logger.warning(
-                    f"⚠️  Sync speed ({sync_speed:.1f} conv/sec) below target ({self.performance_targets['min_sync_speed']} conv/sec)"
+                    f"⚠️  Sync speed ({sync_speed:.1f} conv/sec) below target "
+                    f"({self.performance_targets['min_sync_speed']} conv/sec)"
                 )
             elif sync_speed > self.performance_targets["max_sync_speed"]:
                 logger.info(f"🚀 Excellent sync speed: {sync_speed:.1f} conv/sec")
             else:
-                logger.info(
-                    f"✅ Sync speed within target range: {sync_speed:.1f} conv/sec"
-                )
+                logger.info(f"✅ Sync speed within target range: {sync_speed:.1f} conv/sec")
 
             return True
 
@@ -257,9 +252,7 @@ class IntegrationTestRunner:
         logger.info("🔍 Testing database integrity and completeness...")
 
         if not DEPENDENCIES_AVAILABLE or not self.db:
-            logger.error(
-                "❌ Dependencies or database not available - skipping integrity test"
-            )
+            logger.error("❌ Dependencies or database not available - skipping integrity test")
             return False
 
         try:
@@ -281,9 +274,7 @@ class IntegrationTestRunner:
             # Check message-to-conversation ratio (should be > 1)
             msg_per_conv = msg_count / conv_count if conv_count > 0 else 0
             if msg_per_conv < 1:
-                logger.error(
-                    f"❌ Suspicious message-to-conversation ratio: {msg_per_conv:.2f}"
-                )
+                logger.error(f"❌ Suspicious message-to-conversation ratio: {msg_per_conv:.2f}")
                 return False
 
             # Test data retrieval
@@ -301,9 +292,7 @@ class IntegrationTestRunner:
                 if not conv.messages:
                     incomplete_count += 1
 
-            if (
-                incomplete_count > len(recent_conversations) * 0.1
-            ):  # More than 10% incomplete
+            if incomplete_count > len(recent_conversations) * 0.1:  # More than 10% incomplete
                 logger.warning(f"⚠️  {incomplete_count} conversations have no messages")
 
             logger.info("✅ Database integrity verified")
@@ -334,9 +323,7 @@ class IntegrationTestRunner:
             or not self.sync_service
             or not self.intercom_client
         ):
-            logger.error(
-                "❌ Dependencies or components not available - skipping MCP test"
-            )
+            logger.error("❌ Dependencies or components not available - skipping MCP test")
             return False
 
         try:
@@ -361,9 +348,7 @@ class IntegrationTestRunner:
             # Test search functionality
             search_start = time.time()
 
-            search_results = self.db.search_conversations(
-                query="help", limit=10, days_back=7
-            )
+            search_results = self.db.search_conversations(query="help", limit=10, days_back=7)
 
             search_time = time.time() - search_start
 
@@ -399,11 +384,13 @@ class IntegrationTestRunner:
             # Check performance targets
             if status_time > max_response_time:
                 logger.warning(
-                    f"⚠️  Status response time ({status_time * 1000:.1f}ms) exceeds target ({max_response_time * 1000:.1f}ms)"
+                    f"⚠️  Status response time ({status_time * 1000:.1f}ms) exceeds target "
+                    f"({max_response_time * 1000:.1f}ms)"
                 )
             if search_time > max_response_time:
                 logger.warning(
-                    f"⚠️  Search response time ({search_time * 1000:.1f}ms) exceeds target ({max_response_time * 1000:.1f}ms)"
+                    f"⚠️  Search response time ({search_time * 1000:.1f}ms) exceeds target "
+                    f"({max_response_time * 1000:.1f}ms)"
                 )
 
             self.test_results["mcp_server"] = True
@@ -424,7 +411,8 @@ class IntegrationTestRunner:
         sync_speed = self.performance_metrics.get("sync_speed", 0)
         if sync_speed < self.performance_targets["min_sync_speed"]:
             logger.warning(
-                f"⚠️  Sync speed target missed: {sync_speed:.1f} < {self.performance_targets['min_sync_speed']}"
+                f"⚠️  Sync speed target missed: {sync_speed:.1f} < "
+                f"{self.performance_targets['min_sync_speed']}"
             )
             targets_met = False
         else:
@@ -445,13 +433,12 @@ class IntegrationTestRunner:
         for name, time_val in response_times:
             if time_val > max_response_time:
                 logger.warning(
-                    f"⚠️  {name} response time target missed: {time_val * 1000:.1f}ms > {max_response_time * 1000:.1f}ms"
+                    f"⚠️  {name} response time target missed: {time_val * 1000:.1f}ms > "
+                    f"{max_response_time * 1000:.1f}ms"
                 )
                 targets_met = False
             else:
-                logger.info(
-                    f"✅ {name} response time target met: {time_val * 1000:.1f}ms"
-                )
+                logger.info(f"✅ {name} response time target met: {time_val * 1000:.1f}ms")
 
         self.test_results["performance_targets_met"] = targets_met
         return targets_met
@@ -482,13 +469,9 @@ class IntegrationTestRunner:
                 f"   Conversations synced: {self.performance_metrics['conversations_synced']:,}"
             )
         if "messages_synced" in self.performance_metrics:
-            logger.info(
-                f"   Messages synced: {self.performance_metrics['messages_synced']:,}"
-            )
+            logger.info(f"   Messages synced: {self.performance_metrics['messages_synced']:,}")
         if "sync_speed" in self.performance_metrics:
-            logger.info(
-                f"   Sync speed: {self.performance_metrics['sync_speed']:.1f} conv/sec"
-            )
+            logger.info(f"   Sync speed: {self.performance_metrics['sync_speed']:.1f} conv/sec")
         if "sync_duration" in self.performance_metrics:
             logger.info(
                 f"   Sync duration: {self.performance_metrics['sync_duration']:.1f} seconds"
@@ -512,9 +495,7 @@ class IntegrationTestRunner:
         # Overall status
         logger.info("")
         all_passed = all(
-            result
-            for key, result in self.test_results.items()
-            if isinstance(result, bool)
+            result for key, result in self.test_results.items() if isinstance(result, bool)
         )
 
         if all_passed:

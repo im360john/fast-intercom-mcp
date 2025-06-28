@@ -47,9 +47,7 @@ class ComprehensiveMonitor:
         self.monitor_thread = threading.Thread(target=self._monitor_loop)
         self.monitor_thread.daemon = True
         self.monitor_thread.start()
-        print(
-            f"🔍 Performance monitoring started at {datetime.now().strftime('%H:%M:%S')}"
-        )
+        print(f"🔍 Performance monitoring started at {datetime.now().strftime('%H:%M:%S')}")
 
     def stop_monitoring(self):
         self.end_time = time.time()
@@ -67,9 +65,7 @@ class ComprehensiveMonitor:
             self.metrics["average_memory_mb"] = sum(memory_values) / len(memory_values)
             self.metrics["peak_cpu_percent"] = max(cpu_values)
 
-        print(
-            f"🔍 Performance monitoring stopped at {datetime.now().strftime('%H:%M:%S')}"
-        )
+        print(f"🔍 Performance monitoring stopped at {datetime.now().strftime('%H:%M:%S')}")
 
     def _monitor_loop(self):
         process = psutil.Process()
@@ -87,7 +83,8 @@ class ComprehensiveMonitor:
                 if len(self.samples) % 20 == 0:  # Every 10 seconds
                     elapsed = sample["elapsed_time"]
                     print(
-                        f"⏱️ {elapsed:.0f}s - Memory: {sample['memory_mb']:.1f}MB, CPU: {sample['cpu_percent']:.1f}%"
+                        f"⏱️ {elapsed:.0f}s - Memory: {sample['memory_mb']:.1f}MB, "
+                        f"CPU: {sample['cpu_percent']:.1f}%"
                     )
 
                 time.sleep(0.5)
@@ -103,7 +100,8 @@ class ComprehensiveMonitor:
         }
         self.metrics["checkpoint_times"].append(checkpoint)
         print(
-            f"📍 Checkpoint: {name} at {checkpoint['elapsed_time']:.1f}s ({conversations_so_far} conversations)"
+            f"📍 Checkpoint: {name} at {checkpoint['elapsed_time']:.1f}s "
+            f"({conversations_so_far} conversations)"
         )
 
 
@@ -246,11 +244,9 @@ def run_full_workspace_sync():
                     "conversations_synced": conversations,
                     "messages_synced": messages,
                     "database_size_mb": db_size,
-                    "sync_rate_conversations_per_second": conversations
-                    / max(duration, 1),
+                    "sync_rate_conversations_per_second": conversations / max(duration, 1),
                     "sync_rate_messages_per_second": messages / max(duration, 1),
-                    "storage_efficiency_conversations_per_mb": conversations
-                    / max(db_size, 0.1),
+                    "storage_efficiency_conversations_per_mb": conversations / max(db_size, 0.1),
                     "memory_efficiency_conversations_per_mb_ram": conversations
                     / max(monitor.metrics["peak_memory_mb"], 1),
                 }
@@ -338,9 +334,7 @@ def generate_full_performance_report(monitor, db_stats, server_tests, sync_outpu
             "sync_rate_conversations_per_second": monitor.metrics[
                 "sync_rate_conversations_per_second"
             ],
-            "sync_rate_messages_per_second": monitor.metrics[
-                "sync_rate_messages_per_second"
-            ],
+            "sync_rate_messages_per_second": monitor.metrics["sync_rate_messages_per_second"],
             "peak_memory_mb": monitor.metrics["peak_memory_mb"],
             "average_memory_mb": monitor.metrics["average_memory_mb"],
             "peak_cpu_percent": monitor.metrics["peak_cpu_percent"],
@@ -441,9 +435,7 @@ def main():
     )
 
     # Generate comprehensive report
-    report = generate_full_performance_report(
-        monitor, db_stats, server_tests, sync_output
-    )
+    report = generate_full_performance_report(monitor, db_stats, server_tests, sync_output)
 
     # Save detailed report
     report_path = Path("full_workspace_performance_report.json")
@@ -466,16 +458,13 @@ def main():
     print()
     print("🔄 Sync Performance:")
     print(
-        f"  • Duration: {sync_perf['total_duration_seconds']:.1f} seconds ({sync_perf['total_duration_seconds'] / 60:.1f} minutes)"
+        f"  • Duration: {sync_perf['total_duration_seconds']:.1f} seconds "
+        f"({sync_perf['total_duration_seconds'] / 60:.1f} minutes)"
     )
     print(f"  • Conversations: {sync_perf['conversations_synced']:,}")
     print(f"  • Messages: {sync_perf['messages_synced']:,}")
-    print(
-        f"  • Sync Rate: {sync_perf['sync_rate_conversations_per_second']:.1f} conversations/sec"
-    )
-    print(
-        f"  • Message Rate: {sync_perf['sync_rate_messages_per_second']:.1f} messages/sec"
-    )
+    print(f"  • Sync Rate: {sync_perf['sync_rate_conversations_per_second']:.1f} conversations/sec")
+    print(f"  • Message Rate: {sync_perf['sync_rate_messages_per_second']:.1f} messages/sec")
     print(f"  • Peak Memory: {sync_perf['peak_memory_mb']:.1f}MB")
     print(f"  • Average Memory: {sync_perf['average_memory_mb']:.1f}MB")
     print(f"  • Peak CPU: {sync_perf['peak_cpu_percent']:.1f}%")
@@ -487,7 +476,8 @@ def main():
         print(f"  • Messages: {db_stats['messages_count']:,}")
         if "date_range" in db_stats:
             print(
-                f"  • Date Range: {db_stats['date_range']['earliest']} to {db_stats['date_range']['latest']}"
+                f"  • Date Range: {db_stats['date_range']['earliest']} to "
+                f"{db_stats['date_range']['latest']}"
             )
     print()
     print("⚡ Efficiency Metrics:")
@@ -495,14 +485,11 @@ def main():
         f"  • Storage: {efficiency['storage_efficiency_conversations_per_mb']:.1f} conversations/MB"
     )
     print(
-        f"  • Memory: {efficiency['memory_efficiency_conversations_per_mb_ram']:.1f} conversations/MB RAM"
+        f"  • Memory: {efficiency['memory_efficiency_conversations_per_mb_ram']:.1f} "
+        f"conversations/MB RAM"
     )
-    print(
-        f"  • Avg Conversation Size: {efficiency['average_conversation_size_kb']:.1f}KB"
-    )
-    print(
-        f"  • Messages per Conversation: {efficiency['messages_per_conversation']:.1f}"
-    )
+    print(f"  • Avg Conversation Size: {efficiency['average_conversation_size_kb']:.1f}KB")
+    print(f"  • Messages per Conversation: {efficiency['messages_per_conversation']:.1f}")
     print()
     print(f"📄 Full report saved to: {report_path.absolute()}")
 

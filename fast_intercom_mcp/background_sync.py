@@ -69,7 +69,7 @@ class BackgroundSyncService:
                 cursor = conn.execute(
                     """
                     INSERT INTO sync_metadata
-                    (sync_started_at, sync_status, sync_type, 
+                    (sync_started_at, sync_status, sync_type,
                      coverage_start_date, coverage_end_date)
                     VALUES (?, 'in_progress', 'background', ?, ?)
                 """,
@@ -88,10 +88,8 @@ class BackgroundSyncService:
                 )
 
                 # Use IntercomClient directly to avoid sync service conflicts
-                conversations = (
-                    await self.intercom_client.fetch_conversations_for_period(
-                        start_date, end_date
-                    )
+                conversations = await self.intercom_client.fetch_conversations_for_period(
+                    start_date, end_date
                 )
                 stored_count = self.db.store_conversations(conversations)
 
