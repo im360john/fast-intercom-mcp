@@ -124,7 +124,7 @@ class IntegrationTestRunner:
             return False
 
         token = os.getenv("INTERCOM_ACCESS_TOKEN")
-        self.intercom_client = IntercomClient(token, timeout_seconds=30)
+        self.intercom_client = IntercomClient(token, timeout=30)
 
         try:
             # Test basic connection
@@ -158,7 +158,7 @@ class IntegrationTestRunner:
             return False
 
         try:
-            self.db = DatabaseManager(self.db_path, connection_pool_size=5)
+            self.db = DatabaseManager(self.db_path, pool_size=5)
 
             # Check if database was created and initialized
             if not os.path.exists(self.db_path):
