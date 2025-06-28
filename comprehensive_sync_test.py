@@ -430,7 +430,8 @@ def main():
         f"  • API Efficiency: {efficiency['api_efficiency']:.2f} conversations/request"
     )
     print(
-        f"  • Memory Efficiency: {efficiency['memory_efficiency_conversations_per_mb_ram']:.1f} conv/MB RAM"
+        f"  • Memory Efficiency: "
+        f"{efficiency['memory_efficiency_conversations_per_mb_ram']:.1f} conv/MB RAM"
     )
     print()
     print(f"📄 Full report saved to: {report_path}")

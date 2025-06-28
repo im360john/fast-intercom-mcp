@@ -216,7 +216,8 @@ class IntercomClient:
 
         elapsed_time = time.time() - start_time
         logger.info(
-            f"Incremental sync complete: {len(conversations)} conversations in {elapsed_time:.2f}s ({api_calls} API calls)"
+            f"Incremental sync complete: {len(conversations)} conversations "
+            f"in {elapsed_time:.2f}s ({api_calls} API calls)"
         )
 
         return SyncStats(
@@ -247,7 +248,8 @@ class IntercomClient:
         conversations = []
 
         async with httpx.AsyncClient(timeout=self.timeout) as client:
-            # Use updated_at to capture both new conversations AND existing conversations with new messages
+            # Use updated_at to capture both new conversations AND existing
+            # conversations with new messages
             search_filters = [
                 {
                     "field": "updated_at",
@@ -295,7 +297,8 @@ class IntercomClient:
 
                 if progress_callback:
                     await progress_callback(
-                        f"Fetched {len(conversations)} conversations from {start_date.date()} to {end_date.date()}"
+                        f"Fetched {len(conversations)} conversations "
+                        f"from {start_date.date()} to {end_date.date()}"
                     )
 
                 # Check if more pages available
