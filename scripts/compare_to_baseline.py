@@ -192,9 +192,10 @@ class PerformanceComparison:
             if metric_name == "query_times_ms":
                 print("\nQuery Performance (ms):")
                 for query_name, query_data in data.items():
-                    print(
-                        f"  {query_name:30} {query_data['baseline']:>8.2f} → {query_data['current']:>8.2f} {query_data['formatted_change']}"
-                    )
+                    baseline = query_data["baseline"]
+                    current = query_data["current"]
+                    change = query_data["formatted_change"]
+                    print(f"  {query_name:30} {baseline:>8.2f} → {current:>8.2f} {change}")
             elif isinstance(data, dict) and "baseline" in data:
                 baseline_val = data["baseline"]
                 current_val = data["current"]
@@ -206,18 +207,22 @@ class PerformanceComparison:
             print("\n⚠️  Performance Regressions:")
             print("-" * 60)
             for reg in comparison["regressions"]:
-                print(
-                    f"  {reg['metric']}: {reg['baseline']:.2f} → {reg['current']:.2f} (+{reg['percent_change']:.1f}%)"
-                )
+                metric = reg["metric"]
+                baseline = reg["baseline"]
+                current = reg["current"]
+                percent = reg["percent_change"]
+                print(f"  {metric}: {baseline:.2f} → {current:.2f} (+{percent:.1f}%)")
 
         # Display improvements
         if comparison["improvements"]:
             print("\n✅ Performance Improvements:")
             print("-" * 60)
             for imp in comparison["improvements"]:
-                print(
-                    f"  {imp['metric']}: {imp['baseline']:.2f} → {imp['current']:.2f} ({imp['percent_change']:.1f}%)"
-                )
+                metric = imp["metric"]
+                baseline = imp["baseline"]
+                current = imp["current"]
+                percent = imp["percent_change"]
+                print(f"  {metric}: {baseline:.2f} → {current:.2f} ({percent:.1f}%)")
 
     def save_comparison(self, comparison: dict[str, Any], output_file: str) -> None:
         """Save comparison results to file"""

@@ -221,18 +221,18 @@ class PerformanceReporter:
                 report_lines.extend(["### ✅ Improving Metrics", ""])
                 for metric in improving:
                     trend = trends[metric]
-                    report_lines.append(
-                        f"- **{metric.replace('_', ' ').title()}**: {trend['change_percent']:.1f}% improvement"
-                    )
+                    metric_title = metric.replace("_", " ").title()
+                    change_pct = trend["change_percent"]
+                    report_lines.append(f"- **{metric_title}**: {change_pct:.1f}% improvement")
                 report_lines.append("")
 
             if degrading:
                 report_lines.extend(["### ⚠️ Degrading Metrics", ""])
                 for metric in degrading:
                     trend = trends[metric]
-                    report_lines.append(
-                        f"- **{metric.replace('_', ' ').title()}**: {trend['change_percent']:.1f}% degradation"
-                    )
+                    metric_title = metric.replace("_", " ").title()
+                    change_pct = trend["change_percent"]
+                    report_lines.append(f"- **{metric_title}**: {change_pct:.1f}% degradation")
                 report_lines.append("")
 
             if stable:
@@ -289,8 +289,9 @@ class PerformanceReporter:
                 else:
                     status = "✅ Pass" if current <= target else "❌ Fail"
 
+                metric_title = metric.replace("_", " ").title()
                 report_lines.append(
-                    f"| {metric.replace('_', ' ').title()} | {target} {unit} | {current:.2f} {unit} | {status} |"
+                    f"| {metric_title} | {target} {unit} | {current:.2f} {unit} | {status} |"
                 )
 
         report_lines.extend(["", ""])
