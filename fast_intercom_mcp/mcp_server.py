@@ -55,7 +55,9 @@ class FastIntercomMCPServer:
                             },
                             "timeframe": {
                                 "type": "string",
-                                "description": "Time period like 'last 7 days', 'this month', 'last week'",
+                                "description": (
+                                    "Time period like 'last 7 days', 'this month', 'last week'"
+                                ),
                             },
                             "customer_email": {
                                 "type": "string",
@@ -63,7 +65,9 @@ class FastIntercomMCPServer:
                             },
                             "limit": {
                                 "type": "integer",
-                                "description": "Maximum number of conversations to return (default: 50)",
+                                "description": (
+                                    "Maximum number of conversations to return (default: 50)"
+                                ),
                                 "default": 50,
                             },
                         },
@@ -115,11 +119,15 @@ class FastIntercomMCPServer:
                         "properties": {
                             "start_date": {
                                 "type": "string",
-                                "description": "Start date in ISO format (YYYY-MM-DD or full ISO timestamp)",
+                                "description": (
+                                    "Start date in ISO format (YYYY-MM-DD or full ISO timestamp)"
+                                ),
                             },
                             "end_date": {
                                 "type": "string",
-                                "description": "End date in ISO format (YYYY-MM-DD or full ISO timestamp)",
+                                "description": (
+                                    "End date in ISO format (YYYY-MM-DD or full ISO timestamp)"
+                                ),
                             },
                         },
                         "required": ["start_date", "end_date"],
@@ -442,7 +450,10 @@ class FastIntercomMCPServer:
             result_text += f"**Conversation {conv.id}**\n"
             result_text += f"- Customer: {conv.customer_email or 'Unknown'}\n"
             result_text += f"- Created: {conv.created_at.strftime('%Y-%m-%d %H:%M')}\n"
-            result_text += f"- Messages: {len(customer_messages)} from customer, {len(admin_messages)} from support\n"
+            result_text += (
+                f"- Messages: {len(customer_messages)} from customer, "
+                f"{len(admin_messages)} from support\n"
+            )
 
             if conv.tags:
                 result_text += f"- Tags: {', '.join(conv.tags)}\n"
@@ -518,7 +529,10 @@ class FastIntercomMCPServer:
         result_text += (
             f"**Created:** {conversation.created_at.strftime('%Y-%m-%d %H:%M UTC')}\n"
         )
-        result_text += f"**Last Updated:** {conversation.updated_at.strftime('%Y-%m-%d %H:%M UTC')}\n"
+        result_text += (
+            f"**Last Updated:** "
+            f"{conversation.updated_at.strftime('%Y-%m-%d %H:%M UTC')}\n"
+        )
 
         if conversation.tags:
             result_text += f"**Tags:** {', '.join(conversation.tags)}\n"
@@ -555,7 +569,10 @@ class FastIntercomMCPServer:
         else:
             result_text += "🕒 **Last Sync:** Never\n"
 
-        result_text += f"🔄 **Background Sync:** {'Active' if sync_status['active'] else 'Inactive'}\n"
+        result_text += (
+            f"🔄 **Background Sync:** "
+            f"{'Active' if sync_status['active'] else 'Inactive'}\n"
+        )
 
         if sync_status.get("current_operation"):
             result_text += (
@@ -703,7 +720,9 @@ class FastIntercomMCPServer:
                         },
                         "timeframe": {
                             "type": "string",
-                            "description": "Time period like 'last 7 days', 'this month', 'last week'",
+                            "description": (
+                                "Time period like 'last 7 days', 'this month', 'last week'"
+                            ),
                         },
                         "customer_email": {
                             "type": "string",
@@ -711,7 +730,9 @@ class FastIntercomMCPServer:
                         },
                         "limit": {
                             "type": "integer",
-                            "description": "Maximum number of conversations to return (default: 50)",
+                            "description": (
+                                "Maximum number of conversations to return (default: 50)"
+                            ),
                             "default": 50,
                         },
                     },
@@ -763,11 +784,15 @@ class FastIntercomMCPServer:
                     "properties": {
                         "start_date": {
                             "type": "string",
-                            "description": "Start date in ISO format (YYYY-MM-DD or full ISO timestamp)",
+                            "description": (
+                                "Start date in ISO format (YYYY-MM-DD or full ISO timestamp)"
+                            ),
                         },
                         "end_date": {
                             "type": "string",
-                            "description": "End date in ISO format (YYYY-MM-DD or full ISO timestamp)",
+                            "description": (
+                                "End date in ISO format (YYYY-MM-DD or full ISO timestamp)"
+                            ),
                         },
                     },
                     "required": ["start_date", "end_date"],

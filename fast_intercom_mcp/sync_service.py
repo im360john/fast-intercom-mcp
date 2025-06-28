@@ -294,7 +294,8 @@ class SyncService:
                 f"Period sync completed: {stats.total_conversations} conversations"
             )
             await self._broadcast_progress(
-                f"Sync completed: {stats.total_conversations} conversations, {stats.total_messages} messages"
+                f"Sync completed: {stats.total_conversations} conversations, "
+                f"{stats.total_messages} messages"
             )
             return stats
 
@@ -348,7 +349,10 @@ class SyncService:
             raise Exception("Sync already in progress")
 
         self._sync_active = True
-        self._current_operation = f"Two-phase sync {start_date.strftime('%m/%d')} to {end_date.strftime('%m/%d')}"
+        self._current_operation = (
+            f"Two-phase sync {start_date.strftime('%m/%d')} to "
+            f"{end_date.strftime('%m/%d')}"
+        )
 
         try:
             logger.info(f"Starting two-phase sync: {start_date} to {end_date}")
