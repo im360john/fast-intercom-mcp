@@ -37,6 +37,34 @@ from pathlib import Path
 from typing import Any
 
 
+def get_test_workspace() -> Path:
+    """Get the test workspace directory with organized subdirectories."""
+    # Check environment variable first
+    if workspace_env := os.environ.get("FASTINTERCOM_TEST_WORKSPACE"):
+        workspace = Path(workspace_env)
+    else:
+        # Find project root (look for pyproject.toml)
+        current_dir = Path.cwd()
+        project_root = current_dir
+
+        # Search up the directory tree for pyproject.toml
+        while current_dir != current_dir.parent:
+            if (current_dir / "pyproject.toml").exists():
+                project_root = current_dir
+                break
+            current_dir = current_dir.parent
+
+        workspace = project_root / ".test-workspace"
+
+    # Create organized subdirectories
+    workspace.mkdir(exist_ok=True)
+    (workspace / "data").mkdir(exist_ok=True)
+    (workspace / "logs").mkdir(exist_ok=True)
+    (workspace / "results").mkdir(exist_ok=True)
+
+    return workspace
+
+
 # Color constants for terminal output
 class Colors:
     RED = "\033[0;31m"
@@ -379,9 +407,13 @@ class LocalCITester:
         }
 
         try:
-            # Create test environment
-            test_dir = self.project_root / "quick_test_data"
-            test_dir.mkdir(exist_ok=True)
+            # Create test environment using standardized workspace
+            workspace = get_test_workspace()
+            test_dir = workspace / "data"
+
+            # Set environment variables for FastIntercom
+            os.environ["FASTINTERCOM_CONFIG_DIR"] = str(test_dir)
+            os.environ["FASTINTERCOM_TEST_WORKSPACE"] = str(workspace)
 
             # Step 1: Verify package installation
             self.log_info("Step 1: Verify package installation")
@@ -436,7 +468,7 @@ async def run_quick_test():
     print('⏱️  Test started at:', datetime.now(UTC).strftime('%H:%M:%S UTC'))
 
     # Initialize components
-    db = DatabaseManager('./quick_test.db')
+    db = DatabaseManager('quick_test.db')  # Relative to FASTINTERCOM_CONFIG_DIR
     client = IntercomClient(os.getenv('INTERCOM_ACCESS_TOKEN'))
     sync_service = SyncService(db, client)
 
@@ -511,10 +543,16 @@ if not success:
     exit(1)
 """
 
+                test_env = {
+                    "INTERCOM_ACCESS_TOKEN": api_token,
+                    "FASTINTERCOM_CONFIG_DIR": str(test_dir),
+                    "FASTINTERCOM_TEST_WORKSPACE": str(workspace),
+                }
+
                 returncode, stdout, stderr = self.run_command(
                     self.python_cmd + ["-c", quick_test_script],
                     cwd=test_dir,
-                    env={"INTERCOM_ACCESS_TOKEN": api_token},
+                    env=test_env,
                     timeout=600,  # 10 minute timeout
                 )
 
@@ -584,11 +622,15 @@ if not success:
         }
 
         try:
-            # Create test environment
-            test_dir = self.project_root / "integration_test_data"
-            test_dir.mkdir(exist_ok=True)
+            # Create test environment using standardized workspace
+            workspace = get_test_workspace()
+            test_dir = workspace / "data"
 
-            # Create .env file
+            # Set environment variables for FastIntercom
+            os.environ["FASTINTERCOM_CONFIG_DIR"] = str(test_dir)
+            os.environ["FASTINTERCOM_TEST_WORKSPACE"] = str(workspace)
+
+            # Create .env file in workspace
             env_file = test_dir / ".env"
             with open(env_file, "w") as f:
                 f.write(f"INTERCOM_ACCESS_TOKEN={os.getenv('INTERCOM_ACCESS_TOKEN', '')}\n")
@@ -623,7 +665,7 @@ import asyncio
 from fast_intercom_mcp.database import DatabaseManager
 
 async def test_db():
-    db = DatabaseManager('./test_integration.db')
+    db = DatabaseManager('test_integration.db')  # Relative to FASTINTERCOM_CONFIG_DIR
     print('✅ Database initialized successfully')
 
 asyncio.run(test_db())
@@ -682,10 +724,16 @@ async def test_connection():
 asyncio.run(test_connection())
 """
 
+                test_env = {
+                    "INTERCOM_ACCESS_TOKEN": api_token,
+                    "FASTINTERCOM_CONFIG_DIR": str(test_dir),
+                    "FASTINTERCOM_TEST_WORKSPACE": str(workspace),
+                }
+
                 returncode, stdout, stderr = self.run_command(
                     self.python_cmd + ["-c", api_test_script],
                     cwd=test_dir,
-                    env={"INTERCOM_ACCESS_TOKEN": api_token},
+                    env=test_env,
                 )
 
                 step_duration = time.time() - step_start
@@ -711,7 +759,7 @@ from fast_intercom_mcp.database import DatabaseManager
 from fast_intercom_mcp.intercom_client import IntercomClient
 
 async def test_sync_service():
-    db = DatabaseManager('./test_integration.db')
+    db = DatabaseManager('test_integration.db')  # Relative to FASTINTERCOM_CONFIG_DIR
     client = IntercomClient(os.getenv('INTERCOM_ACCESS_TOKEN'))
     sync_service = SyncService(db, client)
 
@@ -724,7 +772,7 @@ asyncio.run(test_sync_service())
                 returncode, stdout, stderr = self.run_command(
                     self.python_cmd + ["-c", sync_service_test],
                     cwd=test_dir,
-                    env={"INTERCOM_ACCESS_TOKEN": api_token},
+                    env=test_env,
                 )
 
                 step_duration = time.time() - step_start
@@ -758,7 +806,7 @@ from fast_intercom_mcp.intercom_client import IntercomClient
 
 async def run_integration_test():
     # Initialize components
-    db = DatabaseManager('./test_integration.db')
+    db = DatabaseManager('test_integration.db')  # Relative to FASTINTERCOM_CONFIG_DIR
     client = IntercomClient(os.getenv('INTERCOM_ACCESS_TOKEN'))
     sync_service = SyncService(db, client)
 
@@ -818,7 +866,7 @@ async def run_integration_test():
         print(f'⏱️  Total test time: {{sync_duration:.1f}}s')
 
         # Verify data integrity
-        with sqlite3.connect('./test_integration.db') as conn:
+        with sqlite3.connect('test_integration.db') as conn:
             cursor = conn.execute('SELECT COUNT(*) FROM conversations')
             conv_count = cursor.fetchone()[0]
 
@@ -847,7 +895,7 @@ asyncio.run(run_integration_test())
                 returncode, stdout, stderr = self.run_command(
                     self.python_cmd + ["-c", real_sync_test],
                     cwd=test_dir,
-                    env={"INTERCOM_ACCESS_TOKEN": api_token},
+                    env=test_env,
                     timeout=1800,  # 30 minute timeout
                 )
 
@@ -1155,9 +1203,16 @@ asyncio.run(run_integration_test())
         """Save results to JSON file if specified."""
         if self.args.json_output:
             try:
-                with open(self.args.json_output, "w") as f:
+                # Save to workspace results directory if relative path
+                output_path = Path(self.args.json_output)
+                if not output_path.is_absolute():
+                    workspace = get_test_workspace()
+                    output_path = workspace / "results" / self.args.json_output
+                    output_path.parent.mkdir(exist_ok=True)
+
+                with open(output_path, "w") as f:
                     json.dump(self.results, f, indent=2)
-                self.log_success(f"Results saved to {self.args.json_output}")
+                self.log_success(f"Results saved to {output_path}")
             except Exception as e:
                 self.log_error(f"Failed to save results: {e}")
 

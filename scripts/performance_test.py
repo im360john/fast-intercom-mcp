@@ -16,6 +16,34 @@ from pathlib import Path
 import psutil
 
 
+def get_test_workspace() -> Path:
+    """Get the test workspace directory with organized subdirectories."""
+    # Check environment variable first
+    if workspace_env := os.environ.get("FASTINTERCOM_TEST_WORKSPACE"):
+        workspace = Path(workspace_env)
+    else:
+        # Find project root (look for pyproject.toml)
+        current_dir = Path.cwd()
+        project_root = current_dir
+
+        # Search up the directory tree for pyproject.toml
+        while current_dir != current_dir.parent:
+            if (current_dir / "pyproject.toml").exists():
+                project_root = current_dir
+                break
+            current_dir = current_dir.parent
+
+        workspace = project_root / ".test-workspace"
+
+    # Create organized subdirectories
+    workspace.mkdir(exist_ok=True)
+    (workspace / "data").mkdir(exist_ok=True)
+    (workspace / "logs").mkdir(exist_ok=True)
+    (workspace / "results").mkdir(exist_ok=True)
+
+    return workspace
+
+
 def monitor_system_resources():
     """Get current system resource usage"""
     process = psutil.Process()
@@ -133,16 +161,17 @@ def run_integration_test_with_monitoring():
     """Run the integration test with comprehensive monitoring"""
     print("🚀 Running integration test with performance monitoring...")
 
-    # Setup test environment
-    test_db_path = Path.home() / ".fast-intercom-mcp-test" / "data.db"
-    test_db_path.parent.mkdir(parents=True, exist_ok=True)
+    # Setup test environment using standardized workspace
+    workspace = get_test_workspace()
+    test_db_path = workspace / "data" / "data.db"
 
     # Remove existing test database for clean test
     if test_db_path.exists():
         test_db_path.unlink()
 
     # Run integration test
-    os.environ["FASTINTERCOM_CONFIG_DIR"] = str(test_db_path.parent)
+    os.environ["FASTINTERCOM_CONFIG_DIR"] = str(workspace / "data")
+    os.environ["FASTINTERCOM_TEST_WORKSPACE"] = str(workspace)
 
     integration_result = run_timed_test(
         "./scripts/run_integration_test.sh --days 7 --max-conversations 500",
@@ -182,6 +211,7 @@ def calculate_efficiency_metrics(integration_result, db_metrics):
 
 def generate_performance_report(test_results):
     """Generate comprehensive performance report"""
+    workspace = get_test_workspace()
 
     report = {
         "test_info": {
@@ -189,6 +219,7 @@ def generate_performance_report(test_results):
             "python_version": sys.version,
             "platform": sys.platform,
             "working_directory": os.getcwd(),
+            "test_workspace": str(workspace),
         },
         "test_results": test_results,
         "summary": {
@@ -269,8 +300,9 @@ def main():
 
     # Generate and save report
     report = generate_performance_report(test_results)
+    workspace = get_test_workspace()
 
-    report_path = Path("performance_test_report.json")
+    report_path = workspace / "results" / "performance_test_report.json"
     with open(report_path, "w") as f:
         json.dump(report, f, indent=2)
 

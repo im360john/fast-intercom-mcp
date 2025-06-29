@@ -9,10 +9,41 @@ and provide properly formatted data according to the MCP specification.
 import argparse
 import asyncio
 import json
+import os
 import subprocess
 import sys
 import time
+from pathlib import Path
 from typing import Any
+
+
+def get_test_workspace() -> Path:
+    """Get the test workspace directory with organized subdirectories."""
+    # Check environment variable first
+    if workspace_env := os.environ.get("FASTINTERCOM_TEST_WORKSPACE"):
+        workspace = Path(workspace_env)
+    else:
+        # Find project root (look for pyproject.toml)
+        current_dir = Path.cwd()
+        project_root = current_dir
+
+        # Search up the directory tree for pyproject.toml
+        while current_dir != current_dir.parent:
+            if (current_dir / "pyproject.toml").exists():
+                project_root = current_dir
+                break
+            current_dir = current_dir.parent
+
+        workspace = project_root / ".test-workspace"
+
+    # Create organized subdirectories
+    workspace.mkdir(exist_ok=True)
+    (workspace / "data").mkdir(exist_ok=True)
+    (workspace / "logs").mkdir(exist_ok=True)
+    (workspace / "results").mkdir(exist_ok=True)
+
+    return workspace
+
 
 # Test configuration for MCP tools
 TEST_QUERIES = [
@@ -302,19 +333,19 @@ class MCPToolTester:
         """Get a sample conversation ID for testing get_conversation tool."""
         try:
             # Try to get a conversation ID from the database
-            import os
             import sqlite3
 
-            # Look for database file
+            # Look for database file in standardized workspace
+            workspace = get_test_workspace()
             possible_paths = [
-                os.path.expanduser("~/.fast-intercom-mcp/data.db"),
-                os.path.expanduser("~/.fast-intercom-mcp-test/data.db"),
-                "data.db",
+                workspace / "data" / "data.db",
+                Path.home() / ".fast-intercom-mcp" / "data.db",
+                Path("data.db"),
             ]
 
             for db_path in possible_paths:
-                if os.path.exists(db_path):
-                    conn = sqlite3.connect(db_path)
+                if db_path.exists():
+                    conn = sqlite3.connect(str(db_path))
                     cursor = conn.execute("SELECT id FROM conversations LIMIT 1")
                     row = cursor.fetchone()
                     conn.close()
@@ -471,9 +502,16 @@ Examples:
 
         # Save results if requested
         if args.output:
-            with open(args.output, "w") as f:
+            # If output is a relative path, save to workspace results directory
+            output_path = Path(args.output)
+            if not output_path.is_absolute():
+                workspace = get_test_workspace()
+                output_path = workspace / "results" / args.output
+                output_path.parent.mkdir(exist_ok=True)
+
+            with open(output_path, "w") as f:
                 json.dump(report, f, indent=2)
-            tester.log_success(f"Results saved to: {args.output}")
+            tester.log_success(f"Results saved to: {output_path}")
 
         return success
 

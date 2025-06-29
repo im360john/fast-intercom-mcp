@@ -6,17 +6,51 @@ Creates detailed reports with trends and visualizations
 
 import argparse
 import json
+import os
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
 
+def get_test_workspace() -> Path:
+    """Get the test workspace directory with organized subdirectories."""
+    # Check environment variable first
+    if workspace_env := os.environ.get("FASTINTERCOM_TEST_WORKSPACE"):
+        workspace = Path(workspace_env)
+    else:
+        # Find project root (look for pyproject.toml)
+        current_dir = Path.cwd()
+        project_root = current_dir
+
+        # Search up the directory tree for pyproject.toml
+        while current_dir != current_dir.parent:
+            if (current_dir / "pyproject.toml").exists():
+                project_root = current_dir
+                break
+            current_dir = current_dir.parent
+
+        workspace = project_root / ".test-workspace"
+
+    # Create organized subdirectories
+    workspace.mkdir(exist_ok=True)
+    (workspace / "data").mkdir(exist_ok=True)
+    (workspace / "logs").mkdir(exist_ok=True)
+    (workspace / "results").mkdir(exist_ok=True)
+
+    return workspace
+
+
 class PerformanceReporter:
     """Generate performance reports from test results"""
 
-    def __init__(self):
-        self.test_results_dir = Path("test_results")
+    def __init__(self, test_results_dir: Path = None):
+        if test_results_dir:
+            self.test_results_dir = test_results_dir
+        else:
+            # Use standardized workspace results directory
+            workspace = get_test_workspace()
+            self.test_results_dir = workspace / "results"
         self.performance_data = []
 
     def load_test_results(self, days: int = 7) -> list[dict[str, Any]]:
@@ -371,9 +405,10 @@ def main():
     args = parser.parse_args()
 
     # Create reporter
-    reporter = PerformanceReporter()
     if args.test_results_dir:
-        reporter.test_results_dir = Path(args.test_results_dir)
+        reporter = PerformanceReporter(Path(args.test_results_dir))
+    else:
+        reporter = PerformanceReporter()
 
     # Load results
     results = reporter.load_test_results(args.last_days)
@@ -384,10 +419,15 @@ def main():
 
     print(f"Found {len(results)} test results from the last {args.last_days} days")
 
-    # Generate reports
+    # Generate reports with workspace-aware paths
+    workspace = get_test_workspace()
+
     if args.format in ["markdown", "both"]:
         output_file = args.output if args.output.endswith(".md") else args.output + ".md"
-        reporter.generate_markdown_report(results, output_file)
+        # Save to workspace results if relative path
+        if not Path(output_file).is_absolute():
+            output_file = workspace / "results" / output_file
+        reporter.generate_markdown_report(results, str(output_file))
 
     if args.format in ["json", "both"]:
         output_file = (
@@ -395,7 +435,10 @@ def main():
             if args.output.endswith(".md")
             else args.output + ".json"
         )
-        reporter.generate_json_report(results, output_file)
+        # Save to workspace results if relative path
+        if not Path(output_file).is_absolute():
+            output_file = workspace / "results" / output_file
+        reporter.generate_json_report(results, str(output_file))
 
 
 if __name__ == "__main__":

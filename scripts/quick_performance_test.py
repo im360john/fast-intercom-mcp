@@ -13,20 +13,49 @@ from datetime import datetime
 from pathlib import Path
 
 
+def get_test_workspace() -> Path:
+    """Get the test workspace directory with organized subdirectories."""
+    # Check environment variable first
+    if workspace_env := os.environ.get("FASTINTERCOM_TEST_WORKSPACE"):
+        workspace = Path(workspace_env)
+    else:
+        # Find project root (look for pyproject.toml)
+        current_dir = Path.cwd()
+        project_root = current_dir
+
+        # Search up the directory tree for pyproject.toml
+        while current_dir != current_dir.parent:
+            if (current_dir / "pyproject.toml").exists():
+                project_root = current_dir
+                break
+            current_dir = current_dir.parent
+
+        workspace = project_root / ".test-workspace"
+
+    # Create organized subdirectories
+    workspace.mkdir(exist_ok=True)
+    (workspace / "data").mkdir(exist_ok=True)
+    (workspace / "logs").mkdir(exist_ok=True)
+    (workspace / "results").mkdir(exist_ok=True)
+
+    return workspace
+
+
 def run_quick_sync_test(days=7, max_conversations=1000):
     """Run a quick sync test and capture performance metrics"""
 
     print(f"🚀 Running quick performance test ({days} days, max {max_conversations} conversations)")
 
-    # Setup test environment
-    test_dir = Path.home() / ".fast-intercom-mcp-quick-performance"
-    test_dir.mkdir(exist_ok=True)
+    # Setup test environment using standardized workspace
+    workspace = get_test_workspace()
+    test_dir = workspace / "data"
 
     db_path = test_dir / "data.db"
     if db_path.exists():
         db_path.unlink()
 
     os.environ["FASTINTERCOM_CONFIG_DIR"] = str(test_dir)
+    os.environ["FASTINTERCOM_TEST_WORKSPACE"] = str(workspace)
 
     # Run timed sync
     import subprocess
@@ -178,8 +207,10 @@ def main():
         "production_ready": conv_per_sec >= 10,
     }
 
-    # Save report
-    with open("quick_performance_report.json", "w") as f:
+    # Save report to workspace
+    workspace = get_test_workspace()
+    report_path = workspace / "results" / "quick_performance_report.json"
+    with open(report_path, "w") as f:
         json.dump(report, f, indent=2)
 
     # Print summary
@@ -201,7 +232,9 @@ def main():
         status = "✅" if result["success"] else "❌"
         print(f"  • {test_name}: {status} {result['duration']:.3f}s")
 
-    print("\n📄 Report saved to: quick_performance_report.json")
+    workspace = get_test_workspace()
+    report_path = workspace / "results" / "quick_performance_report.json"
+    print(f"\n📄 Report saved to: {report_path}")
 
     return 0
 

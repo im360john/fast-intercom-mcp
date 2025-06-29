@@ -293,10 +293,43 @@ setup_test_environment() {
     # Load environment variables from .env
     load_env_file
     
-    # Create unique test workspace
-    TEST_WORKSPACE="$HOME/.fast-intercom-mcp-test-$(date +%s)"
-    mkdir -p "$TEST_WORKSPACE"
-    export FASTINTERCOM_CONFIG_DIR="$TEST_WORKSPACE"
+    # Find project root by looking for pyproject.toml
+    local project_root=""
+    local current_dir="$(pwd)"
+    
+    # Search up the directory tree for pyproject.toml
+    while [[ "$current_dir" != "/" ]]; do
+        if [[ -f "$current_dir/pyproject.toml" ]]; then
+            project_root="$current_dir"
+            break
+        fi
+        current_dir="$(dirname "$current_dir")"
+    done
+    
+    # If not found, use current directory as fallback
+    if [[ -z "$project_root" ]]; then
+        project_root="$(pwd)"
+        log_warning "Could not find pyproject.toml, using current directory as project root: $project_root"
+    else
+        log_info "Found project root: $project_root"
+    fi
+    
+    # Set up test workspace using environment variable or default location
+    if [[ -n "$FASTINTERCOM_TEST_WORKSPACE" ]]; then
+        TEST_WORKSPACE="$FASTINTERCOM_TEST_WORKSPACE"
+        log_info "Using custom test workspace from environment: $TEST_WORKSPACE"
+    else
+        TEST_WORKSPACE="$project_root/.test-workspace"
+        log_info "Using default test workspace: $TEST_WORKSPACE"
+    fi
+    
+    # Create test workspace directory structure
+    mkdir -p "$TEST_WORKSPACE/data"
+    mkdir -p "$TEST_WORKSPACE/logs"
+    mkdir -p "$TEST_WORKSPACE/results"
+    
+    # Set the configuration directory to the data subdirectory
+    export FASTINTERCOM_CONFIG_DIR="$TEST_WORKSPACE/data"
     
     log_info "Test workspace: $TEST_WORKSPACE"
     
@@ -383,7 +416,7 @@ test_database_initialization() {
         log_success "Database initialized successfully"
         
         # Verify database file exists and has correct schema
-        local db_file="$TEST_WORKSPACE/data.db"
+        local db_file="$TEST_WORKSPACE/data/data.db"
         if [[ -f "$db_file" ]]; then
             # Check table structure
             local table_count
@@ -445,7 +478,7 @@ test_data_sync() {
         log_info "Sync duration: ${sync_duration}s (${sync_speed} conv/sec)"
         
         # Verify data was actually stored
-        local db_file="$TEST_WORKSPACE/data.db"
+        local db_file="$TEST_WORKSPACE/data/data.db"
         if [[ -f "$db_file" ]]; then
             local stored_conversations
             stored_conversations=$(sqlite3 "$db_file" "SELECT COUNT(*) FROM conversations;" 2>/dev/null || echo "0")
@@ -455,7 +488,7 @@ test_data_sync() {
                 TEST_RESULTS+=("data_sync:PASSED:$conversations_synced:$sync_speed")
                 
                 # Store sync metrics for performance report
-                echo "$conversations_synced,$messages_synced,$sync_duration,$sync_speed" > "$TEST_WORKSPACE/sync_metrics.csv"
+                echo "$conversations_synced,$messages_synced,$sync_duration,$sync_speed" > "$TEST_WORKSPACE/results/sync_metrics.csv"
                 
                 return 0
             else
@@ -483,7 +516,7 @@ test_mcp_server() {
     log_info "Starting MCP server in test mode..."
     
     # Start MCP server in background
-    $CLI_CMD start --test-mode > "$TEST_WORKSPACE/server.log" 2>&1 &
+    $CLI_CMD start --test-mode > "$TEST_WORKSPACE/logs/server.log" 2>&1 &
     SERVER_PID=$!
     
     # Wait for server to start
@@ -492,7 +525,7 @@ test_mcp_server() {
     # Check if server is running
     if ! kill -0 "$SERVER_PID" 2>/dev/null; then
         log_error "MCP server failed to start"
-        cat "$TEST_WORKSPACE/server.log" 2>/dev/null || true
+        cat "$TEST_WORKSPACE/logs/server.log" 2>/dev/null || true
         TEST_RESULTS+=("mcp_server:FAILED")
         return 1
     fi
@@ -540,13 +573,13 @@ measure_performance() {
     
     log_section "Measuring Performance"
     
-    local metrics_file="$TEST_WORKSPACE/performance_metrics.json"
-    local db_file="$TEST_WORKSPACE/data.db"
+    local metrics_file="$TEST_WORKSPACE/results/performance_metrics.json"
+    local db_file="$TEST_WORKSPACE/data/data.db"
     
     # Get sync metrics
     local sync_metrics=""
-    if [[ -f "$TEST_WORKSPACE/sync_metrics.csv" ]]; then
-        sync_metrics=$(cat "$TEST_WORKSPACE/sync_metrics.csv")
+    if [[ -f "$TEST_WORKSPACE/results/sync_metrics.csv" ]]; then
+        sync_metrics=$(cat "$TEST_WORKSPACE/results/sync_metrics.csv")
     fi
     
     # Measure query response time
@@ -725,7 +758,7 @@ generate_test_report() {
 # Save results to file if requested
 save_results() {
     if [[ -n "$OUTPUT_FILE" ]]; then
-        local results_json="$TEST_WORKSPACE/test_results.json"
+        local results_json="$TEST_WORKSPACE/results/test_results.json"
         
         # Create comprehensive results file
         cat > "$results_json" << EOF
