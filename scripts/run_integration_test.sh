@@ -11,7 +11,13 @@ START_TIME=$(date +%s)
 
 # Default configuration
 DAYS=7
-MAX_CONVERSATIONS=1000
+# Note: The integration test syncs ALL conversations in the date range to properly test:
+# - Real-world data volumes and performance
+# - Memory management under load  
+# - API rate limiting handling
+# - Database performance at scale
+# The sync will process ALL conversations from the specified days without limits.
+MAX_CONVERSATIONS=1000  # Note: This is only used for reporting, not enforced by sync
 PERFORMANCE_REPORT=false
 QUICK_MODE=false
 VERBOSE=false
@@ -62,23 +68,46 @@ Usage: $0 [OPTIONS]
 
 OPTIONS:
     --days N                Number of days to sync (default: $DAYS)
-    --max-conversations N   Limit conversations synced (default: $MAX_CONVERSATIONS)
     --performance-report    Generate detailed performance metrics
-    --quick                 Fast test with minimal data (1 day, 100 conversations)
+    --quick                 Fast test with minimal data (1 day)
     --verbose              Enable debug logging
     --output FILE          Save results to JSON file
     --no-cleanup           Don't clean up test environment
     --help                 Show this help message
+    
+Note: Tests sync ALL conversations in the specified date range to properly test
+      real-world performance, memory management, and API rate limiting.
+
+TEST MODES:
+    Quick Test (--quick):
+        • Syncs 1 day of data (all conversations from that day)
+        • Fast execution (1-2 minutes)
+        • Good for: CI/CD, quick validation, development testing
+        
+    Standard Test (default):
+        • Syncs 7 days of data
+        • Moderate execution (5-10 minutes)
+        • Good for: Regular testing, PR validation
+        
+    Extended Test (--days 30):
+        • Syncs up to 30 days of data
+        • Long execution (15-30 minutes)
+        • Good for: Performance testing, full validation
+        
+    Performance Test (--performance-report):
+        • Includes detailed metrics and analysis
+        • Measures sync speed, memory usage, response times
+        • Good for: Optimization validation, benchmarking
 
 EXAMPLES:
-    # Quick 7-day integration test
+    # Quick functionality check (1-2 minutes)
+    $0 --quick
+
+    # Standard 7-day integration test (5-10 minutes)
     $0
 
-    # Extended test with performance monitoring
+    # Extended test with performance monitoring (15-30 minutes)
     $0 --days 30 --performance-report
-
-    # Quick functionality check
-    $0 --quick
 
     # Debug test with verbose output
     $0 --verbose --no-cleanup
@@ -146,6 +175,7 @@ done
 
 # Global variables for test tracking
 TEST_WORKSPACE=""
+TEST_RUN_ID=""
 SERVER_PID=""
 TEMP_FILES=()
 TEST_RESULTS=()
@@ -179,7 +209,13 @@ cleanup() {
     else
         log_warning "Skipping cleanup (--no-cleanup specified)"
         if [[ -n "$TEST_WORKSPACE" ]]; then
-            log_info "Test workspace preserved at: $TEST_WORKSPACE"
+            echo ""
+            log_section "📁 Test artifacts preserved for debugging"
+            log_info "Test workspace: $TEST_WORKSPACE"
+            log_info "View logs: ls -la $TEST_WORKSPACE/logs/"
+            log_info "View results: ls -la $TEST_WORKSPACE/results/"
+            log_info "View database: sqlite3 $TEST_WORKSPACE/data/data.db"
+            echo ""
         fi
     fi
     
@@ -196,7 +232,7 @@ detect_python_environment() {
         log_info "Detected Poetry environment"
         export PYTHON_CMD="poetry run python"
         export CLI_CMD="poetry run fast-intercom-mcp"
-        # Ensure dependencies are installed
+        # Ensure dependencies are installed (includes http2 from pyproject.toml)
         poetry install --quiet || {
             log_error "Failed to install Poetry dependencies"
             exit 5
@@ -314,13 +350,16 @@ setup_test_environment() {
         log_info "Found project root: $project_root"
     fi
     
-    # Set up test workspace using environment variable or default location
+    # Generate unique test run ID
+    TEST_RUN_ID="$(date +%Y%m%d-%H%M%S)-$(openssl rand -hex 3 2>/dev/null || echo $RANDOM)"
+    
+    # Set up test workspace using environment variable or default location with unique ID
     if [[ -n "$FASTINTERCOM_TEST_WORKSPACE" ]]; then
-        TEST_WORKSPACE="$FASTINTERCOM_TEST_WORKSPACE"
-        log_info "Using custom test workspace from environment: $TEST_WORKSPACE"
+        TEST_WORKSPACE="$FASTINTERCOM_TEST_WORKSPACE-$TEST_RUN_ID"
+        log_info "Using custom test workspace from environment with unique ID: $TEST_WORKSPACE"
     else
-        TEST_WORKSPACE="$project_root/.test-workspace"
-        log_info "Using default test workspace: $TEST_WORKSPACE"
+        TEST_WORKSPACE="$project_root/.test-workspace-$TEST_RUN_ID"
+        log_info "Using test workspace with unique ID: $TEST_WORKSPACE"
     fi
     
     # Create test workspace directory structure
@@ -331,14 +370,30 @@ setup_test_environment() {
     # Set the configuration directory to the data subdirectory
     export FASTINTERCOM_CONFIG_DIR="$TEST_WORKSPACE/data"
     
-    log_info "Test workspace: $TEST_WORKSPACE"
+    # Configure logging to use test-specific directory
+    export FASTINTERCOM_LOG_DIR="$TEST_WORKSPACE/logs"
+    export FASTINTERCOM_LOG_FILE="$TEST_WORKSPACE/logs/fast-intercom-mcp.log"
+    
+    # Display test run information
+    echo ""
+    log_section "📋 Test Run Information"
+    log_info "Test Run ID: $TEST_RUN_ID"
+    log_info "Test Workspace: $TEST_WORKSPACE"
+    log_info "Log Directory: $TEST_WORKSPACE/logs/"
+    log_info "Results Directory: $TEST_WORKSPACE/results/"
+    log_info "Database Location: $TEST_WORKSPACE/data/data.db"
+    echo ""
     
     # Verify API token
     if [[ -z "$INTERCOM_ACCESS_TOKEN" ]]; then
         log_error "INTERCOM_ACCESS_TOKEN not found in environment or .env file"
-        log_info "Please set your Intercom access token:"
-        log_info "export INTERCOM_ACCESS_TOKEN=your_token_here"
-        log_info "or add it to .env file"
+        echo ""
+        log_info "📋 Quick Setup:"
+        log_info "   1. Copy template: cp .env.example .env"
+        log_info "   2. Get token from: https://developers.intercom.com/building-apps/docs/app-authentication"
+        log_info "   3. Add to .env file: INTERCOM_ACCESS_TOKEN=your_token_here"
+        log_info "   4. Or export directly: export INTERCOM_ACCESS_TOKEN=your_token_here"
+        echo ""
         exit 5
     fi
     
@@ -404,13 +459,14 @@ test_database_initialization() {
     log_section "Testing Database Initialization"
     
     # Initialize FastIntercom database (answer 'n' to sync prompt)
-    local init_output
-    init_output=$(echo "n" | $CLI_CMD init --token "$INTERCOM_ACCESS_TOKEN" --sync-days 0 2>&1)
-    local init_result=$?
+    log_info "Initializing database..."
+    echo ""
     
-    if [[ $VERBOSE == true ]]; then
-        log_info "Init output: $init_output"
-    fi
+    # Run init with real-time output display
+    echo "n" | $CLI_CMD init --token "$INTERCOM_ACCESS_TOKEN" --sync-days 0 2>&1 | tee "$TEST_WORKSPACE/logs/init_output.txt"
+    local init_result="${PIPESTATUS[1]}"  # Get exit code of CLI_CMD, not tee
+    
+    echo ""  # Add spacing after init output
     
     if [[ $init_result -eq 0 ]]; then
         log_success "Database initialized successfully"
@@ -450,21 +506,36 @@ test_data_sync() {
     local sync_start_time
     sync_start_time=$(date +%s)
     
-    log_info "Syncing $DAYS days of conversation data (max $MAX_CONVERSATIONS conversations)..."
+    log_info "Syncing $DAYS days of conversation data..."
+    log_warning "Note: Progress shows each batch as '100%' - this is normal, sync continues until all data is processed"
     
-    # Run sync operation
-    local sync_output
-    if sync_output=$($CLI_CMD sync --force --days "$DAYS" 2>&1); then
+    # Create temp file for sync output capture
+    local sync_output_file="$TEST_WORKSPACE/logs/sync_output.txt"
+    
+    # Run sync operation with real-time progress display
+    log_info "Starting sync (real-time progress will be shown below)..."
+    echo ""
+    
+    # Run sync with test-specific logging configuration, tee output for both display and capture
+    FASTINTERCOM_LOG_DIR="$TEST_WORKSPACE/logs" FASTINTERCOM_LOG_FILE="$TEST_WORKSPACE/logs/sync.log" \
+        $CLI_CMD sync --force --days "$DAYS" 2>&1 | tee "$sync_output_file"
+    
+    # Check exit status from PIPESTATUS array (bash specific)
+    local sync_exit_code="${PIPESTATUS[0]}"
+    
+    echo ""  # Add spacing after sync output
+    
+    if [[ "$sync_exit_code" -eq 0 ]]; then
         local sync_end_time
         sync_end_time=$(date +%s)
         local sync_duration=$((sync_end_time - sync_start_time))
         
-        # Extract metrics from sync output
+        # Extract metrics from saved sync output
         local conversations_synced
-        conversations_synced=$(echo "$sync_output" | grep -o '[0-9]\+ conversations' | head -1 | grep -o '[0-9]\+' || echo "0")
+        conversations_synced=$(grep -o '[0-9]\+ conversations' "$sync_output_file" | tail -1 | grep -o '[0-9]\+' || echo "0")
         
         local messages_synced
-        messages_synced=$(echo "$sync_output" | grep -o '[0-9]\+ messages' | head -1 | grep -o '[0-9]\+' || echo "0")
+        messages_synced=$(grep -o '[0-9]\+ messages' "$sync_output_file" | tail -1 | grep -o '[0-9]\+' || echo "0")
         
         # Calculate sync speed
         local sync_speed
@@ -502,8 +573,8 @@ test_data_sync() {
             return 1
         fi
     else
-        log_error "Sync operation failed"
-        log_error "Sync output: $sync_output"
+        log_error "Sync operation failed (exit code: $sync_exit_code)"
+        log_info "Check sync output above and logs at: $TEST_WORKSPACE/logs/sync.log"
         TEST_RESULTS+=("data_sync:FAILED")
         return 1
     fi
@@ -516,6 +587,8 @@ test_mcp_server() {
     log_info "Starting MCP server in test mode..."
     
     # Start MCP server in background
+    # Configure logging for MCP server
+    FASTINTERCOM_LOG_DIR="$TEST_WORKSPACE/logs" FASTINTERCOM_LOG_FILE="$TEST_WORKSPACE/logs/mcp-server.log" \
     $CLI_CMD start --test-mode > "$TEST_WORKSPACE/logs/server.log" 2>&1 &
     SERVER_PID=$!
     
@@ -801,9 +874,9 @@ main() {
     log_section "$SCRIPT_NAME v$SCRIPT_VERSION"
     
     if [[ "$QUICK_MODE" == "true" ]]; then
-        log_info "Running in QUICK mode ($DAYS days, $MAX_CONVERSATIONS conversations max)"
+        log_info "Running in QUICK mode ($DAYS days of data)"
     else
-        log_info "Running full integration test ($DAYS days, $MAX_CONVERSATIONS conversations max)"
+        log_info "Running full integration test ($DAYS days of data)"
     fi
     
     # Run test sequence
