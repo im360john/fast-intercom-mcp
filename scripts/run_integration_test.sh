@@ -32,19 +32,19 @@ NC='\033[0m' # No Color
 
 # Logging functions
 log_info() {
-    echo -e "${BLUE}9  $1${NC}"
+    echo -e "${BLUE}ℹ  $1${NC}"
 }
 
 log_success() {
-    echo -e "${GREEN} $1${NC}"
+    echo -e "${GREEN}✓ $1${NC}"
 }
 
 log_warning() {
-    echo -e "${YELLOW}�  $1${NC}"
+    echo -e "${YELLOW}⚠  $1${NC}"
 }
 
 log_error() {
-    echo -e "${RED}L $1${NC}"
+    echo -e "${RED}✗ $1${NC}"
 }
 
 log_section() {
@@ -149,6 +149,8 @@ TEST_WORKSPACE=""
 SERVER_PID=""
 TEMP_FILES=()
 TEST_RESULTS=()
+PYTHON_CMD=""
+CLI_CMD=""
 
 # Cleanup function
 cleanup() {
@@ -187,9 +189,109 @@ cleanup() {
 # Set trap for cleanup
 trap cleanup EXIT INT TERM
 
+# Detect and configure Python environment
+detect_python_environment() {
+    # Check if we're in a Poetry project
+    if [[ -f "pyproject.toml" ]] && command -v poetry >/dev/null 2>&1; then
+        log_info "Detected Poetry environment"
+        export PYTHON_CMD="poetry run python"
+        export CLI_CMD="poetry run fast-intercom-mcp"
+        # Ensure dependencies are installed
+        poetry install --quiet || {
+            log_error "Failed to install Poetry dependencies"
+            exit 5
+        }
+    # Check for virtual environment
+    elif [[ -f "venv/bin/activate" ]]; then
+        log_info "Detected venv environment"
+        source venv/bin/activate
+        export PYTHON_CMD="python"
+        export CLI_CMD="fast-intercom-mcp"
+    elif [[ -f ".venv/bin/activate" ]]; then
+        log_info "Detected .venv environment"
+        source .venv/bin/activate
+        export PYTHON_CMD="python"
+        export CLI_CMD="fast-intercom-mcp"
+    else
+        log_info "Using system Python"
+        export PYTHON_CMD="python3"
+        export CLI_CMD="fast-intercom-mcp"
+    fi
+}
+
+# Load environment variables from .env file
+load_env_file() {
+    # Use python-dotenv to properly load .env file
+    local env_script=$(cat << 'EOF'
+import os
+import sys
+from pathlib import Path
+
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    print("python-dotenv not installed", file=sys.stderr)
+    sys.exit(1)
+
+# Search for .env file in current and parent directories
+for path in [Path.cwd(), Path.cwd().parent, Path.cwd().parent.parent]:
+    env_file = path / ".env"
+    if env_file.exists():
+        load_dotenv(env_file)
+        print(f"Loaded .env from {env_file}")
+        break
+else:
+    print("No .env file found")
+
+# Export environment variables for shell
+for key, value in os.environ.items():
+    if key.startswith(("INTERCOM_", "FASTINTERCOM_")):
+        print(f"export {key}='{value}'")
+EOF
+)
+    
+    # Run the Python script and evaluate its output
+    local env_exports
+    env_exports=$($PYTHON_CMD -c "$env_script" 2>&1)
+    
+    if [[ $? -eq 0 ]]; then
+        # Extract and evaluate export commands
+        while IFS= read -r line; do
+            if [[ $line == export* ]]; then
+                eval "$line"
+            elif [[ $line == "Loaded .env from"* ]]; then
+                log_info "$line"
+            fi
+        done <<< "$env_exports"
+    else
+        log_warning "Could not load .env file using python-dotenv"
+        # Fallback to manual parsing
+        for env_file in ".env" "../.env" "../../.env" "../../fast-intercom-mcp/.env"; do
+            if [[ -f "$env_file" ]]; then
+                log_info "Loading environment from $env_file (fallback method)"
+                while IFS='=' read -r key value; do
+                    # Skip comments and empty lines
+                    [[ -z "$key" || "$key" =~ ^[[:space:]]*# ]] && continue
+                    # Remove quotes from value
+                    value=${value#[\"\']}
+                    value=${value%[\"\']}
+                    export "$key=$value"
+                done < "$env_file"
+                break
+            fi
+        done
+    fi
+}
+
 # Test environment setup
 setup_test_environment() {
     log_section "Setting up test environment"
+    
+    # Detect Python environment first
+    detect_python_environment
+    
+    # Load environment variables from .env
+    load_env_file
     
     # Create unique test workspace
     TEST_WORKSPACE="$HOME/.fast-intercom-mcp-test-$(date +%s)"
@@ -198,28 +300,13 @@ setup_test_environment() {
     
     log_info "Test workspace: $TEST_WORKSPACE"
     
-    # Verify API token - check env var first, then .env file
+    # Verify API token
     if [[ -z "$INTERCOM_ACCESS_TOKEN" ]]; then
-        # Try to load from .env file
-        if [[ -f ".env" ]]; then
-            export INTERCOM_ACCESS_TOKEN=$(grep "^INTERCOM_ACCESS_TOKEN=" .env | cut -d'=' -f2-)
-        elif [[ -f "../.env" ]]; then
-            export INTERCOM_ACCESS_TOKEN=$(grep "^INTERCOM_ACCESS_TOKEN=" ../.env | cut -d'=' -f2-)
-        elif [[ -f "../../.env" ]]; then
-            export INTERCOM_ACCESS_TOKEN=$(grep "^INTERCOM_ACCESS_TOKEN=" ../../.env | cut -d'=' -f2-)
-        elif [[ -f "../../fast-intercom-mcp/.env" ]]; then
-            export INTERCOM_ACCESS_TOKEN=$(grep "^INTERCOM_ACCESS_TOKEN=" ../../fast-intercom-mcp/.env | cut -d'=' -f2-)
-        fi
-        
-        if [[ -z "$INTERCOM_ACCESS_TOKEN" ]]; then
-            log_error "INTERCOM_ACCESS_TOKEN not found in environment or .env file"
-            log_info "Please set your Intercom access token:"
-            log_info "export INTERCOM_ACCESS_TOKEN=your_token_here"
-            log_info "or add it to .env file"
-            exit 5
-        else
-            log_info "Loaded token from .env file"
-        fi
+        log_error "INTERCOM_ACCESS_TOKEN not found in environment or .env file"
+        log_info "Please set your Intercom access token:"
+        log_info "export INTERCOM_ACCESS_TOKEN=your_token_here"
+        log_info "or add it to .env file"
+        exit 5
     fi
     
     # Test API connectivity
@@ -232,17 +319,18 @@ setup_test_environment() {
         exit 1
     fi
     
-    # Verify Python environment
+    # Verify Python environment and package
     log_info "Verifying Python environment..."
-    if ! python3 -c "import fast_intercom_mcp" 2>/dev/null; then
+    if ! $PYTHON_CMD -c "import fast_intercom_mcp; print('Package version:', fast_intercom_mcp.__version__)" 2>/dev/null; then
         log_error "FastIntercom MCP package not available"
-        log_info "Please install with: pip install -e ."
+        log_info "Please install with: pip install -e . (or poetry install)"
         exit 5
     fi
     
     # Verify CLI is available
-    if ! command -v fast-intercom-mcp &> /dev/null; then
-        log_error "fast-intercom-mcp CLI not available in PATH"
+    if ! $CLI_CMD --help &> /dev/null; then
+        log_error "fast-intercom-mcp CLI not working"
+        log_info "Please ensure the package is properly installed"
         exit 5
     fi
     
@@ -284,7 +372,7 @@ test_database_initialization() {
     
     # Initialize FastIntercom database (answer 'n' to sync prompt)
     local init_output
-    init_output=$(echo "n" | fast-intercom-mcp init --token "$INTERCOM_ACCESS_TOKEN" --sync-days 0 2>&1)
+    init_output=$(echo "n" | $CLI_CMD init --token "$INTERCOM_ACCESS_TOKEN" --sync-days 0 2>&1)
     local init_result=$?
     
     if [[ $VERBOSE == true ]]; then
@@ -333,7 +421,7 @@ test_data_sync() {
     
     # Run sync operation
     local sync_output
-    if sync_output=$(fast-intercom-mcp sync --force --days "$DAYS" 2>&1); then
+    if sync_output=$($CLI_CMD sync --force --days "$DAYS" 2>&1); then
         local sync_end_time
         sync_end_time=$(date +%s)
         local sync_duration=$((sync_end_time - sync_start_time))
@@ -395,7 +483,7 @@ test_mcp_server() {
     log_info "Starting MCP server in test mode..."
     
     # Start MCP server in background
-    fast-intercom-mcp start --test-mode > "$TEST_WORKSPACE/server.log" 2>&1 &
+    $CLI_CMD start --test-mode > "$TEST_WORKSPACE/server.log" 2>&1 &
     SERVER_PID=$!
     
     # Wait for server to start
@@ -419,7 +507,7 @@ test_mcp_server() {
     local tools_passed=0
     
     # Test server status tool
-    if fast-intercom-mcp status > /dev/null 2>&1; then
+    if $CLI_CMD status > /dev/null 2>&1; then
         tools_tested=$((tools_tested + 1))
         tools_passed=$((tools_passed + 1))
         log_success "Server status tool: PASSED"
@@ -467,7 +555,7 @@ measure_performance() {
     for i in {1..5}; do
         local start_time
         start_time=$(date +%s%3N)  # milliseconds
-        fast-intercom-mcp status > /dev/null 2>&1
+        $CLI_CMD status > /dev/null 2>&1
         local end_time
         end_time=$(date +%s%3N)
         local response_time=$((end_time - start_time))
@@ -663,8 +751,8 @@ done | sed '$ s/,$//')
     ],
     "environment": {
         "test_workspace": "$TEST_WORKSPACE",
-        "python_version": "$(python3 --version 2>&1)",
-        "package_available": $(python3 -c "import fast_intercom_mcp; print('true')" 2>/dev/null || echo "false")
+        "python_version": "$($PYTHON_CMD --version 2>&1)",
+        "package_available": $($PYTHON_CMD -c "import fast_intercom_mcp; print('true')" 2>/dev/null || echo "false")
     }
 }
 EOF
