@@ -82,6 +82,18 @@ class SyncService:
             except Exception as e:
                 logger.warning(f"Progress callback failed: {e}")
 
+    def _format_time(self, seconds: float) -> str:
+        """Format seconds into human-readable time."""
+        if seconds < 60:
+            return f"{int(seconds)}s"
+        if seconds < 3600:
+            minutes = int(seconds / 60)
+            secs = int(seconds % 60)
+            return f"{minutes}m {secs}s"
+        hours = int(seconds / 3600)
+        minutes = int((seconds % 3600) / 60)
+        return f"{hours}h {minutes}m"
+
     async def _update_progress_if_needed(
         self, current_count: int, estimated_total: int, start_time: float
     ):
@@ -104,12 +116,16 @@ class SyncService:
                 eta_seconds = remaining / rate if rate > 0 else 0
 
                 # Log detailed progress for debugging
+                batch_info = ""
+                if hasattr(self, "_sync_batch_number") and hasattr(self, "_sync_total_batches"):
+                    batch_info = f"Batch {self._sync_batch_number}/{self._sync_total_batches} | "
+
                 logger.info(
-                    f"Sync progress: {current_count}/{estimated_total} conversations "
-                    f"({(current_count / estimated_total) * 100:.1f}%), "
-                    f"rate: {rate:.2f}/sec, "
-                    f"elapsed: {elapsed_seconds:.1f}s, "
-                    f"ETA: {eta_seconds:.1f}s"
+                    f"⏳ Syncing: {current_count}/{estimated_total} conversations "
+                    f"({(current_count / estimated_total) * 100:.1f}%) | "
+                    f"{batch_info}"
+                    f"{rate:.1f} conv/sec | "
+                    f"ETA: {self._format_time(eta_seconds)}"
                 )
 
             # Broadcast to callbacks
@@ -297,13 +313,41 @@ class SyncService:
         try:
             start_time = time.time()
             logger.info(f"Starting period sync: {start_date} to {end_date}")
+
+            # First, count conversations by day for better progress tracking
             await self._broadcast_progress_simple(
-                f"Starting sync for {start_date.date()} to {end_date.date()}"
+                f"📊 Analyzing conversations from {start_date.date()} to {end_date.date()}..."
+            )
+
+            daily_counts = await self.intercom.count_conversations_by_day(start_date, end_date)
+            total_estimated = sum(daily_counts.values())
+
+            # Display daily breakdown
+            logger.info("Conversation count by day:")
+            print("\n📅 Conversations to sync:")
+            for date_str, count in sorted(daily_counts.items()):
+                logger.info(f"  {date_str}: {count} conversations")
+                # Parse date for pretty display
+                from datetime import datetime as dt
+
+                date_obj = dt.strptime(date_str, "%Y-%m-%d")
+                pretty_date = date_obj.strftime("%b %d")
+                print(f"  • {pretty_date}: {count:,} conversations")
+
+            logger.info(f"Total conversations to sync: {total_estimated}")
+            print(f"  📊 Total: {total_estimated:,} conversations\n")
+
+            await self._broadcast_progress_simple(
+                f"🔄 Starting sync of {total_estimated} conversations"
             )
 
             # Add progress callback to local callbacks if provided
             if progress_callback:
                 self.add_progress_callback(progress_callback)
+
+            # Track batch progress
+            self._sync_batch_number = 0
+            self._sync_total_batches = (total_estimated + 149) // 150  # 150 per page
 
             # Fetch conversations from Intercom with progress monitoring
             async def period_progress_callback(message: str):
@@ -314,10 +358,11 @@ class SyncService:
                         # 2024-01-02"
                         parts = message.split()
                         current_count = int(parts[1])
-                        # Estimate total (we don't know ahead of time, so use current as proxy)
-                        estimated_total = max(current_count, 100)  # Minimum estimate
+                        self._sync_batch_number = (current_count + 149) // 150
+
+                        # Now we know the total from our count
                         await self._update_progress_if_needed(
-                            current_count, estimated_total, start_time
+                            current_count, total_estimated, start_time
                         )
                     except (ValueError, IndexError):
                         pass

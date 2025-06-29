@@ -441,7 +441,13 @@ def sync(ctx, force, days):
                 click.echo(f"📅 Force syncing last {days_clamped} days...")
                 now = datetime.now()
                 start_date = now - timedelta(days=days_clamped)
-                stats = await sync_service.sync_period(start_date, now)
+
+                # Add progress callback for better UX
+                def progress_callback(current: int, total: int, elapsed: float):
+                    # This will be called by sync_service
+                    pass
+
+                stats = await sync_service.sync_period(start_date, now, progress_callback)
             else:
                 # Incremental sync
                 click.echo("⚡ Running incremental sync...")
