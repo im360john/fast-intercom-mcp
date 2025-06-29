@@ -931,7 +931,7 @@ class DatabaseManager:
 
             messages_cursor = conn.execute(
                 f"""
-                SELECT {', '.join(select_columns)}
+                SELECT {", ".join(select_columns)}
                 FROM messages
                 WHERE conversation_id = ?
                 ORDER BY created_at ASC
