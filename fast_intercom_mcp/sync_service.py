@@ -50,7 +50,7 @@ class SyncService:
 
         # Progress tracking
         self._last_progress_time = 0
-        self._progress_update_interval = 10  # seconds
+        self._progress_update_interval = 3  # seconds - more responsive updates
 
     def add_progress_callback(self, callback: Callable):
         """Add a progress callback for sync operations."""
@@ -324,7 +324,12 @@ class SyncService:
 
             # Display daily breakdown
             logger.info("Conversation count by day:")
-            print("\n📅 Conversations to sync:")
+            # Use sys.stdout for immediate display
+            import sys
+
+            sys.stdout.write("\n📅 Conversations to sync:\n")
+            sys.stdout.flush()
+
             for date_str, count in sorted(daily_counts.items()):
                 logger.info(f"  {date_str}: {count} conversations")
                 # Parse date for pretty display
@@ -332,10 +337,12 @@ class SyncService:
 
                 date_obj = dt.strptime(date_str, "%Y-%m-%d")
                 pretty_date = date_obj.strftime("%b %d")
-                print(f"  • {pretty_date}: {count:,} conversations")
+                sys.stdout.write(f"  • {pretty_date}: {count:,} conversations\n")
+                sys.stdout.flush()
 
             logger.info(f"Total conversations to sync: {total_estimated}")
-            print(f"  📊 Total: {total_estimated:,} conversations\n")
+            sys.stdout.write(f"  📊 Total: {total_estimated:,} conversations\n\n")
+            sys.stdout.flush()
 
             await self._broadcast_progress_simple(
                 f"🔄 Starting sync of {total_estimated} conversations"

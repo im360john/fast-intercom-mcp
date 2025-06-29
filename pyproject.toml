@@ -25,7 +25,7 @@ packages = [{include = "fast_intercom_mcp"}]
 [tool.poetry.dependencies]
 python = "^3.11"
 mcp = "^1.0.0"
-httpx = "^0.27.0"
+httpx = {version = "^0.27.0", extras = ["http2"]}
 click = "^8.1.0"
 python-dotenv = "^1.0.0"
 fastapi = "^0.115.0"
@@ -41,7 +41,7 @@ ruff = "^0.1.0"
 pre-commit = "^3.6.0"
 mypy = "^1.7.0"
 bandit = "^1.7.0"
-safety = "^2.4.0"
+# safety = "^2.4.0"  # Removed due to Python 3.13+ compatibility issues
 
 [tool.poetry.group.test.dependencies]
 factory-boy = "^3.3.0"

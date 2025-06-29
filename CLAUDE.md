@@ -293,13 +293,30 @@ fast-intercom-mcp --help
 python3 -m pytest tests/ -x --tb=no -q
 ```
 
-**Post-merge Smoke Tests** (every ~5 PRs):
+**Post-merge Steps**:
+
+After merging PRs and pulling changes to your main branch:
+
+1. **Reinstall the package** (CRITICAL - or you'll run old code!):
 ```bash
-# In main repository after git pull
+# If using Poetry:
+poetry install
+
+# If using venv:
+source venv/bin/activate
+pip install -e .
+```
+
+2. **Run smoke tests** (every ~5 PRs):
+```bash
+# Quick functionality check
 fast-intercom-mcp --help
 fast-intercom-mcp status
 python3 -c "from fast_intercom_mcp import cli"
 ```
+
+⚠️ **Common Issue**: If you see old behavior after pulling changes, you forgot to reinstall!
+The package must be reinstalled to pick up code changes from merged PRs.
 
 ## Project Structure
 

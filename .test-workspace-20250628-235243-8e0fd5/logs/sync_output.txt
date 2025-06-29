@@ -1,0 +1,12 @@
+🔄 Starting manual sync...
+📅 Force syncing last 1 days...
+2025-06-28 23:52:47,739 [INFO] fast_intercom_mcp.sync_service:sync_period:315 - Starting period sync: 2025-06-27 23:52:47.739851 to 2025-06-28 23:52:47.739851
+2025-06-28 23:52:48,546 [INFO] fast_intercom_mcp.sync_service:sync_period:326 - Conversation count by day:
+2025-06-28 23:52:48,547 [INFO] fast_intercom_mcp.sync_service:sync_period:329 -   2025-06-27: 152 conversations
+2025-06-28 23:52:48,551 [INFO] fast_intercom_mcp.sync_service:sync_period:329 -   2025-06-28: 162 conversations
+2025-06-28 23:52:48,551 [INFO] fast_intercom_mcp.sync_service:sync_period:337 - Total conversations to sync: 314
+2025-06-28 23:53:12,256 [INFO] fast_intercom_mcp.sync_service:_update_progress_if_needed:123 - ⏳ Syncing: 115/314 conversations (36.6%) | Batch 1/3 | 4.7 conv/sec | ETA: 42s
+2025-06-28 23:53:30,501 [INFO] fast_intercom_mcp.sync_service:_update_progress_if_needed:123 - ⏳ Syncing: 230/314 conversations (73.2%) | Batch 2/3 | 5.4 conv/sec | ETA: 15s
+2025-06-28 23:53:53,529 [INFO] fast_intercom_mcp.sync_service:_update_progress_if_needed:123 - ⏳ Syncing: 345/314 conversations (109.9%) | Batch 3/3 | 5.2 conv/sec | ETA: -5s
+2025-06-28 23:54:15,109 [INFO] fast_intercom_mcp.sync_service:_update_progress_if_needed:123 - ⏳ Syncing: 460/314 conversations (146.5%) | Batch 4/3 | 5.3 conv/sec | ETA: -27s
+2025-06-28 23:54:36,619 [INFO] fast_intercom_mcp.sync_service:_update_progress_if_needed:123 - ⏳ Syncing: 575/314 conversations (183.1%) | Batch 4/3 | 5.3 conv/sec | ETA: -49s
