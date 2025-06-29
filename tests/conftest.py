@@ -38,7 +38,10 @@ def temp_db():
 @pytest.fixture
 def database_manager(temp_db):
     """Provide a DatabaseManager instance with temporary database."""
-    return DatabaseManager(db_path=temp_db)
+    db_manager = DatabaseManager(db_path=temp_db)
+    yield db_manager
+    # Ensure proper cleanup
+    db_manager.close()
 
 
 @pytest.fixture
@@ -145,7 +148,10 @@ def mock_intercom_client(test_conversations):
 @pytest.fixture
 def sync_service(database_manager, mock_intercom_client):
     """Provide a SyncService instance for testing."""
-    return SyncService(database_manager, mock_intercom_client)
+    service = SyncService(database_manager, mock_intercom_client)
+    yield service
+    # Ensure proper cleanup
+    service.stop()
 
 
 @pytest.fixture
