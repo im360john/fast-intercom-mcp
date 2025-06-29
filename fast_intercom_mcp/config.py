@@ -108,5 +108,22 @@ class Config:
             return str(Path(config_dir))
         return str(Path.home() / ".fastintercom")
 
+    @staticmethod
+    def get_test_workspace_dir() -> str:
+        """Get the test workspace directory."""
+        # Check for environment variable first
+        test_workspace = os.getenv("FASTINTERCOM_TEST_WORKSPACE")
+        if test_workspace:
+            return str(Path(test_workspace))
+
+        # Try to find project root by looking for pyproject.toml
+        current_path = Path.cwd()
+        for path in [current_path] + list(current_path.parents):
+            if (path / "pyproject.toml").exists():
+                return str(path / ".test-workspace")
+
+        # Fall back to current directory
+        return str(current_path / ".test-workspace")
+
 
 # Import setup_logging from the new core module

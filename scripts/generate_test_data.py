@@ -6,9 +6,40 @@ Creates realistic conversation and message data for testing purposes
 
 import argparse
 import json
+import os
 import random
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Any
+
+
+def get_test_workspace() -> Path:
+    """Get the test workspace directory with organized subdirectories."""
+    # Check environment variable first
+    if workspace_env := os.environ.get("FASTINTERCOM_TEST_WORKSPACE"):
+        workspace = Path(workspace_env)
+    else:
+        # Find project root (look for pyproject.toml)
+        current_dir = Path.cwd()
+        project_root = current_dir
+
+        # Search up the directory tree for pyproject.toml
+        while current_dir != current_dir.parent:
+            if (current_dir / "pyproject.toml").exists():
+                project_root = current_dir
+                break
+            current_dir = current_dir.parent
+
+        workspace = project_root / ".test-workspace"
+
+    # Create organized subdirectories
+    workspace.mkdir(exist_ok=True)
+    (workspace / "data").mkdir(exist_ok=True)
+    (workspace / "logs").mkdir(exist_ok=True)
+    (workspace / "results").mkdir(exist_ok=True)
+
+    return workspace
+
 
 # Realistic test data templates
 CUSTOMER_NAMES = [
@@ -377,7 +408,7 @@ def main():
         "--output",
         type=str,
         default="test_data.json",
-        help="Output file path (default: test_data.json)",
+        help="Output file path (default: test_data.json in workspace/results/)",
     )
     parser.add_argument(
         "--no-messages", action="store_true", help="Generate conversations without message details"
@@ -392,6 +423,13 @@ def main():
     test_data = generate_test_dataset(
         num_conversations=args.conversations, include_messages=not args.no_messages
     )
+
+    # Handle output path - save to workspace if relative path
+    output_path = Path(args.output)
+    if not output_path.is_absolute():
+        workspace = get_test_workspace()
+        output_path = workspace / "results" / args.output
+        output_path.parent.mkdir(exist_ok=True)
 
     # Calculate statistics
     total_messages = sum(
@@ -410,7 +448,7 @@ def main():
     }
 
     # Write to file
-    with open(args.output, "w") as f:
+    with open(output_path, "w") as f:
         if args.pretty:
             json.dump(output, f, indent=2)
         else:
@@ -419,8 +457,11 @@ def main():
     print("\nTest data generated successfully!")
     print(f"  Conversations: {len(test_data)}")
     print(f"  Messages: {total_messages}")
-    print(f"  Output file: {args.output}")
-    print(f"  File size: {os.path.getsize(args.output) / 1024 / 1024:.2f} MB")
+    print(f"  Output file: {output_path}")
+    if output_path.exists():
+        print(f"  File size: {output_path.stat().st_size / 1024 / 1024:.2f} MB")
+    else:
+        print("  File size: Unknown (file not found)")
 
 
 if __name__ == "__main__":

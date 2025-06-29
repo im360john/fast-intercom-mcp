@@ -192,3 +192,43 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+
+# FastIntercom MCP Test Artifacts
+# ================================
+
+# Test workspace directory
+.test-workspace/
+
+# Legacy test directories (old patterns)
+.fast-intercom-mcp-test*/
+integration_test_data/
+quick_test_data/
+test-init-debug/
+
+# Test result files
+*test_results.json
+integration_test_report.json
+local_test_results.json
+performance_metrics.json
+quick_performance_report.json
+sync_metrics.csv
+
+# Test log files (in addition to global *.log pattern)
+integration_test_output.log
+sync_output.log
+
+# Performance and benchmark files
+baseline_files.json
+performance_test_report.json
+final_comprehensive_performance_report.md
+
+# Test data files
+test_data.json
+generated_test_data.json
+
+# MCP test artifacts
+mcp_test_results.json
+
+# Temporary test files
+*_test_*
+temp_test_*

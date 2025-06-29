@@ -16,6 +16,35 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+
+def get_test_workspace() -> Path:
+    """Get the test workspace directory with organized subdirectories."""
+    # Check environment variable first
+    if workspace_env := os.environ.get("FASTINTERCOM_TEST_WORKSPACE"):
+        workspace = Path(workspace_env)
+    else:
+        # Find project root (look for pyproject.toml)
+        current_dir = Path.cwd()
+        project_root = current_dir
+
+        # Search up the directory tree for pyproject.toml
+        while current_dir != current_dir.parent:
+            if (current_dir / "pyproject.toml").exists():
+                project_root = current_dir
+                break
+            current_dir = current_dir.parent
+
+        workspace = project_root / ".test-workspace"
+
+    # Create organized subdirectories
+    workspace.mkdir(exist_ok=True)
+    (workspace / "data").mkdir(exist_ok=True)
+    (workspace / "logs").mkdir(exist_ok=True)
+    (workspace / "results").mkdir(exist_ok=True)
+
+    return workspace
+
+
 try:
     import psutil
 except ImportError:
@@ -28,7 +57,12 @@ class PerformanceBaseline:
     """Record and manage performance baselines"""
 
     def __init__(self, baseline_file: str = "performance_baselines.json"):
-        self.baseline_file = baseline_file
+        # If baseline_file is not an absolute path, save to workspace results directory
+        if not Path(baseline_file).is_absolute():
+            workspace = get_test_workspace()
+            self.baseline_file = str(workspace / "results" / baseline_file)
+        else:
+            self.baseline_file = baseline_file
         self.baselines = self.load_baselines()
 
     def load_baselines(self) -> dict[str, Any]:
@@ -122,11 +156,15 @@ class PerformanceBaseline:
         print("Measuring database performance...")
 
         if not db_path:
-            # Try to find database
+            # Try to find database in standardized workspace first, then fall back
+            workspace = get_test_workspace()
+            workspace_path = workspace / "data" / "data.db"
             default_path = Path.home() / ".fast-intercom-mcp" / "data.db"
             test_path = Path.home() / ".fast-intercom-mcp-test" / "data.db"
 
-            if default_path.exists():
+            if workspace_path.exists():
+                db_path = str(workspace_path)
+            elif default_path.exists():
                 db_path = str(default_path)
             elif test_path.exists():
                 db_path = str(test_path)
@@ -226,14 +264,16 @@ class PerformanceBaseline:
                 print(f"Integration test failed: {result.stderr}")
                 return None
 
-            # Load results
-            if os.path.exists("baseline_test.json"):
-                with open("baseline_test.json") as f:
+            # Load results from workspace
+            workspace = get_test_workspace()
+            baseline_test_file = workspace / "results" / "baseline_test.json"
+            if baseline_test_file.exists():
+                with open(baseline_test_file) as f:
                     test_data = json.load(f)
 
                 # Extract key metrics
                 metrics = test_data.get("performance_metrics", {})
-                os.remove("baseline_test.json")  # Clean up
+                baseline_test_file.unlink()  # Clean up
 
                 return {
                     "sync_conversations_per_second": metrics.get("sync_speed"),

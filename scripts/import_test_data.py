@@ -6,11 +6,40 @@ Loads generated test data for testing and development
 
 import argparse
 import json
+import os
 import sqlite3
 import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+
+def get_test_workspace() -> Path:
+    """Get the test workspace directory with organized subdirectories."""
+    # Check environment variable first
+    if workspace_env := os.environ.get("FASTINTERCOM_TEST_WORKSPACE"):
+        workspace = Path(workspace_env)
+    else:
+        # Find project root (look for pyproject.toml)
+        current_dir = Path.cwd()
+        project_root = current_dir
+
+        # Search up the directory tree for pyproject.toml
+        while current_dir != current_dir.parent:
+            if (current_dir / "pyproject.toml").exists():
+                project_root = current_dir
+                break
+            current_dir = current_dir.parent
+
+        workspace = project_root / ".test-workspace"
+
+    # Create organized subdirectories
+    workspace.mkdir(exist_ok=True)
+    (workspace / "data").mkdir(exist_ok=True)
+    (workspace / "logs").mkdir(exist_ok=True)
+    (workspace / "results").mkdir(exist_ok=True)
+
+    return workspace
 
 
 class TestDataImporter:
@@ -211,7 +240,7 @@ def main():
         "--db-path",
         type=str,
         default=None,
-        help="Database path (default: ~/.fast-intercom-mcp/data.db)",
+        help="Database path (default: workspace/data/data.db or ~/.fast-intercom-mcp/data.db)",
     )
     parser.add_argument(
         "--create-sync-period",
@@ -226,21 +255,36 @@ def main():
 
     # Determine database path
     if args.db_path:
-        db_path = args.db_path
+        db_path = Path(args.db_path)
     else:
-        # Use default location
-        db_path = Path.home() / ".fast-intercom-mcp" / "data.db"
+        # Use standardized workspace first, then fall back to default locations
+        workspace = get_test_workspace()
+        db_path = workspace / "data" / "data.db"
         if not db_path.exists():
-            # Try test location
-            db_path = Path.home() / ".fast-intercom-mcp-test" / "data.db"
+            # Try default location
+            db_path = Path.home() / ".fast-intercom-mcp" / "data.db"
             if not db_path.exists():
-                print("Error: No database found. Run 'fast-intercom-mcp init' first.")
-                sys.exit(1)
+                # Try old test location
+                db_path = Path.home() / ".fast-intercom-mcp-test" / "data.db"
+                if not db_path.exists():
+                    print("Error: No database found. Run 'fast-intercom-mcp init' first.")
+                    print(f"Tried: {workspace / 'data' / 'data.db'}")
+                    print(f"Tried: {Path.home() / '.fast-intercom-mcp' / 'data.db'}")
+                    print(f"Tried: {Path.home() / '.fast-intercom-mcp-test' / 'data.db'}")
+                    sys.exit(1)
 
-    # Load test data
-    print(f"Loading test data from: {args.input_file}")
+    # Load test data - handle relative paths
+    input_path = Path(args.input_file)
+    if not input_path.is_absolute() and not input_path.exists():
+        # Try looking in workspace results directory
+        workspace = get_test_workspace()
+        workspace_input = workspace / "results" / args.input_file
+        if workspace_input.exists():
+            input_path = workspace_input
+
+    print(f"Loading test data from: {input_path}")
     try:
-        with open(args.input_file) as f:
+        with open(input_path) as f:
             data = json.load(f)
     except Exception as e:
         print(f"Error loading test data: {e}")

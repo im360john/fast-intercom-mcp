@@ -8,9 +8,10 @@ import argparse
 import json
 import sys
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
-from record_baseline import PerformanceBaseline
+from record_baseline import PerformanceBaseline, get_test_workspace
 
 
 class PerformanceComparison:
@@ -226,9 +227,16 @@ class PerformanceComparison:
 
     def save_comparison(self, comparison: dict[str, Any], output_file: str) -> None:
         """Save comparison results to file"""
-        with open(output_file, "w") as f:
+        # If output_file is not absolute, save to workspace results directory
+        output_path = Path(output_file)
+        if not output_path.is_absolute():
+            workspace = get_test_workspace()
+            output_path = workspace / "results" / output_file
+            output_path.parent.mkdir(exist_ok=True)
+
+        with open(output_path, "w") as f:
             json.dump(comparison, f, indent=2)
-        print(f"\nComparison results saved to: {output_file}")
+        print(f"\nComparison results saved to: {output_path}")
 
 
 def main():
@@ -247,7 +255,7 @@ def main():
         "--baseline-file",
         type=str,
         default="performance_baselines.json",
-        help="File containing baselines (default: performance_baselines.json)",
+        help="File containing baselines (default: performance_baselines.json in workspace/results/)",
     )
 
     args = parser.parse_args()
