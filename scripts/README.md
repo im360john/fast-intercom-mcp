@@ -791,3 +791,100 @@ python3 -u scripts/test_mcp_tools.py --verbose
 ```
 
 This comprehensive script documentation ensures that all testing automation is well-documented and maintainable for future development.
+### local_ci_mirror_test.py
+
+**Purpose**: Mirror GitHub Actions workflows for local testing  
+**Usage**: `python3 scripts/local_ci_mirror_test.py [OPTIONS]`
+
+**Features**:
+- Mirrors all 4 CI workflows: fast-check, quick-test, integration-test, docker-install-test
+- Automatic environment detection and setup
+- Comprehensive workflow testing with detailed output
+- JSON result output for automated analysis
+
+**Options**:
+- `--workflow WORKFLOW` - Workflow to run (fast-check, quick-test, integration-test, docker-install-test, all)
+- `--sync-days DAYS` - Number of days to sync for API tests (default: 1)
+- `--skip-docker` - Skip Docker-related tests
+- `--json-output FILE` - Save results to JSON file
+- `--verbose` - Enable verbose output
+
+**Examples**:
+```bash
+# Run fast check workflow
+python3 scripts/local_ci_mirror_test.py --workflow fast-check
+
+# Run all workflows except Docker
+python3 scripts/local_ci_mirror_test.py --workflow all --skip-docker
+
+# Run with verbose output and save results
+python3 scripts/local_ci_mirror_test.py --workflow integration-test --verbose --json-output results.json
+```
+
+### performance_test.py
+
+**Purpose**: Comprehensive performance benchmarking  
+**Usage**: `python3 scripts/performance_test.py [OPTIONS]`
+
+**Features**:
+- Sync performance measurement
+- Response time benchmarking
+- Memory usage monitoring
+- Storage efficiency analysis
+- Performance target validation
+
+**Options**:
+- `--days DAYS` - Number of days to sync (default: 7)
+- `--output FILE` - Save results to JSON file
+- `--verbose` - Enable verbose output
+
+**Examples**:
+```bash
+# Run standard performance test
+python3 scripts/performance_test.py
+
+# Extended test with 30 days of data
+python3 scripts/performance_test.py --days 30 --output perf_results.json
+```
+
+### quick_performance_test.py
+
+**Purpose**: Quick performance validation  
+**Usage**: `python3 scripts/quick_performance_test.py`
+
+**Features**:
+- Rapid performance check (1-2 minutes)
+- Basic sync speed measurement
+- Memory usage snapshot
+- Pass/fail validation against targets
+
+**Examples**:
+```bash
+# Run quick performance check
+python3 scripts/quick_performance_test.py
+```
+
+### monitor_sync_progress.py
+
+**Purpose**: Real-time sync progress monitoring  
+**Usage**: `python3 scripts/monitor_sync_progress.py [OPTIONS]`
+
+**Features**:
+- Live progress updates during sync
+- Conversation/message count tracking
+- Sync speed calculation
+- ETA estimation
+
+**Options**:
+- `--interval SECONDS` - Update interval (default: 5)
+- `--database PATH` - Database path to monitor
+
+**Examples**:
+```bash
+# Monitor default database
+python3 scripts/monitor_sync_progress.py
+
+# Monitor with custom interval
+python3 scripts/monitor_sync_progress.py --interval 10
+```
+EOF < /dev/null

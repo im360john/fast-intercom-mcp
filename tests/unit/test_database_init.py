@@ -29,7 +29,10 @@ def temp_db_path():
 @pytest.fixture
 def test_db_manager(temp_db_path):
     """Create a DatabaseManager instance for testing."""
-    return DatabaseManager(db_path=temp_db_path, pool_size=1)
+    db_manager = DatabaseManager(db_path=temp_db_path, pool_size=1)
+    yield db_manager
+    # Ensure proper cleanup
+    db_manager.close()
 
 
 class TestDatabaseInitialization:
