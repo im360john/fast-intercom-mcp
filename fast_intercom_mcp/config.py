@@ -20,6 +20,7 @@ class Config:
     initial_sync_days: int = 30  # 0 means ALL history
     connection_pool_size: int = 5  # Database connection pool size
     api_timeout_seconds: int = 300
+    sync_mode: str = "activity"  # "activity" or "new_only"
 
     @classmethod
     def load(cls, config_path: str | None = None) -> "Config":
@@ -47,6 +48,7 @@ class Config:
             "initial_sync_days": os.getenv("FASTINTERCOM_INITIAL_SYNC_DAYS"),
             "connection_pool_size": os.getenv("FASTINTERCOM_DB_POOL_SIZE"),
             "api_timeout_seconds": os.getenv("FASTINTERCOM_API_TIMEOUT_SECONDS"),
+            "sync_mode": os.getenv("FASTINTERCOM_SYNC_MODE"),
         }
 
         for key, value in env_overrides.items():
@@ -74,6 +76,14 @@ class Config:
             pool_size = config_data["connection_pool_size"]
             if pool_size < 1 or pool_size > 20:
                 raise ValueError(f"Database pool size must be between 1 and 20, got {pool_size}")
+
+        # Validate sync mode
+        if "sync_mode" in config_data:
+            sync_mode = config_data["sync_mode"]
+            if sync_mode not in ["activity", "new_only"]:
+                raise ValueError(
+                    f"Invalid sync_mode '{sync_mode}'. Must be 'activity' or 'new_only'"
+                )
 
         return cls(**config_data)
 

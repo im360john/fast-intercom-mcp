@@ -117,15 +117,23 @@ class SyncService:
 
                 # Log detailed progress for debugging
                 batch_info = ""
-                if hasattr(self, "_sync_batch_number") and hasattr(self, "_sync_total_batches"):
-                    batch_info = f"Batch {self._sync_batch_number}/{self._sync_total_batches} | "
+                if hasattr(self, "_sync_batch_number"):
+                    batch_info = f"Batch {self._sync_batch_number} | "
+
+                # Display progress without misleading percentages when we exceed estimate
+                if current_count <= estimated_total:
+                    percentage = f"({(current_count / estimated_total) * 100:.1f}%)"
+                    eta_display = f"ETA: {self._format_time(eta_seconds)}"
+                else:
+                    # We've exceeded our estimate - show actual count
+                    percentage = f"({current_count:,} total)"
+                    eta_display = "Processing additional conversations..."
 
                 logger.info(
-                    f"⏳ Syncing: {current_count}/{estimated_total} conversations "
-                    f"({(current_count / estimated_total) * 100:.1f}%) | "
+                    f"⏳ Syncing: {current_count:,} conversations {percentage} | "
                     f"{batch_info}"
                     f"{rate:.1f} conv/sec | "
-                    f"ETA: {self._format_time(eta_seconds)}"
+                    f"{eta_display}"
                 )
 
             # Broadcast to callbacks
@@ -314,39 +322,36 @@ class SyncService:
             start_time = time.time()
             logger.info(f"Starting period sync: {start_date} to {end_date}")
 
-            # First, count conversations by day for better progress tracking
+            # Skip the pre-count since it's misleading - the API returns inaccurate counts
+            # compared to what actually gets synced
             await self._broadcast_progress_simple(
-                f"📊 Analyzing conversations from {start_date.date()} to {end_date.date()}..."
+                f"🔄 Starting sync from {start_date.date()} to {end_date.date()}..."
             )
 
-            daily_counts = await self.intercom.count_conversations_by_day(start_date, end_date)
-            total_estimated = sum(daily_counts.values())
+            # We'll track progress dynamically as we go
+            total_estimated = 100  # Start with a conservative estimate
 
-            # Display daily breakdown
-            logger.info("Conversation count by day:")
-            # Use sys.stdout for immediate display
-            import sys
+            # Display sync information
+            days_syncing = (end_date - start_date).days
+            if days_syncing <= 1:
+                expected_total = "50-150"
+            elif days_syncing <= 7:
+                expected_total = f"{50 * days_syncing}-{150 * days_syncing}"
+            else:
+                expected_total = f"{50 * days_syncing}-{150 * days_syncing}"
 
-            sys.stdout.write("\n📅 Conversations to sync:\n")
-            sys.stdout.flush()
-
-            for date_str, count in sorted(daily_counts.items()):
-                logger.info(f"  {date_str}: {count} conversations")
-                # Parse date for pretty display
-                from datetime import datetime as dt
-
-                date_obj = dt.strptime(date_str, "%Y-%m-%d")
-                pretty_date = date_obj.strftime("%b %d")
-                sys.stdout.write(f"  • {pretty_date}: {count:,} conversations\n")
-                sys.stdout.flush()
-
-            logger.info(f"Total conversations to sync: {total_estimated}")
-            sys.stdout.write(f"  📊 Total: {total_estimated:,} conversations\n\n")
-            sys.stdout.flush()
-
-            await self._broadcast_progress_simple(
-                f"🔄 Starting sync of {total_estimated} conversations"
+            logger.info("📊 Sync Information:")
+            logger.info(
+                f"  Date range: {start_date.date()} to {end_date.date()} ({days_syncing} day{'s' if days_syncing != 1 else ''})"
             )
+            logger.info(f"  Timezone: Using {start_date.tzinfo or 'local time'}")
+            logger.info("  Sync mode: Activity-based (using 'updated_at' field)")
+            logger.info(f"  Expected conversations with activity: ~{expected_total}")
+            if days_syncing <= 7:  # Only show warning for short syncs where discrepancy is obvious
+                logger.warning("⚠️  NOTE: If seeing thousands instead of ~150/day, there may be:")
+                logger.warning("  - Automated system updates (tags, assignments, etc.)")
+                logger.warning("  - Timezone mismatches")
+                logger.warning("  - API behavior differences")
 
             # Add progress callback to local callbacks if provided
             if progress_callback:
@@ -354,7 +359,7 @@ class SyncService:
 
             # Track batch progress
             self._sync_batch_number = 0
-            self._sync_total_batches = (total_estimated + 149) // 150  # 150 per page
+            self._sync_total_batches = 1  # Will be updated dynamically
 
             # Fetch conversations from Intercom with progress monitoring
             async def period_progress_callback(message: str):
@@ -367,9 +372,15 @@ class SyncService:
                         current_count = int(parts[1])
                         self._sync_batch_number = (current_count + 149) // 150
 
-                        # Now we know the total from our count
+                        # Update batch number dynamically
+                        # If we exceed the estimate, adjust it
+                        actual_total = max(current_count, total_estimated)
+                        self._sync_total_batches = max(
+                            self._sync_batch_number, self._sync_total_batches
+                        )
+
                         await self._update_progress_if_needed(
-                            current_count, total_estimated, start_time
+                            current_count, actual_total, start_time
                         )
                     except (ValueError, IndexError):
                         pass

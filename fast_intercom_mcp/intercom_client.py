@@ -263,6 +263,12 @@ class IntercomClient:
                 },
             ]
 
+            # Log the exact query for debugging
+            logger.info(f"Searching conversations with filters: {search_filters}")
+            logger.info(
+                f"Date range: {start_date} ({int(start_date.timestamp())}) to {end_date} ({int(end_date.timestamp())})"
+            )
+
             # Paginate through results
             page = 1
             per_page = 150  # Max allowed by Intercom search API
@@ -298,14 +304,52 @@ class IntercomClient:
                 if progress_callback:
                     await progress_callback(
                         f"Fetched {len(conversations)} conversations "
-                        f"from {start_date.date()} to {end_date.date()}"
+                        f"from {start_date.date()} to {end_date.date()} "
+                        f"(page {page}, got {len(page_conversations)} in this batch)"
                     )
 
                 # Check if more pages available
                 if len(page_conversations) < per_page:
+                    logger.info(
+                        f"Last page reached (got {len(page_conversations)} conversations, less than {per_page})"
+                    )
                     break
 
+                logger.info(
+                    f"Full page of {len(page_conversations)} conversations, continuing to page {page + 1}"
+                )
                 page += 1
+
+        # Add summary logging to understand the distribution
+        if conversations:
+            # Count new vs updated conversations
+            new_count = 0
+            updated_count = 0
+            date_distribution = {}
+
+            for conv in conversations:
+                created_date = conv.created_at.date()
+                updated_date = conv.updated_at.date()
+
+                # Check if created within our date range
+                if start_date.date() <= created_date <= end_date.date():
+                    new_count += 1
+                else:
+                    updated_count += 1
+
+                # Track distribution by updated date
+                date_str = updated_date.isoformat()
+                date_distribution[date_str] = date_distribution.get(date_str, 0) + 1
+
+            logger.info(
+                f"Sync summary for {start_date.date()} to {end_date.date()}: "
+                f"Total={len(conversations)}, New={new_count}, Updated={updated_count}"
+            )
+
+            # Log date distribution
+            logger.info("Conversations by updated date:")
+            for date_str in sorted(date_distribution.keys()):
+                logger.info(f"  {date_str}: {date_distribution[date_str]} conversations")
 
         return conversations
 
@@ -449,7 +493,8 @@ class IntercomClient:
             # Get updated_at - use created_at as fallback
             updated_at = conv_data.get("updated_at", conv_data.get("created_at", 0))
 
-            return Conversation(
+            # Create conversation object
+            conversation = Conversation(
                 id=conv_data["id"],
                 created_at=datetime.fromtimestamp(conv_data["created_at"], tz=UTC),
                 updated_at=datetime.fromtimestamp(updated_at, tz=UTC),
@@ -457,6 +502,22 @@ class IntercomClient:
                 customer_email=customer_email,
                 tags=tags,
             )
+
+            # Debug logging to understand why we're getting so many conversations
+            created_date = conversation.created_at.date()
+            updated_date = conversation.updated_at.date()
+            days_since_created = (datetime.now(tz=UTC).date() - created_date).days
+            days_since_updated = (datetime.now(tz=UTC).date() - updated_date).days
+
+            logger.debug(
+                f"Conversation {conversation.id}: "
+                f"created={conversation.created_at.isoformat()} ({days_since_created} days ago), "
+                f"updated={conversation.updated_at.isoformat()} ({days_since_updated} days ago), "
+                f"is_new_today={days_since_created == 0}, "
+                f"updated_today={days_since_updated == 0}"
+            )
+
+            return conversation
 
         except Exception as e:
             logger.warning(f"Failed to parse conversation {conv_data.get('id', 'unknown')}: {e}")
