@@ -309,6 +309,67 @@ class IntercomClient:
 
         return conversations
 
+    async def count_conversations_by_day(
+        self, start_date: datetime, end_date: datetime
+    ) -> dict[str, int]:
+        """Count conversations for each day in the period.
+
+        Args:
+            start_date: Start of time period
+            end_date: End of time period
+
+        Returns:
+            Dict mapping date strings to conversation counts
+        """
+        from datetime import timedelta
+
+        daily_counts = {}
+        current_date = start_date.date()
+        end = end_date.date()
+
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            while current_date <= end:
+                next_date = current_date + timedelta(days=1)
+
+                # Create search filters for this specific day
+                search_filters = [
+                    {
+                        "field": "updated_at",
+                        "operator": ">=",
+                        "value": int(
+                            datetime.combine(current_date, datetime.min.time()).timestamp()
+                        ),
+                    },
+                    {
+                        "field": "updated_at",
+                        "operator": "<",
+                        "value": int(datetime.combine(next_date, datetime.min.time()).timestamp()),
+                    },
+                ]
+
+                await self._rate_limit()
+
+                # Just get first page to check total count
+                request_body = {
+                    "query": {"operator": "AND", "value": search_filters},
+                    "pagination": {"per_page": 1, "page": 1},  # Just need count
+                }
+
+                response = await client.post(
+                    f"{self.base_url}/conversations/search",
+                    headers=self.headers,
+                    json=request_body,
+                )
+                response.raise_for_status()
+
+                data = response.json()
+                total_count = data.get("total_count", 0)
+                daily_counts[current_date.strftime("%Y-%m-%d")] = total_count
+
+                current_date = next_date
+
+        return daily_counts
+
     def _parse_conversation_from_search(self, conv_data: dict) -> Conversation | None:
         """Parse a conversation from search API response."""
         try:
