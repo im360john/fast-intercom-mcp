@@ -443,7 +443,7 @@ def sync(ctx, force, days):
                 start_date = now - timedelta(days=days_clamped)
 
                 # Add progress callback for better UX
-                def progress_callback(current: int, total: int, elapsed: float):
+                def progress_callback(current: int, total: int, elapsed: float):  # noqa: ARG001
                     # This will be called by sync_service
                     pass
 
