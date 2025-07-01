@@ -460,6 +460,23 @@ def sync(ctx, force, days):
             click.echo(f"   - {stats.total_messages:,} messages")
             click.echo(f"   - {stats.duration_seconds:.1f} seconds")
 
+            # Show per-date breakdown if available
+            if stats.conversations_by_date:
+                click.echo("   📅 By date:")
+                for date_key in sorted(stats.conversations_by_date.keys()):
+                    conv_count = stats.conversations_by_date[date_key]
+                    msg_count = (
+                        stats.messages_by_date.get(date_key, 0) if stats.messages_by_date else 0
+                    )
+                    date_str = (
+                        date_key.strftime("%b %d")
+                        if hasattr(date_key, "strftime")
+                        else str(date_key)
+                    )
+                    click.echo(
+                        f"     {date_str}: {conv_count:,} conversations, {msg_count:,} messages"
+                    )
+
             if stats.errors_encountered > 0:
                 click.echo(f"   - ⚠️  {stats.errors_encountered} errors")
 

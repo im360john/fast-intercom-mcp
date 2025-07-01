@@ -263,24 +263,51 @@ class IntercomClient:
                 },
             ]
 
-            # Log the exact query for debugging
-            logger.info(f"Searching conversations with filters: {search_filters}")
+            # Paginate through results using cursor-based pagination
+            per_page = 150  # Max allowed by Intercom search API
+
+            # Human-readable search initiation
+            start_str = start_date.strftime("%b %d, %Y")
+            end_str = end_date.strftime("%b %d, %Y")
+            logger.info(f"🔍 Searching for conversations UPDATED between {start_str} and {end_str}")
             logger.info(
-                f"Date range: {start_date} ({int(start_date.timestamp())}) to {end_date} ({int(end_date.timestamp())})"
+                "    📝 This includes: NEW conversations + existing ones with recent activity (tags, assignments, etc.)"
+            )
+            logger.info(
+                f"    🔄 Making single API search query, then paging through results {per_page} at a time"
             )
 
-            # Paginate through results
-            page = 1
-            per_page = 150  # Max allowed by Intercom search API
+            # Detailed DEBUG search info
+            logger.debug(
+                f"SEARCH_INIT filters={search_filters} start_date={start_date} end_date={end_date} start_timestamp={int(start_date.timestamp())} end_timestamp={int(end_date.timestamp())}"
+            )
+            cursor = None
+            page_num = 1  # For logging purposes only
+            seen_conversation_ids = set()  # Deduplication safety check
 
             while True:
                 await self._rate_limit()
 
+                # Build pagination object - use cursor if available, otherwise start from beginning
+                pagination = {"per_page": per_page}
+                if cursor:
+                    pagination["starting_after"] = cursor
+
                 request_body = {
                     "query": {"operator": "AND", "value": search_filters},
-                    "pagination": {"per_page": per_page, "page": page},
+                    "pagination": pagination,
                     "sort": {"field": "updated_at", "order": "asc"},
                 }
+
+                # Human-readable INFO logging
+                page_info = f"page {page_num}" + (" (continuing)" if cursor else "")
+                logger.info(f"📄 Fetching {page_info}...")
+
+                # Detailed DEBUG logging for machines
+                cursor_info = f"cursor={cursor[:20]}..." if cursor else "initial_page"
+                logger.debug(
+                    f"API_REQUEST page={page_num} cursor_info={cursor_info} start_date={start_date} end_date={end_date}"
+                )
 
                 response = await client.post(
                     f"{self.base_url}/conversations/search",
@@ -291,34 +318,130 @@ class IntercomClient:
 
                 data = response.json()
                 page_conversations = data.get("conversations", [])
+                total_count = data.get("total_count", "unknown")
+                pagination_info = data.get("pages", {})
+
+                # Human-readable response logging
+                if page_num == 1:
+                    logger.info(
+                        f"📊 Intercom API reports: {total_count} conversations match our search criteria"
+                    )
+                    logger.info(
+                        "    🔍 Search criteria: conversations with ANY activity in date range"
+                    )
+                    logger.info(
+                        f"    📥 Fetching these {total_count} conversations in pages of {per_page}"
+                    )
+
+                # Calculate progress
+                conversations_fetched_so_far = (page_num - 1) * per_page + len(page_conversations)
+                progress_pct = (
+                    (conversations_fetched_so_far / total_count * 100) if total_count > 0 else 0
+                )
+
+                logger.info(
+                    f"📥 Page {page_num}: Retrieved {len(page_conversations)} conversations ({conversations_fetched_so_far}/{total_count} - {progress_pct:.1f}%)"
+                )
+
+                # Detailed DEBUG response logging
+                logger.debug(
+                    f"API_RESPONSE page={page_num} conversations_returned={len(page_conversations)} total_count={total_count}"
+                )
+
+                # Extract cursor for next page
+                next_cursor = (
+                    pagination_info.get("next", {}).get("starting_after")
+                    if pagination_info
+                    else None
+                )
+                logger.debug(f"Next cursor: {next_cursor[:20] + '...' if next_cursor else 'None'}")
 
                 if not page_conversations:
                     break
 
-                # Parse conversations
+                # Parse conversations with duplicate detection
+                logger.debug(
+                    f"PARSING_START page={page_num} conversation_count={len(page_conversations)}"
+                )
+                parsed_count = 0
+                filtered_count = 0
+                duplicate_count = 0
+                date_counts = {}
+
                 for conv_data in page_conversations:
+                    # Check for duplicates (safety measure)
+                    conv_id = conv_data.get("id")
+                    if conv_id in seen_conversation_ids:
+                        duplicate_count += 1
+                        continue
+                    seen_conversation_ids.add(conv_id)
+
+                    # Track what dates we're seeing
+                    updated_ts = conv_data.get("updated_at", 0)
+                    if updated_ts:
+                        updated_date = datetime.fromtimestamp(updated_ts, tz=UTC).date()
+                        date_counts[updated_date] = date_counts.get(updated_date, 0) + 1
+
                     conversation = self._parse_conversation_from_search(conv_data)
                     if conversation:
                         conversations.append(conversation)
+                        parsed_count += 1
+                    else:
+                        filtered_count += 1
+
+                # Human-readable processing summary
+                date_summary = ", ".join(
+                    [
+                        f"{date.strftime('%b %d')}: {count}"
+                        for date, count in sorted(date_counts.items())
+                    ]
+                )
+                logger.info(
+                    f"📊 Processed: {parsed_count} kept, {filtered_count} filtered ({date_summary})"
+                )
+
+                # Detailed DEBUG processing info
+                logger.debug(
+                    f"PROCESSING_RESULT page={page_num} parsed_count={parsed_count} filtered_count={filtered_count} duplicate_count={duplicate_count} date_distribution={dict(sorted(date_counts.items()))}"
+                )
+                if duplicate_count > 0:
+                    logger.warning(
+                        f"⚠️  Detected {duplicate_count} duplicate conversations (possible pagination issue)"
+                    )
+                    logger.debug(
+                        f"DUPLICATE_DETECTION page={page_num} duplicate_count={duplicate_count}"
+                    )
 
                 if progress_callback:
                     await progress_callback(
                         f"Fetched {len(conversations)} conversations "
                         f"from {start_date.date()} to {end_date.date()} "
-                        f"(page {page}, got {len(page_conversations)} in this batch)"
+                        f"(page {page_num}, got {len(page_conversations)} in this batch)"
                     )
 
-                # Check if more pages available
-                if len(page_conversations) < per_page:
-                    logger.info(
-                        f"Last page reached (got {len(page_conversations)} conversations, less than {per_page})"
-                    )
+                # Check if more pages available using cursor
+                if not next_cursor or len(page_conversations) < per_page:
+                    final_fetched = (page_num - 1) * per_page + len(page_conversations)
+                    if not next_cursor:
+                        logger.info(
+                            f"✅ Search complete: Fetched all {final_fetched}/{total_count} conversations (100%)"
+                        )
+                        logger.debug(f"PAGINATION_END reason=no_next_cursor page={page_num}")
+                    else:
+                        logger.info(
+                            f"✅ Search complete: Final page processed ({final_fetched}/{total_count} conversations)"
+                        )
+                        logger.debug(
+                            f"PAGINATION_END reason=partial_page page={page_num} conversations={len(page_conversations)} per_page={per_page}"
+                        )
                     break
 
-                logger.info(
-                    f"Full page of {len(page_conversations)} conversations, continuing to page {page + 1}"
+                logger.info(f"⏭️  Continuing to page {page_num + 1}...")
+                logger.debug(
+                    f"PAGINATION_CONTINUE from_page={page_num} to_page={page_num + 1} next_cursor={next_cursor[:20] + '...' if next_cursor else 'None'}"
                 )
-                page += 1
+                cursor = next_cursor
+                page_num += 1
 
         # Add summary logging to understand the distribution
         if conversations:
@@ -467,6 +590,11 @@ class IntercomClient:
 
             # Skip admin-only conversations
             if not has_customer_message:
+                conv_id = conv_data.get("id", "unknown")
+                updated_at = datetime.fromtimestamp(conv_data.get("updated_at", 0), tz=UTC)
+                logger.debug(
+                    f"Filtering out admin-only conversation {conv_id} (updated: {updated_at.date()}) - no customer messages found"
+                )
                 return None
 
             # Sort messages by creation time

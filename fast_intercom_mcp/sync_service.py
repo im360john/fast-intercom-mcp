@@ -411,6 +411,16 @@ class SyncService:
             )
 
             duration_seconds = time.time() - start_time
+
+            # Calculate per-date breakdown
+            conversations_by_date = {}
+            messages_by_date = {}
+            for conv in conversations:
+                # Use updated_at date for grouping (matches our query logic)
+                date_key = conv.updated_at.date()
+                conversations_by_date[date_key] = conversations_by_date.get(date_key, 0) + 1
+                messages_by_date[date_key] = messages_by_date.get(date_key, 0) + len(conv.messages)
+
             stats = SyncStats(
                 total_conversations=total_conversations,
                 new_conversations=stored_count,
@@ -418,6 +428,8 @@ class SyncService:
                 total_messages=sum(len(conv.messages) for conv in conversations),
                 duration_seconds=duration_seconds,
                 api_calls_made=1,  # At least one search API call
+                conversations_by_date=conversations_by_date,
+                messages_by_date=messages_by_date,
             )
 
             self._last_sync_time = datetime.now()

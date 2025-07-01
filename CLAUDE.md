@@ -318,6 +318,21 @@ python3 -c "from fast_intercom_mcp import cli"
 ⚠️ **Common Issue**: If you see old behavior after pulling changes, you forgot to reinstall!
 The package must be reinstalled to pick up code changes from merged PRs.
 
+**CRITICAL: After Making Code Changes**:
+
+Before running any tests, you MUST reinstall the package or tests will use the old cached version:
+
+```bash
+# Poetry projects (recommended)
+poetry install
+
+# Virtual environment projects
+source venv/bin/activate && pip install -e .
+
+# Then run tests
+./scripts/run_integration_test_detailed.sh --days 7
+```
+
 ## Project Structure
 
 ```
