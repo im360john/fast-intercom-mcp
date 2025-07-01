@@ -581,9 +581,10 @@ class MCPServerTester:
             print(f"\n{Colors.RED}Failed Tests:{Colors.NC}")
             for result in self.results:
                 if result.get("status") in ["FAILED", "ERROR"]:
-                    print(
-                        f"  - {result['tool']}: {result.get('error', result.get('validation_errors', 'Unknown error'))}"
+                    error_msg = result.get(
+                        "error", result.get("validation_errors", "Unknown error")
                     )
+                    print(f"  - {result['tool']}: {error_msg}")
 
         # Log summary for automated parsing
         logger.info(
