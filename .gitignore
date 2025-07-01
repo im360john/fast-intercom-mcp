@@ -232,3 +232,29 @@ mcp_test_results.json
 # Temporary test files
 *_test_*
 temp_test_*
+
+# Temporary Analysis and Investigation Files
+# ==========================================
+
+# Investigation and analysis reports
+INVESTIGATION_REPORT_*.md
+TOKEN_INVESTIGATION_*.md
+
+# Analysis result files
+*_analysis_results.json
+multidate_analysis_results.json
+simple_analysis_results.json
+
+# Scripts logs directory
+scripts/logs/
+
+# Temporary/experimental test scripts
+scripts/quick_fix_and_test.sh
+scripts/quick_test.py
+scripts/simple_analysis*.py
+scripts/analyze_*.py
+scripts/investigate_*.py
+scripts/test_sync_specific_date.py
+
+# Additional test workspace patterns
+.test-workspace-*/
