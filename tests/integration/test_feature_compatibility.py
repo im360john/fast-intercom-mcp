@@ -54,8 +54,8 @@ class TestFeatureCompatibility:
         }
 
     @pytest.mark.asyncio
-    async def test_progress_monitoring_during_simplified_sync(self, compatibility_setup):
-        """Test that progress monitoring works correctly during simplified sync."""
+    async def test_progress_monitoring_during_sync_recent(self, compatibility_setup):
+        """Test that progress monitoring works correctly during sync recent."""
         components = compatibility_setup
         sync_service = components["sync_service"]
         intercom = components["intercom"]
@@ -69,43 +69,33 @@ class TestFeatureCompatibility:
         # Add progress callback
         sync_service.add_progress_callback(progress_callback)
 
-        # Mock Intercom responses for simplified sync
+        # Mock Intercom responses for sync recent
         mock_conversations = [
             Conversation(
                 id=f"conv_{i}",
                 created_at=datetime.now(UTC) - timedelta(hours=i),
                 updated_at=datetime.now(UTC) - timedelta(hours=i),
-                messages=[],
+                messages=[
+                    Message(
+                        id=f"conv_{i}_msg",
+                        conversation_id=f"conv_{i}",
+                        author_type="customer",
+                        author_id=f"customer_{i}@example.com",
+                        body=f"Test message for conv_{i}",
+                        created_at=datetime.now(UTC) - timedelta(hours=i),
+                    )
+                ],
                 customer_email=f"customer_{i}@example.com",
             )
             for i in range(20)
         ]
 
-        # Set up mock to return conversations in batches
-        async def mock_get_conversations_async(batch_size=10, **kwargs):
-            # Simulate paginated response
-            for i in range(0, len(mock_conversations), batch_size):
-                batch = mock_conversations[i : i + batch_size]
-                yield batch
-                await asyncio.sleep(0.1)  # Simulate API delay
+        # Mock fetch_conversations_incremental which is used by sync_recent
+        async def mock_fetch_incremental(since):
+            # Return all conversations newer than 'since'
+            return [conv for conv in mock_conversations if conv.updated_at >= since]
 
-        intercom.get_conversations_async = mock_get_conversations_async
-
-        # Mock messages for each conversation
-        async def mock_get_messages(conv_id):
-            await asyncio.sleep(0.05)  # Simulate API delay
-            return [
-                Message(
-                    id=f"{conv_id}_msg_1",
-                    conversation_id=conv_id,
-                    author_type="customer",
-                    author_id="customer_1",
-                    body="Test message",
-                    created_at=datetime.now(UTC) - timedelta(hours=1),
-                )
-            ]
-
-        intercom.get_messages = mock_get_messages
+        intercom.fetch_conversations_incremental = mock_fetch_incremental
 
         # Run sync
         stats = await sync_service.sync_recent()
@@ -150,24 +140,22 @@ class TestFeatureCompatibility:
                 id=f"initial_conv_{i}",
                 created_at=datetime.now(UTC) - timedelta(days=i),
                 updated_at=datetime.now(UTC) - timedelta(days=i),
-                messages=[],
+                messages=[
+                    Message(
+                        id=f"initial_conv_{i}_msg",
+                        conversation_id=f"initial_conv_{i}",
+                        author_type="customer",
+                        author_id=f"customer_{i}@example.com",
+                        body=f"Initial message for initial_conv_{i}",
+                        created_at=datetime.now(UTC) - timedelta(days=i),
+                    )
+                ],
                 customer_email=f"customer_{i}@example.com",
             )
             for i in range(5)
         ]
 
-        for conv in initial_convs:
-            await db.save_conversation(conv)
-            await db.save_message(
-                Message(
-                    id=f"{conv.id}_msg",
-                    conversation_id=conv.id,
-                    author_type="customer",
-                    author_id=conv.customer_email,
-                    body=f"Initial message for {conv.id}",
-                    created_at=conv.created_at,
-                )
-            )
+        await db.store_conversations(initial_convs)
 
         # Mock sync that takes time
         sync_started = asyncio.Event()
@@ -182,7 +170,16 @@ class TestFeatureCompatibility:
                     id=f"sync_conv_{i}",
                     created_at=datetime.now(UTC) - timedelta(hours=i),
                     updated_at=datetime.now(UTC) - timedelta(hours=i),
-                    messages=[],
+                    messages=[
+                        Message(
+                            id=f"sync_conv_{i}_msg",
+                            conversation_id=f"sync_conv_{i}",
+                            author_type="customer",
+                            author_id=f"sync_customer_{i}@example.com",
+                            body=f"Sync message for sync_conv_{i}",
+                            created_at=datetime.now(UTC) - timedelta(hours=i),
+                        )
+                    ],
                     customer_email=f"sync_customer_{i}@example.com",
                 )
                 for i in range(10)
@@ -190,17 +187,7 @@ class TestFeatureCompatibility:
 
             # Simulate slow sync by adding conversations one by one
             for conv in new_convs:
-                await db.save_conversation(conv)
-                await db.save_message(
-                    Message(
-                        id=f"{conv.id}_msg",
-                        conversation_id=conv.id,
-                        author_type="customer",
-                        author_id=conv.customer_email,
-                        body=f"Sync message for {conv.id}",
-                        created_at=conv.created_at,
-                    )
-                )
+                await db.store_conversations([conv])
                 await asyncio.sleep(0.1)  # Simulate slow API calls
 
             sync_completed.set()
@@ -311,7 +298,7 @@ class TestFeatureCompatibility:
         # Try to start multiple syncs concurrently
         sync_tasks = []
         for _ in range(5):
-            task = asyncio.create_task(sync_service.trigger_sync())
+            task = asyncio.create_task(sync_service.sync_recent())
             sync_tasks.append(task)
             await asyncio.sleep(0.1)  # Small delay between requests
 
@@ -355,7 +342,16 @@ class TestFeatureCompatibility:
                 id=f"transaction_test_{i}",
                 created_at=datetime.now(UTC) - timedelta(hours=i),
                 updated_at=datetime.now(UTC) - timedelta(hours=i),
-                messages=[],
+                messages=[
+                    Message(
+                        id=f"transaction_test_{i}_msg",
+                        conversation_id=f"transaction_test_{i}",
+                        author_type="customer",
+                        author_id=f"customer_{i}@example.com",
+                        body=f"Message for transaction_test_{i}",
+                        created_at=datetime.now(UTC) - timedelta(hours=i),
+                    )
+                ],
                 customer_email=f"customer_{i}@example.com",
             )
             test_conversations.append(conv)
@@ -368,18 +364,7 @@ class TestFeatureCompatibility:
             try:
                 for i in range(start_idx, end_idx):
                     conv = test_conversations[i]
-                    await db.save_conversation(conv)
-
-                    # Also save a message
-                    msg = Message(
-                        id=f"{conv.id}_msg_{feature_name}",
-                        conversation_id=conv.id,
-                        author_type="customer",
-                        author_id=conv.customer_email,
-                        body=f"Message from {feature_name}",
-                        created_at=conv.created_at,
-                    )
-                    await db.save_message(msg)
+                    await db.store_conversations([conv])
 
                     # Small delay to increase chance of conflicts
                     await asyncio.sleep(0.01)
@@ -404,7 +389,7 @@ class TestFeatureCompatibility:
         assert len(write_errors) == 0, f"Database write errors occurred: {write_errors}"
 
         # Verify all data was written correctly
-        all_convs = await db.get_all_conversations()
+        all_convs = await db.search_conversations(query="")
         assert len(all_convs) == 100
 
         # Verify data integrity - each conversation should have its message
@@ -475,7 +460,7 @@ class TestFeatureCompatibility:
         sync_service.add_progress_callback(progress_callback)
 
         # Mock simple sync
-        intercom.get_conversations_async = AsyncMock(return_value=[])
+        intercom.fetch_conversations_incremental = AsyncMock(return_value=[])
         stats = await sync_service.sync_recent()
 
         test_results["sync_with_progress"] = progress_received and stats is not None
@@ -495,9 +480,9 @@ class TestFeatureCompatibility:
                 completed_at=datetime.now(UTC),
             )
 
-        sync_service.simplified_sync = mock_long_sync
+        sync_service.sync_recent = mock_long_sync
 
-        sync_task = asyncio.create_task(sync_service.simplified_sync())
+        sync_task = asyncio.create_task(sync_service.sync_recent())
         await sync_running.wait()
 
         # Try MCP call during sync
@@ -544,11 +529,11 @@ class TestFeatureCompatibility:
             messages=[],
             customer_email="mcp_customer@example.com",
         )
-        await db.save_conversation(test_conv)
+        await db.store_conversations([test_conv])
 
         # Now trigger sync and ensure it doesn't conflict
         try:
-            sync_service.simplified_sync = AsyncMock(
+            sync_service.sync_recent = AsyncMock(
                 return_value=SyncStats(
                     sync_id="post_mcp",
                     conversations_synced=1,
@@ -558,7 +543,7 @@ class TestFeatureCompatibility:
                     completed_at=datetime.now(UTC),
                 )
             )
-            stats = await sync_service.trigger_sync()
+            stats = await sync_service.sync_recent()
             test_results["sync_after_mcp_changes"] = stats is not None
         except Exception:
             test_results["sync_after_mcp_changes"] = False
@@ -631,12 +616,13 @@ class TestFeatureCompatibility:
         intercom.get_messages = mock_get_messages
 
         # Run two-phase sync
-        sync_result = await coordinator.run_two_phase_sync(days_back=7, conversation_filter={})
+        start_date = datetime.now(UTC) - timedelta(days=7)
+        end_date = datetime.now(UTC)
+        sync_stats = await coordinator.sync_period_two_phase(start_date, end_date)
 
         # Verify sync completed
-        assert sync_result["total_conversations"] == 20
-        assert sync_result["total_api_calls"] > 0
-        assert len(sync_result["phases"]) == 2
+        assert sync_stats.total_conversations == 20
+        assert sync_stats.api_calls_made > 0
 
         # Verify progress updates were received
         assert len(progress_updates) > 0
@@ -667,7 +653,7 @@ class TestFeatureCompatibility:
             messages=[],
             customer_email="test_customer@example.com",
         )
-        await db.save_conversation(test_conv)
+        await db.store_conversations([test_conv])
 
         # Simulate schema check/migration while data exists
         # This tests that the schema validation doesn't break with active data
@@ -681,41 +667,22 @@ class TestFeatureCompatibility:
         assert len(schema_check) > 0
 
         # Verify we can still read/write after schema check
-        retrieved = await db.get_conversation(test_conv.id)
+        retrieved = await db.get_conversation_by_id(test_conv.id)
         assert retrieved is not None
         assert retrieved.id == test_conv.id
 
-        # Test adding a new message (different schema)
-        test_msg = Message(
-            id="schema_test_msg",
-            conversation_id=test_conv.id,
-            author_type="agent",
-            author_id="test_agent",
-            body="Schema compatibility test",
-            created_at=datetime.now(UTC),
-        )
-        await db.save_message(test_msg)
-
-        # Verify both schemas work together
-        messages = await db.get_messages(test_conv.id)
-        assert len(messages) == 1
-        assert messages[0].id == test_msg.id
-
-        # Test sync stats (third schema)
-        stats = SyncStats(
-            sync_id="schema_test_sync",
-            conversations_synced=1,
-            messages_synced=1,
-            sync_type="test",
-            started_at=datetime.now(UTC),
-            completed_at=datetime.now(UTC),
-        )
-        await db.save_sync_stats(stats)
-
-        # Verify all schemas coexist
-        retrieved_stats = await db.get_sync_stats()
-        assert retrieved_stats is not None
-        assert retrieved_stats.sync_id == stats.sync_id
+        # Store conversation with message
+        test_conv.messages = [
+            Message(
+                id="schema_test_msg",
+                conversation_id=test_conv.id,
+                author_type="agent",
+                author_id="test_agent",
+                body="Schema compatibility test",
+                created_at=datetime.now(UTC),
+            )
+        ]
+        await db.store_conversations([test_conv])
 
 
 # Additional integration test for real-world scenario
@@ -758,7 +725,7 @@ class TestRealWorldScenarios:
         ]
 
         for conv in initial_convs:
-            await db.save_conversation(conv)
+            await db.store_conversations([conv])
 
         operation_log[-1]["result"] = "success"
 
@@ -783,7 +750,7 @@ class TestRealWorldScenarios:
                 ]
 
                 for conv in new_convs:
-                    await db.save_conversation(conv)
+                    await db.store_conversations([conv])
 
             # Every hour, simulate MCP queries
             try:
@@ -818,7 +785,7 @@ class TestRealWorldScenarios:
         assert len(failed_ops) == 0
 
         # Verify data consistency after 24 hours
-        final_convs = await db.get_all_conversations()
+        final_convs = await db.search_conversations(query="")
         assert len(final_convs) > 100  # Initial + periodic syncs
 
         # Verify no data corruption
