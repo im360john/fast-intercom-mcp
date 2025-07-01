@@ -342,7 +342,8 @@ class SyncService:
 
             logger.info("📊 Sync Information:")
             logger.info(
-                f"  Date range: {start_date.date()} to {end_date.date()} ({days_syncing} day{'s' if days_syncing != 1 else ''})"
+                f"  Date range: {start_date.date()} to {end_date.date()} "
+                f"({days_syncing} day{'s' if days_syncing != 1 else ''})"
             )
             logger.info(f"  Timezone: Using {start_date.tzinfo or 'local time'}")
             logger.info("  Sync mode: Activity-based (using 'updated_at' field)")

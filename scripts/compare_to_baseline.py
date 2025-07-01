@@ -255,7 +255,8 @@ def main():
         "--baseline-file",
         type=str,
         default="performance_baselines.json",
-        help="File containing baselines (default: performance_baselines.json in workspace/results/)",
+        help="File containing baselines (default: performance_baselines.json in "
+        "workspace/results/)",
     )
 
     args = parser.parse_args()

@@ -271,15 +271,19 @@ class IntercomClient:
             end_str = end_date.strftime("%b %d, %Y")
             logger.info(f"🔍 Searching for conversations UPDATED between {start_str} and {end_str}")
             logger.info(
-                "    📝 This includes: NEW conversations + existing ones with recent activity (tags, assignments, etc.)"
+                "    📝 This includes: NEW conversations + existing ones with recent activity "
+                "(tags, assignments, etc.)"
             )
             logger.info(
-                f"    🔄 Making single API search query, then paging through results {per_page} at a time"
+                f"    🔄 Making single API search query, then paging through results "
+                f"{per_page} at a time"
             )
 
             # Detailed DEBUG search info
             logger.debug(
-                f"SEARCH_INIT filters={search_filters} start_date={start_date} end_date={end_date} start_timestamp={int(start_date.timestamp())} end_timestamp={int(end_date.timestamp())}"
+                f"SEARCH_INIT filters={search_filters} start_date={start_date} "
+                f"end_date={end_date} start_timestamp={int(start_date.timestamp())} "
+                f"end_timestamp={int(end_date.timestamp())}"
             )
             cursor = None
             page_num = 1  # For logging purposes only
@@ -306,7 +310,8 @@ class IntercomClient:
                 # Detailed DEBUG logging for machines
                 cursor_info = f"cursor={cursor[:20]}..." if cursor else "initial_page"
                 logger.debug(
-                    f"API_REQUEST page={page_num} cursor_info={cursor_info} start_date={start_date} end_date={end_date}"
+                    f"API_REQUEST page={page_num} cursor_info={cursor_info} "
+                    f"start_date={start_date} end_date={end_date}"
                 )
 
                 response = await client.post(
@@ -324,7 +329,8 @@ class IntercomClient:
                 # Human-readable response logging
                 if page_num == 1:
                     logger.info(
-                        f"📊 Intercom API reports: {total_count} conversations match our search criteria"
+                        f"📊 Intercom API reports: {total_count} conversations match our "
+                        "search criteria"
                     )
                     logger.info(
                         "    🔍 Search criteria: conversations with ANY activity in date range"
@@ -340,12 +346,14 @@ class IntercomClient:
                 )
 
                 logger.info(
-                    f"📥 Page {page_num}: Retrieved {len(page_conversations)} conversations ({conversations_fetched_so_far}/{total_count} - {progress_pct:.1f}%)"
+                    f"📥 Page {page_num}: Retrieved {len(page_conversations)} conversations "
+                    f"({conversations_fetched_so_far}/{total_count} - {progress_pct:.1f}%)"
                 )
 
                 # Detailed DEBUG response logging
                 logger.debug(
-                    f"API_RESPONSE page={page_num} conversations_returned={len(page_conversations)} total_count={total_count}"
+                    f"API_RESPONSE page={page_num} "
+                    f"conversations_returned={len(page_conversations)} total_count={total_count}"
                 )
 
                 # Extract cursor for next page
@@ -402,11 +410,14 @@ class IntercomClient:
 
                 # Detailed DEBUG processing info
                 logger.debug(
-                    f"PROCESSING_RESULT page={page_num} parsed_count={parsed_count} filtered_count={filtered_count} duplicate_count={duplicate_count} date_distribution={dict(sorted(date_counts.items()))}"
+                    f"PROCESSING_RESULT page={page_num} parsed_count={parsed_count} "
+                    f"filtered_count={filtered_count} duplicate_count={duplicate_count} "
+                    f"date_distribution={dict(sorted(date_counts.items()))}"
                 )
                 if duplicate_count > 0:
                     logger.warning(
-                        f"⚠️  Detected {duplicate_count} duplicate conversations (possible pagination issue)"
+                        f"⚠️  Detected {duplicate_count} duplicate conversations "
+                        "(possible pagination issue)"
                     )
                     logger.debug(
                         f"DUPLICATE_DETECTION page={page_num} duplicate_count={duplicate_count}"
@@ -424,21 +435,25 @@ class IntercomClient:
                     final_fetched = (page_num - 1) * per_page + len(page_conversations)
                     if not next_cursor:
                         logger.info(
-                            f"✅ Search complete: Fetched all {final_fetched}/{total_count} conversations (100%)"
+                            f"✅ Search complete: Fetched all {final_fetched}/{total_count} "
+                            "conversations (100%)"
                         )
                         logger.debug(f"PAGINATION_END reason=no_next_cursor page={page_num}")
                     else:
                         logger.info(
-                            f"✅ Search complete: Final page processed ({final_fetched}/{total_count} conversations)"
+                            f"✅ Search complete: Final page processed "
+                            f"({final_fetched}/{total_count} conversations)"
                         )
                         logger.debug(
-                            f"PAGINATION_END reason=partial_page page={page_num} conversations={len(page_conversations)} per_page={per_page}"
+                            f"PAGINATION_END reason=partial_page page={page_num} "
+                            f"conversations={len(page_conversations)} per_page={per_page}"
                         )
                     break
 
                 logger.info(f"⏭️  Continuing to page {page_num + 1}...")
                 logger.debug(
-                    f"PAGINATION_CONTINUE from_page={page_num} to_page={page_num + 1} next_cursor={next_cursor[:20] + '...' if next_cursor else 'None'}"
+                    f"PAGINATION_CONTINUE from_page={page_num} to_page={page_num + 1} "
+                    f"next_cursor={next_cursor[:20] + '...' if next_cursor else 'None'}"
                 )
                 cursor = next_cursor
                 page_num += 1
@@ -593,7 +608,8 @@ class IntercomClient:
                 conv_id = conv_data.get("id", "unknown")
                 updated_at = datetime.fromtimestamp(conv_data.get("updated_at", 0), tz=UTC)
                 logger.debug(
-                    f"Filtering out admin-only conversation {conv_id} (updated: {updated_at.date()}) - no customer messages found"
+                    f"Filtering out admin-only conversation {conv_id} "
+                    f"(updated: {updated_at.date()}) - no customer messages found"
                 )
                 return None
 
