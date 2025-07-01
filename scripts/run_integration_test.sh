@@ -589,7 +589,7 @@ test_mcp_server() {
     # Start MCP server in background
     # Configure logging for MCP server
     FASTINTERCOM_LOG_DIR="$TEST_WORKSPACE/logs" FASTINTERCOM_LOG_FILE="$TEST_WORKSPACE/logs/mcp-server.log" \
-    $CLI_CMD start --test-mode > "$TEST_WORKSPACE/logs/server.log" 2>&1 &
+    $CLI_CMD mcp > "$TEST_WORKSPACE/logs/server.log" 2>&1 &
     SERVER_PID=$!
     
     # Wait for server to start
