@@ -1,6 +1,5 @@
 """Article tools for Fast Intercom MCP."""
 from typing import Optional, Dict
-from ..server import mcp
 from ..api.client import IntercomAPIClient
 from ..utils.context_window import context_manager
 from ..config import Config
@@ -10,7 +9,6 @@ logger = logging.getLogger(__name__)
 
 api_client = IntercomAPIClient(Config.load().intercom_token)
 
-@mcp.tool()
 async def search_articles(
     query: str,
     limit: int = 10,
@@ -86,7 +84,6 @@ async def search_articles(
             'assistant_instruction': 'Error searching articles. Please try a different search query.'
         }
 
-@mcp.tool()
 async def get_article(article_id: str) -> Dict:
     """
     Get full content of a specific article.
@@ -115,7 +112,6 @@ async def get_article(article_id: str) -> Dict:
             'assistant_instruction': f'Could not retrieve article {article_id}. Please verify the ID.'
         }
 
-@mcp.tool()
 async def list_articles(
     limit: int = 20,
     state: Optional[str] = "published"
@@ -165,3 +161,9 @@ async def list_articles(
             'error': str(e),
             'assistant_instruction': 'Error listing articles. Please try again.'
         }
+
+def register_tools(mcp):
+    """Register tools with the MCP server"""
+    mcp.tool()(search_articles)
+    mcp.tool()(get_article)
+    mcp.tool()(list_articles)

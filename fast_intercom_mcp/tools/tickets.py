@@ -1,6 +1,5 @@
 """Ticket tools for Fast Intercom MCP."""
 from typing import Optional, Dict, List
-from ..server import mcp
 from ..api.client import IntercomAPIClient
 from ..utils.context_window import context_manager
 from ..config import Config
@@ -10,7 +9,6 @@ logger = logging.getLogger(__name__)
 
 api_client = IntercomAPIClient(Config.load().intercom_token)
 
-@mcp.tool()
 async def search_tickets(
     query: Optional[str] = None,
     customer_email: Optional[str] = None,
@@ -137,7 +135,6 @@ async def search_tickets(
             'assistant_instruction': 'Error searching tickets. Please try different search criteria.'
         }
 
-@mcp.tool()
 async def get_ticket(ticket_id: str, include_parts: bool = True) -> Dict:
     """
     Get detailed information about a specific ticket.
@@ -169,7 +166,6 @@ async def get_ticket(ticket_id: str, include_parts: bool = True) -> Dict:
             'assistant_instruction': f'Could not retrieve ticket {ticket_id}. Please verify the ID.'
         }
 
-@mcp.tool()
 async def list_ticket_types() -> Dict:
     """
     List all available ticket types.
@@ -205,7 +201,6 @@ async def list_ticket_types() -> Dict:
             'assistant_instruction': 'Error listing ticket types. Please try again.'
         }
 
-@mcp.tool()
 async def list_ticket_states() -> Dict:
     """
     List all available ticket states.
@@ -238,3 +233,10 @@ async def list_ticket_states() -> Dict:
             'error': str(e),
             'assistant_instruction': 'Error listing ticket states. Please try again.'
         }
+
+def register_tools(mcp):
+    """Register tools with the MCP server"""
+    mcp.tool()(search_tickets)
+    mcp.tool()(get_ticket)
+    mcp.tool()(list_ticket_types)
+    mcp.tool()(list_ticket_states)

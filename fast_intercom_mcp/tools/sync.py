@@ -1,7 +1,6 @@
 """Enhanced sync tools for Fast Intercom MCP."""
 from datetime import datetime, timedelta
 from typing import Optional, Dict
-from ..server import mcp
 from ..api.client import IntercomAPIClient
 from ..db.connection import db_pool
 from ..config import Config
@@ -12,7 +11,6 @@ logger = logging.getLogger(__name__)
 
 api_client = IntercomAPIClient(Config.load().intercom_token)
 
-@mcp.tool()
 async def sync_conversations(
     days: int = 7,
     force: bool = False
@@ -114,7 +112,6 @@ async def sync_conversations(
             'assistant_instruction': 'Sync failed. Please check the error and try again.'
         }
 
-@mcp.tool()
 async def sync_articles(force: bool = False) -> Dict:
     """
     Sync all articles from Intercom to local database.
@@ -195,7 +192,6 @@ async def sync_articles(force: bool = False) -> Dict:
             'assistant_instruction': 'Sync failed. Please check the error and try again.'
         }
 
-@mcp.tool()
 async def get_sync_status() -> Dict:
     """
     Get the current sync status for all entity types.
@@ -327,3 +323,9 @@ async def upsert_article(conn, article: Dict):
         article.get('statistics', {}).get('reactions', 0),
         article.get('statistics', {}).get('happy_reactions_percentage', 0.0)
     )
+
+def register_tools(mcp):
+    """Register tools with the MCP server"""
+    mcp.tool()(sync_conversations)
+    mcp.tool()(sync_articles)
+    mcp.tool()(get_sync_status)

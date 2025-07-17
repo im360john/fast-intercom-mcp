@@ -1,7 +1,6 @@
 """Enhanced conversation tools for Fast Intercom MCP."""
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict
-from ..server import mcp
 from ..api.client import IntercomAPIClient
 from ..db.connection import db_pool
 from ..utils.context_window import context_manager
@@ -10,10 +9,6 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Initialize API client
-api_client = IntercomAPIClient(Config.load().intercom_token)
-
-@mcp.tool()
 async def search_conversations(
     query: Optional[str] = None,
     timeframe: Optional[str] = None,
@@ -84,7 +79,6 @@ async def search_conversations(
             'assistant_instruction': 'Error searching conversations. Please try again or use different search criteria.'
         }
 
-@mcp.tool()
 async def get_conversation_details(conversation_id: str, include_parts: bool = True) -> Dict:
     """
     Get detailed information about a specific conversation.
@@ -94,12 +88,15 @@ async def get_conversation_details(conversation_id: str, include_parts: bool = T
         include_parts: Whether to include conversation parts (messages)
     """
     try:
+        # Initialize API client
+        config = Config.load()
+        api_client = IntercomAPIClient(config.intercom_token)
+        
         # Always fetch fresh from API for details
         conversation = await api_client.get_conversation(conversation_id)
         
         if include_parts and 'conversation_parts' in conversation:
             parts = conversation['conversation_parts'].get('conversation_parts', [])
-            config = Config.load()
             
             # Limit conversation parts for context window
             if len(parts) > config.max_conversation_messages:
@@ -120,6 +117,9 @@ async def get_conversation_details(conversation_id: str, include_parts: bool = T
             'error': str(e),
             'assistant_instruction': f'Could not retrieve conversation {conversation_id}. Please verify the ID.'
         }
+    finally:
+        if 'api_client' in locals():
+            await api_client.close()
 
 def parse_timeframe(timeframe: str) -> datetime:
     """Parse natural language timeframe to datetime"""
@@ -150,3 +150,8 @@ def parse_timeframe(timeframe: str) -> datetime:
     
     # Default to last 7 days
     return now - timedelta(days=7)
+
+def register_tools(mcp):
+    """Register conversation tools with the MCP server"""
+    mcp.tool()(search_conversations)
+    mcp.tool()(get_conversation_details)
