@@ -298,9 +298,27 @@ async def mcp_messages_endpoint(request: Request, session_id: str = Query(...)):
 @router.get("/mcp")
 async def mcp_redirect(request: Request):
     """Redirect to the proper SSE endpoint"""
+    import uuid
+    session_id = str(uuid.uuid4()).replace('-', '')
+    
+    async def event_generator():
+        # Send the endpoint URL exactly like Zapier does
+        yield f"event: endpoint\ndata: /mcp/messages?session_id={session_id}\n\n"
+        
+        # Send periodic pings
+        while True:
+            await asyncio.sleep(5)  # Send pings every 5 seconds
+            yield f"\n: ping - {datetime.now().isoformat()}\n\n"
+    
     return StreamingResponse(
-        mcp_sse_endpoint(request),
-        media_type="text/event-stream"
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+            "Access-Control-Allow-Origin": "*"
+        }
     )
 
 @router.post("/mcp") 
