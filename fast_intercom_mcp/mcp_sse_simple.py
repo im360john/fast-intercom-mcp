@@ -248,48 +248,59 @@ async def handle_mcp_request(request_data: Dict[str, Any]) -> Dict[str, Any]:
             }
         }
 
-@router.get("/mcp")
+@router.get("/mcp/sse")
 async def mcp_sse_endpoint(request: Request):
-    """SSE endpoint for MCP protocol"""
+    """SSE endpoint that provides the messages endpoint URL"""
+    import uuid
+    session_id = str(uuid.uuid4()).replace('-', '')
     
     async def event_generator():
-        # Send initial ready event
-        yield f"event: ready\ndata: {{}}\n\n"
+        # Send the endpoint URL exactly like Zapier does
+        yield f"event: endpoint\ndata: /mcp/messages?session_id={session_id}\n\n"
         
-        # Process any message from query params
-        message_param = request.query_params.get("message")
-        if message_param:
-            try:
-                request_data = json.loads(message_param)
-                response = await handle_mcp_request(request_data)
-                yield f"data: {json.dumps(response, cls=DateTimeEncoder)}\n\n"
-            except Exception as e:
-                logger.error(f"Error processing message param: {e}")
-                error_response = {
-                    "jsonrpc": "2.0",
-                    "error": {
-                        "code": -32700,
-                        "message": f"Parse error: {str(e)}"
-                    }
-                }
-                yield f"data: {json.dumps(error_response, cls=DateTimeEncoder)}\n\n"
-        
-        # Keep connection alive
+        # Send periodic pings
+        import time
         while True:
-            await asyncio.sleep(30)
-            yield f": keepalive\n\n"
+            await asyncio.sleep(5)  # Send pings every 5 seconds
+            yield f"\n: ping - {datetime.now().isoformat()}\n\n"
     
     return StreamingResponse(
         event_generator(),
         media_type="text/event-stream",
         headers={
-            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Cache-Control": "no-cache",
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type"
+            "Access-Control-Allow-Origin": "*"
         }
+    )
+
+@router.post("/mcp/messages")
+async def mcp_messages_endpoint(request: Request, session_id: str = Query(...)):
+    """Handle MCP messages for a specific session"""
+    try:
+        body = await request.body()
+        request_data = json.loads(body.decode()) if body else {}
+        response = await handle_mcp_request(request_data)
+        
+        return response
+    except Exception as e:
+        logger.error(f"Messages endpoint error: {e}")
+        return {
+            "jsonrpc": "2.0",
+            "error": {
+                "code": -32603,
+                "message": f"Internal error: {str(e)}"
+            }
+        }
+
+# Keep the original /mcp endpoint for backwards compatibility
+@router.get("/mcp")
+async def mcp_redirect(request: Request):
+    """Redirect to the proper SSE endpoint"""
+    return StreamingResponse(
+        mcp_sse_endpoint(request),
+        media_type="text/event-stream"
     )
 
 @router.post("/mcp") 
