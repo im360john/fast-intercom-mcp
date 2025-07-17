@@ -252,9 +252,9 @@ async def handle_mcp_request(request_data: Dict[str, Any]) -> Dict[str, Any]:
             }
         }
 
-@router.post("/sse")
-async def mcp_sse_endpoint(request: Request):
-    """MCP Server-Sent Events endpoint for LibreChat integration"""
+@router.post("/mcp")
+async def mcp_streamable_endpoint(request: Request):
+    """MCP streamable HTTP transport endpoint for LibreChat integration"""
     
     async def event_generator():
         try:
