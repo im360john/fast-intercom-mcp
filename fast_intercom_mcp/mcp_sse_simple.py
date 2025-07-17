@@ -1,0 +1,327 @@
+"""Simple SSE implementation for LibreChat MCP integration."""
+import json
+import logging
+import asyncio
+from datetime import datetime
+from typing import Dict, Any, Optional
+
+from fastapi import APIRouter, Request, Query
+from fastapi.responses import StreamingResponse
+
+from .tools import conversations, articles, sync, tickets
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter()
+
+class DateTimeEncoder(json.JSONEncoder):
+    """Custom JSON encoder that handles datetime objects."""
+    def default(self, obj):
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        return super().default(obj)
+
+# Available MCP tools configuration
+AVAILABLE_TOOLS = [
+    {
+        "name": "search_conversations",
+        "description": "Search and retrieve Intercom conversations with full-text search, filtering by timeframe, customer email, or conversation state",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Search query for conversation content"
+                },
+                "timeframe": {
+                    "type": "string", 
+                    "description": "Time period: last_24h, last_7d, last_30d, last_90d"
+                },
+                "customer_email": {
+                    "type": "string",
+                    "description": "Filter by specific customer email"
+                },
+                "state": {
+                    "type": "string",
+                    "description": "Filter by conversation state: open, closed, snoozed"
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of results to return",
+                    "default": 20
+                }
+            }
+        }
+    },
+    {
+        "name": "get_conversation_details", 
+        "description": "Get detailed information about a specific conversation, including all parts and messages",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "conversation_id": {
+                    "type": "string",
+                    "description": "The Intercom conversation ID"
+                },
+                "include_parts": {
+                    "type": "boolean", 
+                    "description": "Include conversation parts/messages",
+                    "default": True
+                }
+            },
+            "required": ["conversation_id"]
+        }
+    },
+    {
+        "name": "search_articles",
+        "description": "Search Intercom knowledge base articles with full-text search",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Search query for article content"
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of results to return",
+                    "default": 10
+                },
+                "include_preview": {
+                    "type": "boolean",
+                    "description": "Include article content preview",
+                    "default": False
+                }
+            },
+            "required": ["query"]
+        }
+    },
+    {
+        "name": "get_article",
+        "description": "Get detailed content of a specific article",
+        "inputSchema": {
+            "type": "object", 
+            "properties": {
+                "article_id": {
+                    "type": "string",
+                    "description": "The Intercom article ID"
+                }
+            },
+            "required": ["article_id"]
+        }
+    },
+    {
+        "name": "sync_conversations",
+        "description": "Sync recent conversations from Intercom API to local database",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "days": {
+                    "type": "integer",
+                    "description": "Number of days back to sync",
+                    "default": 7
+                },
+                "force": {
+                    "type": "boolean",
+                    "description": "Force resync even if recently synced",
+                    "default": False
+                }
+            }
+        }
+    },
+    {
+        "name": "sync_articles", 
+        "description": "Sync articles from Intercom API to local database",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "force": {
+                    "type": "boolean",
+                    "description": "Force resync even if recently synced", 
+                    "default": False
+                }
+            }
+        }
+    },
+    {
+        "name": "get_sync_status",
+        "description": "Get the status of recent sync operations",
+        "inputSchema": {
+            "type": "object",
+            "properties": {}
+        }
+    }
+]
+
+async def handle_mcp_request(request_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Handle MCP protocol requests"""
+    try:
+        method = request_data.get("method")
+        params = request_data.get("params", {})
+        request_id = request_data.get("id")
+
+        if method == "initialize":
+            return {
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "result": {
+                    "protocolVersion": "2024-11-05",
+                    "capabilities": {
+                        "tools": {},
+                        "logging": {}
+                    },
+                    "serverInfo": {
+                        "name": "fast-intercom-mcp",
+                        "version": "1.0.0"
+                    }
+                }
+            }
+
+        elif method == "tools/list":
+            return {
+                "jsonrpc": "2.0", 
+                "id": request_id,
+                "result": {
+                    "tools": AVAILABLE_TOOLS
+                }
+            }
+
+        elif method == "tools/call":
+            tool_name = params.get("name")
+            arguments = params.get("arguments", {})
+
+            if tool_name == "search_conversations":
+                result = await conversations.search_conversations(**arguments)
+            elif tool_name == "get_conversation_details":
+                result = await conversations.get_conversation_details(**arguments)
+            elif tool_name == "search_articles":
+                result = await articles.search_articles(**arguments)
+            elif tool_name == "get_article":
+                result = await articles.get_article(**arguments)
+            elif tool_name == "sync_conversations":
+                result = await sync.sync_conversations(**arguments)
+            elif tool_name == "sync_articles":
+                result = await sync.sync_articles(**arguments)
+            elif tool_name == "get_sync_status":
+                result = await sync.get_sync_status(**arguments)
+            else:
+                return {
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "error": {
+                        "code": -32601,
+                        "message": f"Method not found: {tool_name}"
+                    }
+                }
+
+            return {
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "result": {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": json.dumps(result, indent=2, cls=DateTimeEncoder)
+                        }
+                    ]
+                }
+            }
+
+        else:
+            return {
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "error": {
+                    "code": -32601,
+                    "message": f"Method not found: {method}"
+                }
+            }
+
+    except Exception as e:
+        logger.error(f"Error handling MCP request: {e}")
+        return {
+            "jsonrpc": "2.0",
+            "id": request_data.get("id"),
+            "error": {
+                "code": -32603,
+                "message": f"Internal error: {str(e)}"
+            }
+        }
+
+@router.get("/mcp")
+async def mcp_sse_endpoint(request: Request):
+    """SSE endpoint for MCP protocol"""
+    
+    async def event_generator():
+        # Send initial ready event
+        yield f"event: ready\ndata: {{}}\n\n"
+        
+        # Process any message from query params
+        message_param = request.query_params.get("message")
+        if message_param:
+            try:
+                request_data = json.loads(message_param)
+                response = await handle_mcp_request(request_data)
+                yield f"data: {json.dumps(response, cls=DateTimeEncoder)}\n\n"
+            except Exception as e:
+                logger.error(f"Error processing message param: {e}")
+                error_response = {
+                    "jsonrpc": "2.0",
+                    "error": {
+                        "code": -32700,
+                        "message": f"Parse error: {str(e)}"
+                    }
+                }
+                yield f"data: {json.dumps(error_response, cls=DateTimeEncoder)}\n\n"
+        
+        # Keep connection alive
+        while True:
+            await asyncio.sleep(30)
+            yield f": keepalive\n\n"
+    
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type"
+        }
+    )
+
+@router.post("/mcp") 
+async def mcp_post_endpoint(request: Request):
+    """Handle POST requests for MCP protocol"""
+    try:
+        body = await request.body()
+        request_data = json.loads(body.decode()) if body else {}
+        response = await handle_mcp_request(request_data)
+        
+        # Return SSE formatted response
+        async def generator():
+            yield f"data: {json.dumps(response, cls=DateTimeEncoder)}\n\n"
+        
+        return StreamingResponse(
+            generator(),
+            media_type="text/event-stream"
+        )
+    except Exception as e:
+        logger.error(f"POST error: {e}")
+        error_response = {
+            "jsonrpc": "2.0",
+            "error": {
+                "code": -32603,
+                "message": f"Internal error: {str(e)}"
+            }
+        }
+        
+        async def error_generator():
+            yield f"data: {json.dumps(error_response, cls=DateTimeEncoder)}\n\n"
+        
+        return StreamingResponse(
+            error_generator(),
+            media_type="text/event-stream"
+        )
