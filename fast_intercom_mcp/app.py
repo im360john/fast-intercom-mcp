@@ -60,5 +60,6 @@ async def health_check():
         "database": db_status
     }
 
-# We'll add the MCP tools as API endpoints later
-# For now, this gets the deployment working
+# Add MCP tools as API endpoints
+from .mcp_endpoints import router as mcp_router
+app.include_router(mcp_router)
