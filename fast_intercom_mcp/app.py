@@ -63,3 +63,7 @@ async def health_check():
 # Add MCP tools as API endpoints
 from .mcp_endpoints import router as mcp_router
 app.include_router(mcp_router)
+
+# Add MCP SSE endpoint for LibreChat integration
+from .mcp_sse import router as sse_router
+app.include_router(sse_router)
