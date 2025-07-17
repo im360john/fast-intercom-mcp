@@ -11,14 +11,16 @@ router = APIRouter(prefix="/mcp", tags=["MCP Tools"])
 
 @router.post("/conversations/search")
 async def api_search_conversations(
-    query: Optional[str] = None,
-    timeframe: Optional[str] = None,
-    customer_email: Optional[str] = None,
-    state: Optional[str] = None,
-    limit: int = 20
+    request_body: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Search conversations via REST API"""
     try:
+        query = request_body.get("query")
+        timeframe = request_body.get("timeframe")
+        customer_email = request_body.get("customer_email")
+        state = request_body.get("state")
+        limit = request_body.get("limit", 20)
+        
         result = await conversations.search_conversations(
             query=query,
             timeframe=timeframe,
@@ -46,12 +48,14 @@ async def api_get_conversation(conversation_id: str, include_parts: bool = True)
 
 @router.post("/articles/search")
 async def api_search_articles(
-    query: str,
-    limit: int = 10,
-    include_preview: bool = False
+    request_body: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Search articles via REST API"""
     try:
+        query = request_body.get("query")
+        limit = request_body.get("limit", 10)
+        include_preview = request_body.get("include_preview", False)
+        
         result = await articles.search_articles(
             query=query,
             limit=limit,
