@@ -1,6 +1,7 @@
 """Test API endpoints only."""
 import asyncio
 import httpx
+import json
 
 async def test_api_endpoints(base_url: str):
     """Test the API endpoints via HTTP"""
@@ -55,6 +56,61 @@ async def test_api_endpoints(base_url: str):
                     print(f"First article: {results['data'][0].get('title', 'No title')}")
             else:
                 print(f"Article search failed: {response.status_code} - {response.text}")
+            
+            # Test 6: MCP streamable endpoint (with streaming support)
+            print("\n6️⃣ Testing MCP streamable HTTP endpoint...")
+            mcp_request = {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/list",
+                "params": {}
+            }
+            # Stream the response to handle SSE
+            async with client.stream("POST", f"{base_url}/mcp", json=mcp_request, timeout=5.0) as response:
+                if response.status_code == 200:
+                    content = ""
+                    async for line in response.aiter_lines():
+                        if line.startswith("data: "):
+                            content = line
+                            break
+                    
+                    if content:
+                        json_data = json.loads(content[6:].strip())
+                        tools = json_data.get("result", {}).get("tools", [])
+                        print(f"MCP tools available: {len(tools)} tools")
+                        for tool in tools[:3]:  # Show first 3 tools
+                            print(f"  - {tool.get('name')}: {tool.get('description')[:60]}...")
+                else:
+                    print(f"MCP endpoint failed: {response.status_code}")
+            
+            # Test 7: MCP tool call
+            print("\n7️⃣ Testing MCP tool call (search conversations)...")
+            mcp_call = {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "tools/call",
+                "params": {
+                    "name": "search_conversations",
+                    "arguments": {"query": "billing", "limit": 2}
+                }
+            }
+            async with client.stream("POST", f"{base_url}/mcp", json=mcp_call, timeout=10.0) as response:
+                if response.status_code == 200:
+                    content = ""
+                    async for line in response.aiter_lines():
+                        if line.startswith("data: "):
+                            content = line
+                            break
+                    
+                    if content:
+                        json_data = json.loads(content[6:].strip())
+                        result_content = json_data.get("result", {}).get("content", [])
+                        if result_content:
+                            result_text = result_content[0].get("text", "{}")
+                            result_data = json.loads(result_text)
+                            print(f"MCP search returned: {len(result_data.get('data', []))} conversations")
+                else:
+                    print(f"MCP tool call failed: {response.status_code}")
             
             print("\n✅ All API tests completed!")
             return True

@@ -256,17 +256,29 @@ async def handle_mcp_request(request_data: Dict[str, Any]) -> Dict[str, Any]:
 async def mcp_streamable_endpoint(request: Request):
     """MCP streamable HTTP transport endpoint for LibreChat integration"""
     
+    # Read request body before creating the generator
+    try:
+        body = await request.body()
+        request_data = json.loads(body.decode()) if body else {}
+    except Exception as e:
+        logger.error(f"Error parsing request: {e}")
+        request_data = {}
+    
     async def event_generator():
         try:
-            # Read the request body
-            body = await request.body()
-            if body:
-                request_data = json.loads(body.decode())
+            if request_data:
                 response = await handle_mcp_request(request_data)
                 yield f"data: {json.dumps(response)}\n\n"
             else:
-                # Send capabilities on connection
-                yield f"data: {json.dumps({'capabilities': 'available'})}\n\n"
+                # Send error for empty request
+                error_response = {
+                    "jsonrpc": "2.0",
+                    "error": {
+                        "code": -32700,
+                        "message": "Parse error: Empty request"
+                    }
+                }
+                yield f"data: {json.dumps(error_response)}\n\n"
                 
         except Exception as e:
             logger.error(f"SSE error: {e}")
@@ -274,7 +286,7 @@ async def mcp_streamable_endpoint(request: Request):
                 "jsonrpc": "2.0",
                 "error": {
                     "code": -32603,
-                    "message": f"SSE error: {str(e)}"
+                    "message": f"Internal error: {str(e)}"
                 }
             }
             yield f"data: {json.dumps(error_response)}\n\n"
