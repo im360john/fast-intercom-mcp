@@ -1,5 +1,5 @@
-"""FastMCP application instance."""
-from mcp.server.fastmcp import FastMCP
+"""Simple FastAPI application for deployment."""
+from fastapi import FastAPI
 from contextlib import asynccontextmanager
 from .db.connection import db_pool
 from .config import Config
@@ -8,26 +8,57 @@ import logging
 logger = logging.getLogger(__name__)
 
 @asynccontextmanager
-async def lifespan(server: FastMCP):
-    """Manage server lifecycle"""
-    # Initialize database pool
-    await db_pool.initialize()
+async def lifespan(app: FastAPI):
+    """Manage application lifecycle"""
+    # Startup
+    try:
+        await db_pool.initialize()
+        logger.info("FastIntercom MCP server started")
+    except Exception as e:
+        logger.error(f"Startup failed: {e}")
     
-    # Initialize any other resources
-    logger.info("FastIntercom MCP server started")
     yield
     
-    # Cleanup
-    await db_pool.close()
-    logger.info("FastIntercom MCP server stopped")
+    # Shutdown
+    try:
+        await db_pool.close()
+        logger.info("FastIntercom MCP server stopped")
+    except Exception as e:
+        logger.error(f"Shutdown failed: {e}")
 
-# Create server instance with stateless HTTP
-mcp = FastMCP(
-    "fast-intercom-mcp",
-    stateless_http=True,
-    json_response=True,
+# Create FastAPI app with lifespan
+app = FastAPI(
+    title="Fast Intercom MCP",
+    description="Enhanced Intercom MCP with PostgreSQL and full-text search",
+    version="1.0.0",
     lifespan=lifespan
 )
 
-# For uvicorn - FastMCP itself is the ASGI app
-app = mcp
+@app.get("/")
+async def root():
+    """Root endpoint"""
+    return {
+        "service": "fast-intercom-mcp",
+        "status": "running",
+        "message": "FastMCP server is operational"
+    }
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    try:
+        # Quick database connectivity check
+        async with db_pool.acquire() as conn:
+            await conn.fetchval("SELECT 1")
+        db_status = "connected"
+    except Exception as e:
+        db_status = f"error: {str(e)}"
+    
+    return {
+        "status": "healthy",
+        "service": "fast-intercom-mcp",
+        "database": db_status
+    }
+
+# We'll add the MCP tools as API endpoints later
+# For now, this gets the deployment working

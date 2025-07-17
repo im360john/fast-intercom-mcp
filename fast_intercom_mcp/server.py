@@ -1,17 +1,8 @@
-"""FastMCP server with all tools registered."""
-from .app import mcp, app
+"""FastAPI server with tools available as API endpoints."""
+from .app import app
 
-# Import all tools to register them with the mcp instance
-from .tools import conversations
-from .tools import articles
-from .tools import tickets
-from .tools import sync
-
-# Register all tool functions
-conversations.register_tools(mcp)
-articles.register_tools(mcp)
-tickets.register_tools(mcp)
-sync.register_tools(mcp)
+# For now, we just export the FastAPI app
+# Later we can add the MCP tools as API endpoints
 
 # Export the app for uvicorn
-__all__ = ['app', 'mcp']
+__all__ = ['app']
