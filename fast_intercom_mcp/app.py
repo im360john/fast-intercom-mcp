@@ -65,5 +65,10 @@ from .mcp_endpoints import router as mcp_router
 app.include_router(mcp_router)
 
 # Add MCP SSE endpoint for LibreChat integration
-from .mcp_sse_simple import router as sse_router
-app.include_router(sse_router)
+try:
+    from .mcp_sse_bidirectional import router as sse_router
+    app.include_router(sse_router)
+except ImportError:
+    # Fallback to simple implementation
+    from .mcp_sse_simple import router as sse_router
+    app.include_router(sse_router)
