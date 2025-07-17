@@ -1,6 +1,7 @@
 """MCP Server-Sent Events endpoint for LibreChat integration."""
 import json
 import logging
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Request
@@ -20,6 +21,13 @@ from mcp.types import (
 )
 
 from .tools import conversations, articles, sync, tickets
+
+class DateTimeEncoder(json.JSONEncoder):
+    """Custom JSON encoder that handles datetime objects."""
+    def default(self, obj):
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        return super().default(obj)
 
 logger = logging.getLogger(__name__)
 
@@ -225,7 +233,7 @@ async def handle_mcp_request(request_data: Dict[str, Any]) -> Dict[str, Any]:
                     "content": [
                         {
                             "type": "text",
-                            "text": json.dumps(result, indent=2)
+                            "text": json.dumps(result, indent=2, cls=DateTimeEncoder)
                         }
                     ]
                 }
@@ -268,7 +276,7 @@ async def mcp_streamable_endpoint(request: Request):
         try:
             if request_data:
                 response = await handle_mcp_request(request_data)
-                yield f"data: {json.dumps(response)}\n\n"
+                yield f"data: {json.dumps(response, cls=DateTimeEncoder)}\n\n"
             else:
                 # Send error for empty request
                 error_response = {
@@ -278,7 +286,7 @@ async def mcp_streamable_endpoint(request: Request):
                         "message": "Parse error: Empty request"
                     }
                 }
-                yield f"data: {json.dumps(error_response)}\n\n"
+                yield f"data: {json.dumps(error_response, cls=DateTimeEncoder)}\n\n"
                 
         except Exception as e:
             logger.error(f"SSE error: {e}")
