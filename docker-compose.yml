@@ -1,13 +1,47 @@
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: fastintercom-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: intercom_mcp
+      POSTGRES_USER: intercom
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U intercom"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   fastintercom:
     build: .
     container_name: fastintercom-mcp
     restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
     
     environment:
       # Required
       - INTERCOM_ACCESS_TOKEN=${INTERCOM_ACCESS_TOKEN}
+      
+      # Database configuration
+      - DATABASE_URL=postgresql://intercom:${POSTGRES_PASSWORD:-changeme}@postgres/intercom_mcp
+      
+      # HTTP Server configuration
+      - HTTP_HOST=0.0.0.0
+      - HTTP_PORT=8000
+      - HTTP_PATH=/mcp
+      
+      # Context window management
+      - MAX_RESPONSE_TOKENS=${MAX_RESPONSE_TOKENS:-40000}
+      - MAX_ITEMS_PER_SEARCH=${MAX_ITEMS_PER_SEARCH:-20}
       
       # Optional configuration
       - FASTINTERCOM_LOG_LEVEL=${FASTINTERCOM_LOG_LEVEL:-INFO}
@@ -49,6 +83,8 @@ services:
           memory: 256M
 
 volumes:
+  postgres_data:
+    driver: local
   fastintercom-data:
     driver: local
   fastintercom-config:

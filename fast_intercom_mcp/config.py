@@ -21,6 +21,28 @@ class Config:
     connection_pool_size: int = 5  # Database connection pool size
     api_timeout_seconds: int = 300
     sync_mode: str = "activity"  # "activity" or "new_only"
+    
+    # Streamable HTTP settings
+    http_host: str = "0.0.0.0"
+    http_port: int = 8000
+    http_path: str = "/mcp"
+    
+    # PostgreSQL settings (if database_url is provided, it overrides database_path)
+    database_url: str | None = None
+    
+    # Context window management
+    max_response_tokens: int = 40000
+    max_items_per_search: int = 20
+    max_article_preview_length: int = 500
+    max_conversation_messages: int = 10
+    
+    # Rate limiting
+    rate_limit_calls: int = 900  # Conservative under 1000/min limit
+    rate_limit_window: int = 60  # seconds
+    
+    # Intercom API settings
+    intercom_api_version: str = "2.13"
+    intercom_api_base_url: str = "https://api.intercom.io"
 
     @classmethod
     def load(cls, config_path: str | None = None) -> "Config":
@@ -42,6 +64,7 @@ class Config:
         env_overrides = {
             "intercom_token": os.getenv("INTERCOM_ACCESS_TOKEN"),
             "database_path": os.getenv("FASTINTERCOM_DB_PATH"),
+            "database_url": os.getenv("DATABASE_URL"),
             "log_level": os.getenv("FASTINTERCOM_LOG_LEVEL"),
             "max_sync_age_minutes": os.getenv("FASTINTERCOM_MAX_SYNC_AGE_MINUTES"),
             "background_sync_interval_minutes": os.getenv("FASTINTERCOM_BACKGROUND_SYNC_INTERVAL"),
@@ -49,6 +72,15 @@ class Config:
             "connection_pool_size": os.getenv("FASTINTERCOM_DB_POOL_SIZE"),
             "api_timeout_seconds": os.getenv("FASTINTERCOM_API_TIMEOUT_SECONDS"),
             "sync_mode": os.getenv("FASTINTERCOM_SYNC_MODE"),
+            "http_host": os.getenv("HTTP_HOST"),
+            "http_port": os.getenv("HTTP_PORT"),
+            "http_path": os.getenv("HTTP_PATH"),
+            "max_response_tokens": os.getenv("MAX_RESPONSE_TOKENS"),
+            "max_items_per_search": os.getenv("MAX_ITEMS_PER_SEARCH"),
+            "max_article_preview_length": os.getenv("MAX_ARTICLE_PREVIEW_LENGTH"),
+            "max_conversation_messages": os.getenv("MAX_CONVERSATION_MESSAGES"),
+            "rate_limit_calls": os.getenv("RATE_LIMIT_CALLS"),
+            "rate_limit_window": os.getenv("RATE_LIMIT_WINDOW"),
         }
 
         for key, value in env_overrides.items():
@@ -59,6 +91,13 @@ class Config:
                     "initial_sync_days",
                     "connection_pool_size",
                     "api_timeout_seconds",
+                    "http_port",
+                    "max_response_tokens",
+                    "max_items_per_search",
+                    "max_article_preview_length",
+                    "max_conversation_messages",
+                    "rate_limit_calls",
+                    "rate_limit_window",
                 ]:
                     config_data[key] = int(value)
                 else:

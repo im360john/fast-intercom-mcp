@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  sync-scheduler:
+    build: .
+    container_name: fastintercom-sync-scheduler
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    
+    environment:
+      # Required
+      - INTERCOM_ACCESS_TOKEN=${INTERCOM_ACCESS_TOKEN}
+      
+      # Database configuration
+      - DATABASE_URL=postgresql://intercom:${POSTGRES_PASSWORD:-changeme}@postgres/intercom_mcp
+      
+      # Logging
+      - FASTINTERCOM_LOG_LEVEL=${FASTINTERCOM_LOG_LEVEL:-INFO}
+      
+      # Timezone for correct scheduling
+      - TZ=America/Los_Angeles
+    
+    volumes:
+      - ./logs:/var/log/fastintercom
+    
+    command: ["python", "-m", "auto_sync_scheduler"]
+    
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M

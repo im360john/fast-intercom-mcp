@@ -1,0 +1,16 @@
+[Unit]
+Description=Fast Intercom MCP Daily Sync Scheduler
+After=network.target
+
+[Service]
+Type=simple
+User=fastintercom
+WorkingDirectory=/opt/fast-intercom-mcp
+Environment="PATH=/opt/fast-intercom-mcp/venv/bin"
+EnvironmentFile=/opt/fast-intercom-mcp/.env
+ExecStart=/opt/fast-intercom-mcp/venv/bin/python -m auto_sync_scheduler
+Restart=always
+RestartSec=60
+
+[Install]
+WantedBy=multi-user.target
