@@ -150,6 +150,44 @@ AVAILABLE_TOOLS = [
             "type": "object",
             "properties": {}
         }
+    },
+    {
+        "name": "search_tickets",
+        "description": "Search Intercom tickets with various filters",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Text to search in ticket content"},
+                "customer_email": {"type": "string", "description": "Filter by customer email"},
+                "ticket_state": {"type": "string", "description": "Filter by state: submitted, in_progress, waiting_on_customer, on_hold, resolved"},
+                "ticket_type_id": {"type": "string", "description": "Filter by ticket type ID"},
+                "limit": {"type": "integer", "description": "Maximum tickets to return", "default": 20}
+            }
+        }
+    },
+    {
+        "name": "get_ticket_details",
+        "description": "Get detailed information about a specific ticket",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "ticket_id": {"type": "string", "description": "The Intercom ticket ID"}
+            },
+            "required": ["ticket_id"]
+        }
+    },
+    {
+        "name": "create_ticket_reply",
+        "description": "Create a reply on an existing ticket",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "ticket_id": {"type": "string", "description": "The Intercom ticket ID"},
+                "message": {"type": "string", "description": "Reply message content"},
+                "reply_type": {"type": "string", "description": "Type of reply: comment or note", "default": "comment"}
+            },
+            "required": ["ticket_id", "message"]
+        }
     }
 ]
 
@@ -204,6 +242,12 @@ async def handle_mcp_request(request_data: Dict[str, Any]) -> Dict[str, Any]:
                 result = await sync.sync_articles(**arguments)
             elif tool_name == "get_sync_status":
                 result = await sync.get_sync_status(**arguments)
+            elif tool_name == "search_tickets":
+                result = await tickets.search_tickets(**arguments)
+            elif tool_name == "get_ticket_details":
+                result = await tickets.get_ticket_details(**arguments)
+            elif tool_name == "create_ticket_reply":
+                result = await tickets.create_ticket_reply(**arguments)
             else:
                 return {
                     "jsonrpc": "2.0",
