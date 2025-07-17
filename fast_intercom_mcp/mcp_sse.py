@@ -260,8 +260,64 @@ async def handle_mcp_request(request_data: Dict[str, Any]) -> Dict[str, Any]:
             }
         }
 
+@router.get("/mcp")
+async def mcp_sse_endpoint_get(request: Request):
+    """MCP SSE endpoint for GET requests with message in query params"""
+    
+    # Get message from query parameters
+    message_param = request.query_params.get("message", "")
+    
+    async def event_generator():
+        try:
+            if message_param:
+                # Parse the message parameter as JSON
+                request_data = json.loads(message_param)
+                response = await handle_mcp_request(request_data)
+                yield f"data: {json.dumps(response, cls=DateTimeEncoder)}\n\n"
+            else:
+                # Send initial connection/capabilities message
+                init_response = {
+                    "jsonrpc": "2.0",
+                    "result": {
+                        "protocolVersion": "2024-11-05",
+                        "capabilities": {
+                            "tools": {},
+                            "logging": {}
+                        },
+                        "serverInfo": {
+                            "name": "fast-intercom-mcp",
+                            "version": "1.0.0"
+                        }
+                    }
+                }
+                yield f"data: {json.dumps(init_response, cls=DateTimeEncoder)}\n\n"
+                
+        except Exception as e:
+            logger.error(f"SSE GET error: {e}")
+            error_response = {
+                "jsonrpc": "2.0",
+                "error": {
+                    "code": -32603,
+                    "message": f"Internal error: {str(e)}"
+                }
+            }
+            yield f"data: {json.dumps(error_response, cls=DateTimeEncoder)}\n\n"
+    
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization",
+            "X-Accel-Buffering": "no"  # Disable nginx buffering
+        }
+    )
+
 @router.post("/mcp")
-async def mcp_streamable_endpoint(request: Request):
+async def mcp_sse_endpoint_post(request: Request):
     """MCP streamable HTTP transport endpoint for LibreChat integration"""
     
     # Read request body before creating the generator
