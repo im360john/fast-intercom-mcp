@@ -29,5 +29,5 @@ mcp = FastMCP(
     lifespan=lifespan
 )
 
-# For uvicorn
-app = mcp.get_app()
+# For uvicorn - FastMCP itself is the ASGI app
+app = mcp
